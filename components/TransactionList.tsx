@@ -2,11 +2,18 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Transaction } from '../types';
 import { formatCurrency, formatDate } from '../utils/format';
-import { Search, Download, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2 } from 'lucide-react';
+import { Search, Download, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
 import * as XLSX from 'xlsx';
+
+const toLocalDate = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
 export const TransactionList: React.FC = () => {
   const { transactions, categories, studios, accounts, contractors, deleteTransaction } = useFinance();
@@ -27,6 +34,11 @@ export const TransactionList: React.FC = () => {
   const [filterCategoryId, setFilterCategoryId] = useState('');
   const [filterStudioId, setFilterStudioId] = useState('');
   const [filterConfirmed, setFilterConfirmed] = useState<'' | 'yes' | 'no'>('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [filterAmountFrom, setFilterAmountFrom] = useState('');
+  const [filterAmountTo, setFilterAmountTo] = useState('');
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
@@ -49,10 +61,17 @@ export const TransactionList: React.FC = () => {
       const matchesCategory = !filterCategoryId || t.categoryId === filterCategoryId;
       const matchesStudio = !filterStudioId || t.studioId === filterStudioId;
       const matchesConfirmed = !filterConfirmed || (filterConfirmed === 'yes' ? t.confirmed : !t.confirmed);
+
+      const txDate = t.date.split('T')[0];
+      const matchesDateFrom = !filterDateFrom || txDate >= filterDateFrom;
+      const matchesDateTo = !filterDateTo || txDate <= filterDateTo;
+
+      const matchesAmountFrom = !filterAmountFrom || t.amount >= parseFloat(filterAmountFrom);
+      const matchesAmountTo = !filterAmountTo || t.amount <= parseFloat(filterAmountTo);
       
-      return matchesSearch && matchesType && matchesAccount && matchesContractor && matchesCategory && matchesStudio && matchesConfirmed;
+      return matchesSearch && matchesType && matchesAccount && matchesContractor && matchesCategory && matchesStudio && matchesConfirmed && matchesDateFrom && matchesDateTo && matchesAmountFrom && matchesAmountTo;
     });
-  }, [transactions, search, filterTypes, filterAccountId, filterContractorId, filterCategoryId, filterStudioId, filterConfirmed, contractors, categories, accounts]);
+  }, [transactions, search, filterTypes, filterAccountId, filterContractorId, filterCategoryId, filterStudioId, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, contractors, categories, accounts]);
 
   const groupedTransactions = useMemo(() => {
     const groups: { [key: string]: typeof transactions } = {};
@@ -103,7 +122,7 @@ export const TransactionList: React.FC = () => {
     XLSX.writeFile(wb, "vivi_transactions.xlsx");
   };
 
-  const hasActiveFilters = filterAccountId || filterContractorId || filterCategoryId || filterStudioId || filterConfirmed || !filterTypes.income || !filterTypes.expense || !filterTypes.transfer;
+  const hasActiveFilters = filterAccountId || filterContractorId || filterCategoryId || filterStudioId || filterConfirmed || filterDateFrom || filterDateTo || filterAmountFrom || filterAmountTo || !filterTypes.income || !filterTypes.expense || !filterTypes.transfer;
 
   const clearFilters = () => {
     setFilterAccountId('');
@@ -111,6 +130,11 @@ export const TransactionList: React.FC = () => {
     setFilterCategoryId('');
     setFilterStudioId('');
     setFilterConfirmed('');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+    setFilterAmountFrom('');
+    setFilterAmountTo('');
+    setShowDatePicker(false);
     setFilterTypes({ income: true, expense: true, transfer: true });
   };
 
@@ -173,6 +197,136 @@ export const TransactionList: React.FC = () => {
         </div>
         
         <div className="p-4 space-y-4 overflow-y-auto flex-1">
+          <div>
+            <div className="text-xs font-medium text-slate-500 mb-1.5">Период</div>
+            <button
+              type="button"
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              className={`w-full px-2.5 py-1.5 border rounded-lg text-xs text-left flex items-center gap-1.5 transition-colors ${
+                filterDateFrom || filterDateTo
+                  ? 'bg-teal-50 border-teal-300 text-teal-700'
+                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+              }`}
+            >
+              <Calendar size={12} className="shrink-0" />
+              <span className="truncate">
+                {filterDateFrom || filterDateTo
+                  ? `${filterDateFrom ? formatDate(filterDateFrom) : '...'} – ${filterDateTo ? formatDate(filterDateTo) : '...'}`
+                  : 'Укажите период'}
+              </span>
+            </button>
+            {showDatePicker && (
+              <div className="mt-2 border border-slate-200 rounded-lg bg-white shadow-sm p-2.5 space-y-2">
+                <div className="grid grid-cols-2 gap-1">
+                  {[
+                    { label: 'Просроченные', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); setFilterDateFrom(''); setFilterDateTo(toLocalDate(d)); }},
+                    { label: 'Будущие', fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); setFilterDateFrom(toLocalDate(d)); setFilterDateTo(''); }},
+                    { label: 'Вчера', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); const s = toLocalDate(d); setFilterDateFrom(s); setFilterDateTo(s); }},
+                    { label: 'Сегодня', fn: () => { const s = toLocalDate(new Date()); setFilterDateFrom(s); setFilterDateTo(s); }},
+                    { label: 'Прошлая неделя', fn: () => {
+                      const now = new Date(); const day = now.getDay() || 7;
+                      const mon = new Date(now); mon.setDate(now.getDate() - day - 6);
+                      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+                      setFilterDateFrom(toLocalDate(mon)); setFilterDateTo(toLocalDate(sun));
+                    }},
+                    { label: 'Эта неделя', fn: () => {
+                      const now = new Date(); const day = now.getDay() || 7;
+                      const mon = new Date(now); mon.setDate(now.getDate() - day + 1);
+                      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+                      setFilterDateFrom(toLocalDate(mon)); setFilterDateTo(toLocalDate(sun));
+                    }},
+                    { label: 'Прошлый месяц', fn: () => {
+                      const now = new Date(); const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear(); const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+                      const first = new Date(y, m, 1); const last = new Date(y, m + 1, 0);
+                      setFilterDateFrom(toLocalDate(first)); setFilterDateTo(toLocalDate(last));
+                    }},
+                    { label: 'Этот месяц', fn: () => {
+                      const now = new Date(); const first = new Date(now.getFullYear(), now.getMonth(), 1); const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                      setFilterDateFrom(toLocalDate(first)); setFilterDateTo(toLocalDate(last));
+                    }},
+                    { label: 'Прошлый квартал', fn: () => {
+                      const now = new Date(); const q = Math.floor(now.getMonth() / 3); const pq = q === 0 ? 3 : q - 1; const y = q === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                      const first = new Date(y, pq * 3, 1); const last = new Date(y, pq * 3 + 3, 0);
+                      setFilterDateFrom(toLocalDate(first)); setFilterDateTo(toLocalDate(last));
+                    }},
+                    { label: 'Этот квартал', fn: () => {
+                      const now = new Date(); const q = Math.floor(now.getMonth() / 3);
+                      const first = new Date(now.getFullYear(), q * 3, 1); const last = new Date(now.getFullYear(), q * 3 + 3, 0);
+                      setFilterDateFrom(toLocalDate(first)); setFilterDateTo(toLocalDate(last));
+                    }},
+                    { label: 'Прошлый год', fn: () => {
+                      const y = new Date().getFullYear() - 1;
+                      setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`);
+                    }},
+                    { label: 'Этот год', fn: () => {
+                      const y = new Date().getFullYear();
+                      setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`);
+                    }},
+                  ].map(preset => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={preset.fn}
+                      className="px-2 py-1.5 text-[11px] text-slate-600 hover:bg-slate-100 rounded border border-slate-150 text-center transition-colors"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5 pt-1">
+                  <input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={e => setFilterDateFrom(e.target.value)}
+                    className="flex-1 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-[11px] text-slate-700 focus:outline-none focus:border-teal-500"
+                    placeholder="Начало периода"
+                    style={{ colorScheme: 'light' }}
+                  />
+                  <span className="text-slate-300 text-xs">–</span>
+                  <input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={e => setFilterDateTo(e.target.value)}
+                    className="flex-1 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-[11px] text-slate-700 focus:outline-none focus:border-teal-500"
+                    placeholder="Конец периода"
+                    style={{ colorScheme: 'light' }}
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }} className="flex-1 text-[11px] text-slate-500 hover:text-slate-700 py-1">
+                    Сбросить
+                  </button>
+                  <button type="button" onClick={() => setShowDatePicker(false)} className="flex-1 text-[11px] bg-teal-600 text-white rounded py-1 hover:bg-teal-700 font-medium">
+                    Применить
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-medium text-slate-500 mb-1.5">Сумма</div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                value={filterAmountFrom}
+                onChange={e => setFilterAmountFrom(e.target.value)}
+                className="flex-1 w-0 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                placeholder="Сумма от"
+                step="0.01"
+              />
+              <span className="text-slate-300 text-xs">–</span>
+              <input
+                type="number"
+                value={filterAmountTo}
+                onChange={e => setFilterAmountTo(e.target.value)}
+                className="flex-1 w-0 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                placeholder="до"
+                step="0.01"
+              />
+            </div>
+          </div>
+
           <div>
             <div className="text-xs font-medium text-slate-500 mb-2">Тип операции</div>
             <div className="space-y-1">
