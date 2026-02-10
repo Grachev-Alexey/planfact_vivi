@@ -1,7 +1,8 @@
 const { Pool } = require('pg');
 
+// Explicitly use the connection string from the user's .env file
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: 'postgresql://postgres:cd5d56a8@213.226.124.2:5432/planfact_vivi',
   // SSL is typically not required for direct IP connections unless configured on server.
   // If connection fails, try uncommenting the next line:
   // ssl: { rejectUnauthorized: false }
