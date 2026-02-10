@@ -23,13 +23,12 @@ router.get('/init', async (req, res) => {
       FROM accounts a WHERE a.is_archived = FALSE ORDER BY a.name
     `;
 
-    const [txRes, accRes, catRes, stdRes, contrRes, projRes] = await Promise.all([
+    const [txRes, accRes, catRes, stdRes, contrRes] = await Promise.all([
       db.query(transactionsQuery),
       db.query(accountsQuery),
       db.query('SELECT * FROM categories ORDER BY name'),
       db.query('SELECT * FROM studios ORDER BY name'),
-      db.query('SELECT * FROM contractors ORDER BY name'),
-      db.query('SELECT * FROM projects ORDER BY name')
+      db.query('SELECT * FROM contractors ORDER BY name')
     ]);
 
     res.json({
@@ -37,8 +36,7 @@ router.get('/init', async (req, res) => {
       accounts: accRes.rows.map(toCamelCase),
       categories: catRes.rows.map(toCamelCase),
       studios: stdRes.rows.map(toCamelCase),
-      contractors: contrRes.rows.map(toCamelCase),
-      projects: projRes.rows.map(toCamelCase)
+      contractors: contrRes.rows.map(toCamelCase)
     });
 
   } catch (err) {

@@ -16,7 +16,7 @@ const createCrudHandlers = (tableName, fields) => {
       const result = await db.query(query, values);
       
       const newItem = result.rows[0];
-      await logAction(currentUserId, 'create', tableName, newItem.id, `Created item in ${tableName}`);
+      await logAction(currentUserId, 'create', tableName, newItem.id, { name: newItem.name });
       res.json(toCamelCase(newItem));
     } catch (err) {
       console.error(err);
@@ -28,8 +28,10 @@ const createCrudHandlers = (tableName, fields) => {
   router.delete(`/${tableName}/:id`, async (req, res) => {
     const currentUserId = req.headers['x-user-id'];
     try {
+      const itemRes = await db.query(`SELECT name FROM ${tableName} WHERE id = $1`, [req.params.id]);
+      const itemName = itemRes.rows.length > 0 ? itemRes.rows[0].name : '';
       await db.query(`DELETE FROM ${tableName} WHERE id = $1`, [req.params.id]);
-      await logAction(currentUserId, 'delete', tableName, req.params.id, `Deleted from ${tableName}`);
+      await logAction(currentUserId, 'delete', tableName, req.params.id, { name: itemName });
       res.json({ success: true });
     } catch (err) {
       console.error(err);
@@ -40,7 +42,6 @@ const createCrudHandlers = (tableName, fields) => {
 
 createCrudHandlers('categories', ['name', 'type', 'parentId', 'icon']);
 createCrudHandlers('contractors', ['name', 'inn', 'description']);
-createCrudHandlers('projects', ['name', 'description']);
 createCrudHandlers('accounts', ['name', 'type', 'currency', 'initialBalance']);
 createCrudHandlers('studios', ['name', 'address', 'color']);
 

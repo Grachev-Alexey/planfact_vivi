@@ -5,6 +5,8 @@ A finance management application (Russian language UI) built with React + Vite f
 
 ## User Preferences
 - **Database**: Always use the external PostgreSQL database specified in the `.env` file (`postgresql://postgres:cd5d56a8@213.226.124.2:5432/planfact_vivi`). Do not use the Replit internal database unless explicitly requested.
+- **No Projects**: The "projects" entity has been removed. Only "studios" are used for grouping.
+- **Language**: All activity logs and UI must be in Russian.
 
 ## Project Architecture
 
@@ -16,6 +18,7 @@ A finance management application (Russian language UI) built with React + Vite f
 - **Charts**: recharts
 - **Icons**: lucide-react
 - **Excel**: xlsx for export
+- **Real-time sync**: Polling every 5 seconds for multi-user data synchronization
 
 ### Backend
 - **Framework**: Express.js (port 3001, CommonJS `.cjs` files)
@@ -27,29 +30,31 @@ A finance management application (Russian language UI) built with React + Vite f
 - `index.tsx` - React entry point
 - `App.tsx` - Main app component with routing
 - `context/AuthContext.tsx` - Authentication state
-- `context/FinanceContext.tsx` - Finance data state
+- `context/FinanceContext.tsx` - Finance data state with polling
 - `components/` - UI components
 - `server/index.cjs` - Express server entry
 - `server/db.cjs` - PostgreSQL pool
 - `server/startup.cjs` - DB table initialization
 - `server/routes/` - API route handlers
+- `server/utils/logger.cjs` - Activity logging with Russian translations
 
 ### Database Tables
-- users, activity_logs, accounts, categories, studios, contractors, projects, transactions
+- users, activity_logs, accounts, categories, studios, contractors, transactions
 
 ### API
 - All frontend API calls use `/api` prefix, proxied by Vite to backend on port 3001
 - Auth: POST /api/login, GET/POST/DELETE /api/users
 - Transactions: POST/PUT/DELETE /api/transactions
-- Dictionaries: POST/DELETE for categories, contractors, projects, accounts, studios
+- Dictionaries: POST/DELETE for categories, contractors, accounts, studios
 - Init data: GET /api/init
 
 ### Default Login
-- Username: admin, Password: admin
+- Username: grachev, Password: cd5d56a8
 
 ## Recent Changes
+- Removed "projects" entity entirely (DB, backend, frontend)
+- Activity history logs now display in Russian
+- Added 5-second polling for real-time data sync between users
+- Preloaded Settings page data to eliminate loading delays
 - Migrated to Replit environment
-- Created Replit PostgreSQL database
 - Configured Vite proxy for API calls (frontend -> backend)
-- Renamed server files from .js to .cjs for CommonJS compatibility with "type": "module" in package.json
-- Updated all hardcoded localhost:3001 API URLs to use relative /api paths

@@ -31,12 +31,6 @@ export interface Contractor {
   description?: string;
 }
 
-export interface Project {
-  id: string;
-  name: string;
-  description?: string;
-}
-
 export interface Transaction {
   id: string;
   date: string; // ISO Date
@@ -48,5 +42,4 @@ export interface Transaction {
   studioId?: string;
   description: string;
   contractorId?: string;
-  projectId?: string;
 }

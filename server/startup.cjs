@@ -68,14 +68,8 @@ const initDB = async () => {
       )
     `);
 
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
+    await db.query(`ALTER TABLE IF EXISTS transactions DROP COLUMN IF EXISTS project_id`);
+    await db.query(`DROP TABLE IF EXISTS projects`);
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS transactions (
@@ -88,7 +82,6 @@ const initDB = async () => {
         category_id INTEGER REFERENCES categories(id),
         studio_id INTEGER REFERENCES studios(id),
         contractor_id INTEGER REFERENCES contractors(id),
-        project_id INTEGER REFERENCES projects(id),
         description TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()

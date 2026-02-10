@@ -4,7 +4,7 @@ import { Plus, Trash2, Folder, Users, Layers, Wallet, MapPin, Search, MoreVertic
 import { Button } from './ui/Button';
 import { formatCurrency } from '../utils/format';
 
-type TabType = 'categories' | 'contractors' | 'projects' | 'accounts' | 'studios';
+type TabType = 'categories' | 'contractors' | 'accounts' | 'studios';
 
 interface DirectoriesProps {
   initialTab?: TabType;
@@ -12,7 +12,7 @@ interface DirectoriesProps {
 
 export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categories' }) => {
   const { 
-    categories, contractors, projects, accounts, studios,
+    categories, contractors, accounts, studios,
     addItem, deleteItem 
   } = useFinance();
   
@@ -51,7 +51,6 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const tabs = [
     { id: 'categories', label: 'Учетные статьи' },
     { id: 'contractors', label: 'Контрагенты' },
-    { id: 'projects', label: 'Проекты' },
     { id: 'accounts', label: 'Мои счета' },
     { id: 'studios', label: 'Студии' },
   ];
@@ -119,8 +118,8 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
         )
     }
 
-    // Default List for Contractors, Projects, Studios
-    const items = activeTab === 'contractors' ? contractors : activeTab === 'projects' ? projects : studios;
+    // Default List for Contractors, Studios
+    const items = activeTab === 'contractors' ? contractors : studios;
     
     return (
          <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">

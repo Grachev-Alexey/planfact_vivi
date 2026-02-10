@@ -9,7 +9,7 @@ import { TransactionForm } from './TransactionForm';
 import * as XLSX from 'xlsx';
 
 export const TransactionList: React.FC = () => {
-  const { transactions, categories, studios, accounts, contractors, projects, deleteTransaction } = useFinance();
+  const { transactions, categories, studios, accounts, contractors, deleteTransaction } = useFinance();
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -86,7 +86,6 @@ export const TransactionList: React.FC = () => {
       const category = categories.find(c => c.id === tx.categoryId)?.name || '';
       const studio = studios.find(s => s.id === tx.studioId)?.name || '';
       const contractor = contractors.find(c => c.id === tx.contractorId)?.name || '';
-      const project = projects.find(p => p.id === tx.projectId)?.name || '';
   
       let typeStr = 'Доход';
       if (tx.type === 'expense') typeStr = 'Расход';
@@ -100,7 +99,6 @@ export const TransactionList: React.FC = () => {
         'На счет (Перевод)': toAccount,
         'Категория': category,
         'Контрагент': contractor,
-        'Проект': project,
         'Студия': studio,
         'Описание': tx.description
       };
@@ -205,7 +203,7 @@ export const TransactionList: React.FC = () => {
            <div className="w-10 text-center">Тип</div>
            <div className="w-48">Контрагент</div>
            <div className="flex-1">Статья / Комментарий</div>
-           <div className="w-40">Проект</div>
+           <div className="w-40">Студия</div>
            <div className="w-32 text-right">Сумма</div>
            <div className="w-8"></div>
         </div>
@@ -227,7 +225,6 @@ export const TransactionList: React.FC = () => {
                     const category = categories.find(c => c.id === tx.categoryId);
                     const studio = studios.find(s => s.id === tx.studioId);
                     const contractor = contractors.find(c => c.id === tx.contractorId);
-                    const project = projects.find(p => p.id === tx.projectId);
                     
                     return (
                       <div 
@@ -268,7 +265,6 @@ export const TransactionList: React.FC = () => {
                         </div>
                         <div className="w-40 flex flex-col min-w-0">
                             {studio && <span className="text-xs text-slate-500 truncate">{studio.name}</span>}
-                            {project && <span className="text-xs text-slate-600 truncate bg-slate-100 px-1 rounded w-fit">{project.name}</span>}
                         </div>
                         <div className={`w-32 text-right font-medium ${tx.type === 'income' ? 'text-slate-800' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
                            {tx.type === 'expense' && '-'}{formatCurrency(tx.amount)}

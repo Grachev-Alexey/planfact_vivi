@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Transaction, Account, Category, Studio, Contractor, Project } from '../types';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { Transaction, Account, Category, Studio, Contractor } from '../types';
 import { useAuth } from './AuthContext';
 
 interface FinanceContextType {
@@ -8,23 +8,24 @@ interface FinanceContextType {
   categories: Category[];
   studios: Studio[];
   contractors: Contractor[];
-  projects: Project[];
   
   addTransaction: (tx: Partial<Transaction>) => Promise<void>;
   updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   
-  addItem: (type: 'categories' | 'contractors' | 'projects' | 'accounts' | 'studios', data: any) => Promise<void>;
-  deleteItem: (type: 'categories' | 'contractors' | 'projects' | 'accounts' | 'studios', id: string) => Promise<void>;
+  addItem: (type: 'categories' | 'contractors' | 'accounts' | 'studios', data: any) => Promise<void>;
+  deleteItem: (type: 'categories' | 'contractors' | 'accounts' | 'studios', id: string) => Promise<void>;
 
   getAccountBalance: (id: string) => number;
   getTotalBalance: () => number;
   isLoading: boolean;
+  refreshData: () => Promise<void>;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 const API_URL = '/api';
+const POLL_INTERVAL = 5000;
 
 export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -33,52 +34,66 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [categories, setCategories] = useState<Category[]>([]);
   const [studios, setStudios] = useState<Studio[]>([]);
   const [contractors, setContractors] = useState<Contractor[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const initialLoadDone = useRef(false);
 
-  // Helper to get headers with Auth ID
-  const getHeaders = () => ({
+  const getHeaders = useCallback(() => ({
     'Content-Type': 'application/json',
     'x-user-id': user?.id.toString() || ''
-  });
+  }), [user]);
 
-  const fetchData = async () => {
-    // Only fetch if authenticated (handled by route protection usually, but good safeguard)
+  const applyData = useCallback((data: any) => {
+    const mapTransaction = (t: any): Transaction => ({
+      ...t,
+      amount: Number(t.amount)
+    });
+    
+    const mapAccount = (a: any): Account => ({
+      ...a,
+      balance: Number(a.balance)
+    });
+
+    setTransactions(data.transactions.map(mapTransaction));
+    setAccounts(data.accounts.map(mapAccount));
+    setCategories(data.categories);
+    setStudios(data.studios);
+    setContractors(data.contractors);
+  }, []);
+
+  const fetchData = useCallback(async (silent = false) => {
     if (!user) return;
     
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
     try {
       const res = await fetch(`${API_URL}/init`);
       if (!res.ok) throw new Error('Failed to fetch data');
-      
       const data = await res.json();
-      
-      const mapTransaction = (t: any): Transaction => ({
-        ...t,
-        amount: Number(t.amount)
-      });
-      
-      const mapAccount = (a: any): Account => ({
-        ...a,
-        balance: Number(a.balance)
-      });
-
-      setTransactions(data.transactions.map(mapTransaction));
-      setAccounts(data.accounts.map(mapAccount));
-      setCategories(data.categories);
-      setStudios(data.studios);
-      setContractors(data.contractors);
-      setProjects(data.projects);
+      applyData(data);
+      initialLoadDone.current = true;
     } catch (error) {
       console.error("API unavailable", error);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
-  };
+  }, [user, applyData]);
 
   useEffect(() => {
-    if (user) fetchData();
+    if (user) {
+      fetchData(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const interval = setInterval(() => {
+      if (initialLoadDone.current) {
+        fetchData(true);
+      }
+    }, POLL_INTERVAL);
+    
+    return () => clearInterval(interval);
+  }, [user, fetchData]);
 
   const addTransaction = async (txData: Partial<Transaction>) => {
     try {
@@ -88,7 +103,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
         headers: getHeaders(),
         body: JSON.stringify(payload)
       });
-      if (res.ok) fetchData();
+      if (res.ok) fetchData(true);
     } catch (error) {
       console.error("Error adding transaction", error);
     }
@@ -101,7 +116,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
         headers: getHeaders(),
         body: JSON.stringify(txData)
       });
-      if (res.ok) fetchData();
+      if (res.ok) fetchData(true);
     } catch (error) {
       console.error("Error updating transaction", error);
     }
@@ -113,7 +128,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
         method: 'DELETE',
         headers: getHeaders()
       });
-      if (res.ok) fetchData();
+      if (res.ok) fetchData(true);
     } catch (error) {
       console.error("Error deleting transaction", error);
     }
@@ -126,7 +141,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
             headers: getHeaders(),
             body: JSON.stringify(data)
         });
-        if (res.ok) fetchData();
+        if (res.ok) fetchData(true);
     } catch (error) {
         console.error(`Error adding ${type}`, error);
     }
@@ -138,7 +153,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
             method: 'DELETE',
             headers: getHeaders()
         });
-        if (res.ok) fetchData();
+        if (res.ok) fetchData(true);
     } catch (error) {
         console.error(`Error deleting from ${type}`, error);
     }
@@ -152,6 +167,8 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     return accounts.reduce((sum, acc) => sum + acc.balance, 0);
   };
 
+  const refreshData = () => fetchData(true);
+
   return (
     <FinanceContext.Provider value={{
       transactions,
@@ -159,7 +176,6 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       categories,
       studios,
       contractors,
-      projects,
       addTransaction,
       updateTransaction,
       deleteTransaction,
@@ -167,7 +183,8 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       deleteItem,
       getAccountBalance,
       getTotalBalance,
-      isLoading
+      isLoading,
+      refreshData
     }}>
       {children}
     </FinanceContext.Provider>

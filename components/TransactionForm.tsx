@@ -9,7 +9,7 @@ interface TransactionFormProps {
 }
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initialData }) => {
-  const { categories, accounts, studios, contractors, projects, addTransaction, updateTransaction } = useFinance();
+  const { categories, accounts, studios, contractors, addTransaction, updateTransaction } = useFinance();
   
   const [type, setType] = useState<TransactionType>('income');
   const [amount, setAmount] = useState('');
@@ -19,7 +19,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
   const [toAccountId, setToAccountId] = useState('');
   const [studioId, setStudioId] = useState('');
   const [contractorId, setContractorId] = useState('');
-  const [projectId, setProjectId] = useState('');
   const [description, setDescription] = useState('');
 
   // Initialize with initialData if present
@@ -34,7 +33,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       setToAccountId(initialData.toAccountId || '');
       setStudioId(initialData.studioId || '');
       setContractorId(initialData.contractorId || '');
-      setProjectId(initialData.projectId || '');
       setDescription(initialData.description || '');
     } else {
         // Set defaults only for new transactions
@@ -58,7 +56,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       toAccountId: type === 'transfer' ? toAccountId : undefined,
       studioId: studioId || undefined,
       contractorId: type === 'transfer' ? undefined : (contractorId || undefined),
-      projectId: projectId || undefined,
       description,
     };
 
@@ -199,37 +196,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
                 </div>
              )}
 
-            {/* Category & Project (Hidden for Transfer) */}
+            {/* Category (Hidden for Transfer) */}
             {type !== 'transfer' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1.5">Статья</label>
-                        <select
-                            value={categoryId}
-                            onChange={(e) => setCategoryId(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
-                            required
-                        >
-                            <option value="">Выберите статью</option>
-                            {filteredCategories.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1.5">Проект</label>
-                        <select
-                            value={projectId}
-                            onChange={(e) => setProjectId(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
-                        >
-                            <option value="">Не выбран</option>
-                            {projects.map(p => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                        </select>
-                    </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5">Статья</label>
+                    <select
+                        value={categoryId}
+                        onChange={(e) => setCategoryId(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                        required
+                    >
+                        <option value="">Выберите статью</option>
+                        {filteredCategories.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </select>
                 </div>
             )}
              

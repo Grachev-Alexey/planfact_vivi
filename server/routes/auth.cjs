@@ -11,7 +11,7 @@ router.post('/login', async (req, res) => {
     const result = await db.query("SELECT * FROM users WHERE username = $1 AND password = $2", [username, password]);
     if (result.rows.length > 0) {
       const user = result.rows[0];
-      await logAction(user.id, 'login', 'auth', null, 'User logged in');
+      await logAction(user.id, 'login', 'auth', null, 'Вход в систему');
       res.json(toCamelCase(user));
     } else {
       res.status(401).json({ error: 'Invalid credentials' });
@@ -40,7 +40,7 @@ router.post('/users', async (req, res) => {
       [username, password, role || 'user']
     );
     const newUser = result.rows[0];
-    await logAction(currentUserId, 'create', 'user', newUser.id, `Created user ${username}`);
+    await logAction(currentUserId, 'create', 'user', newUser.id, { name: username });
     res.json(toCamelCase(newUser));
   } catch (err) {
     res.status(500).json({ error: 'Error creating user' });
@@ -51,8 +51,10 @@ router.post('/users', async (req, res) => {
 router.delete('/users/:id', async (req, res) => {
   const currentUserId = req.headers['x-user-id'];
   try {
+    const userRes = await db.query("SELECT username FROM users WHERE id = $1", [req.params.id]);
+    const deletedName = userRes.rows.length > 0 ? userRes.rows[0].username : '';
     await db.query("DELETE FROM users WHERE id = $1", [req.params.id]);
-    await logAction(currentUserId, 'delete', 'user', req.params.id, 'Deleted user');
+    await logAction(currentUserId, 'delete', 'user', req.params.id, { name: deletedName });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting user' });

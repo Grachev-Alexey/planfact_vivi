@@ -35,6 +35,10 @@ export const Settings: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
+    fetchLogs();
+  }, []);
+
+  useEffect(() => {
     if (activeTab === 'logs') fetchLogs();
   }, [activeTab]);
 
@@ -91,13 +95,12 @@ export const Settings: React.FC = () => {
   };
 
   const getActionColor = (action: string) => {
-    switch (action) {
-        case 'create': return 'text-emerald-600 bg-emerald-50';
-        case 'delete': return 'text-rose-600 bg-rose-50';
-        case 'update': return 'text-blue-600 bg-blue-50';
-        case 'login': return 'text-slate-600 bg-slate-100';
-        default: return 'text-slate-600 bg-slate-50';
-    }
+    const a = action.toLowerCase();
+    if (a === 'создание' || a === 'create') return 'text-emerald-600 bg-emerald-50';
+    if (a === 'удаление' || a === 'delete') return 'text-rose-600 bg-rose-50';
+    if (a === 'изменение' || a === 'update') return 'text-blue-600 bg-blue-50';
+    if (a === 'вход' || a === 'login') return 'text-slate-600 bg-slate-100';
+    return 'text-slate-600 bg-slate-50';
   };
 
   return (
@@ -185,7 +188,7 @@ export const Settings: React.FC = () => {
                             {new Date(log.createdAt).toLocaleString('ru-RU')}
                         </div>
                      </td>
-                     <td className="px-6 py-3 font-medium text-slate-700">{log.username || 'System'}</td>
+                     <td className="px-6 py-3 font-medium text-slate-700">{log.username || 'Система'}</td>
                      <td className="px-6 py-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getActionColor(log.action)}`}>
                             {log.action}
