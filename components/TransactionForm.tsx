@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
@@ -17,32 +17,52 @@ interface SearchableSelectProps {
   createLabel?: string;
 }
 
+function calcDropdownPos(triggerEl: HTMLElement, dropdownH: number = 300) {
+  const rect = triggerEl.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const top = spaceBelow > dropdownH ? rect.bottom + 2 : rect.top - dropdownH - 2;
+  return {
+    top: Math.max(4, top),
+    left: rect.left,
+    width: rect.width,
+  };
+}
+
 const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, placeholder, options, required, onCreateNew, createLabel }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useLayoutEffect(() => {
-    if (!open || !ref.current || !dropdownRef.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    const dd = dropdownRef.current;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const dropdownH = 300;
-    const top = spaceBelow > dropdownH ? rect.bottom + 2 : rect.top - dropdownH - 2;
-    dd.style.top = `${Math.max(4, top)}px`;
-    dd.style.left = `${rect.left}px`;
-    dd.style.width = `${rect.width}px`;
-    dd.style.visibility = 'visible';
-  });
+  const posRef = useRef({ top: -9999, left: -9999, width: 300 });
 
   const handleOpen = () => {
     if (open) { setOpen(false); return; }
+    if (ref.current) {
+      posRef.current = calcDropdownPos(ref.current);
+    }
     setOpen(true);
     setSearch('');
     setTimeout(() => inputRef.current?.focus(), 10);
   };
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (ref.current && dropdownRef.current) {
+        const p = calcDropdownPos(ref.current);
+        dropdownRef.current.style.top = `${p.top}px`;
+        dropdownRef.current.style.left = `${p.left}px`;
+        dropdownRef.current.style.width = `${p.width}px`;
+      }
+    };
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -65,72 +85,6 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
   const selectedLabel = selectedOpt?.label || '';
   const selectedSublabel = selectedOpt?.sublabel || '';
 
-  const dropdown = (
-    <div
-      ref={dropdownRef}
-      className="fixed z-[100] bg-white border border-slate-200 rounded-lg shadow-2xl max-h-[280px] flex flex-col"
-      style={{ visibility: 'hidden' }}
-    >
-      <div className="p-2 border-b border-slate-100 shrink-0">
-        <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-500"
-            placeholder="Поиск..."
-          />
-        </div>
-      </div>
-
-      <div className="overflow-y-auto flex-1">
-        {!required && (
-          <button
-            type="button"
-            onClick={() => { onChange(''); setOpen(false); }}
-            className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 text-slate-400 ${!value ? 'bg-teal-50 text-teal-600' : ''}`}
-          >
-            {placeholder}
-          </button>
-        )}
-
-        {filtered.map(opt => (
-          <button
-            key={opt.id}
-            type="button"
-            onClick={() => { onChange(opt.id); setOpen(false); }}
-            className={`w-full text-left hover:bg-slate-50 flex items-center gap-2 transition-colors ${
-              opt.indent ? 'pl-8 pr-3 py-1.5 text-slate-500' : 'px-3 py-2 text-slate-700'
-            } ${value === opt.id ? 'bg-teal-50 text-teal-700' : ''}`}
-          >
-            {value === opt.id && <Check size={13} className="text-teal-600 shrink-0" />}
-            <span className="min-w-0">
-              <span className={`text-sm block ${!opt.indent ? 'font-medium' : ''}`}>{opt.label}</span>
-              {opt.sublabel && <span className="text-xs text-slate-400 block">{opt.sublabel}</span>}
-            </span>
-          </button>
-        ))}
-
-        {filtered.length === 0 && (
-          <div className="px-3 py-4 text-center text-sm text-slate-400">Ничего не найдено</div>
-        )}
-      </div>
-
-      {onCreateNew && (
-        <button
-          type="button"
-          onClick={() => { setOpen(false); onCreateNew(); }}
-          className="w-full px-3 py-2.5 text-left text-sm text-teal-600 hover:bg-teal-50 border-t border-slate-100 flex items-center gap-2 font-medium shrink-0"
-        >
-          <Plus size={14} />
-          {createLabel || 'Создать новый'}
-        </button>
-      )}
-    </div>
-  );
-
   return (
     <div ref={ref} className="relative">
       <button
@@ -145,7 +99,72 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
         <ChevronDown size={14} className={`text-slate-400 shrink-0 ml-2 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && createPortal(dropdown, document.body)}
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[100] bg-white border border-slate-200 rounded-lg shadow-2xl max-h-[280px] flex flex-col"
+          style={{ top: posRef.current.top, left: posRef.current.left, width: posRef.current.width }}
+        >
+          <div className="p-2 border-b border-slate-100 shrink-0">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-500"
+                placeholder="Поиск..."
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto flex-1">
+            {!required && (
+              <button
+                type="button"
+                onClick={() => { onChange(''); setOpen(false); }}
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 text-slate-400 ${!value ? 'bg-teal-50 text-teal-600' : ''}`}
+              >
+                {placeholder}
+              </button>
+            )}
+
+            {filtered.map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => { onChange(opt.id); setOpen(false); }}
+                className={`w-full text-left hover:bg-slate-50 flex items-center gap-2 transition-colors ${
+                  opt.indent ? 'pl-8 pr-3 py-1.5 text-slate-500' : 'px-3 py-2 text-slate-700'
+                } ${value === opt.id ? 'bg-teal-50 text-teal-700' : ''}`}
+              >
+                {value === opt.id && <Check size={13} className="text-teal-600 shrink-0" />}
+                <span className="min-w-0">
+                  <span className={`text-sm block ${!opt.indent ? 'font-medium' : ''}`}>{opt.label}</span>
+                  {opt.sublabel && <span className="text-xs text-slate-400 block">{opt.sublabel}</span>}
+                </span>
+              </button>
+            ))}
+
+            {filtered.length === 0 && (
+              <div className="px-3 py-4 text-center text-sm text-slate-400">Ничего не найдено</div>
+            )}
+          </div>
+
+          {onCreateNew && (
+            <button
+              type="button"
+              onClick={() => { setOpen(false); onCreateNew(); }}
+              className="w-full px-3 py-2.5 text-left text-sm text-teal-600 hover:bg-teal-50 border-t border-slate-100 flex items-center gap-2 font-medium shrink-0"
+            >
+              <Plus size={14} />
+              {createLabel || 'Создать новый'}
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
