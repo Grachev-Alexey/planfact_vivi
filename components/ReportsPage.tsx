@@ -10,6 +10,11 @@ type ReportTab = 'pnl' | 'dds' | 'categories' | 'studios';
 const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const COLORS = ['#0d9488', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#ef4444', '#06b6d4', '#84cc16', '#f97316'];
 
+const fmtNum = (val: number) => {
+  if (val === 0) return '\u2014';
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(val);
+};
+
 export const ReportsPage: React.FC = () => {
   const { transactions, categories, studios, accounts } = useFinance();
   const [activeTab, setActiveTab] = useState<ReportTab>('pnl');
@@ -19,8 +24,8 @@ export const ReportsPage: React.FC = () => {
   const [startYear, setStartYear] = useState(now.getFullYear());
   const [endMonth, setEndMonth] = useState(now.getMonth());
   const [endYear, setEndYear] = useState(now.getFullYear());
-  const [filterStudioId, setFilterStudioId] = useState('');
   const [filterAccountId, setFilterAccountId] = useState('');
+  const [filterStudioId, setFilterStudioId] = useState('');
 
   const filteredTx = useMemo(() => {
     const start = new Date(startYear, startMonth, 1);
@@ -28,11 +33,11 @@ export const ReportsPage: React.FC = () => {
     return transactions.filter(t => {
       const d = new Date(t.date);
       if (d < start || d > end) return false;
-      if (filterStudioId && t.studioId !== filterStudioId) return false;
       if (filterAccountId && t.accountId !== filterAccountId) return false;
+      if (filterStudioId && t.studioId !== filterStudioId) return false;
       return true;
     });
-  }, [transactions, startMonth, startYear, endMonth, endYear, filterStudioId, filterAccountId]);
+  }, [transactions, startMonth, startYear, endMonth, endYear, filterAccountId, filterStudioId]);
 
   const months = useMemo(() => {
     const result: { month: number; year: number; label: string }[] = [];
@@ -82,7 +87,7 @@ export const ReportsPage: React.FC = () => {
             <select value={startYear} onChange={e => setStartYear(+e.target.value)} className="px-2 py-1 border border-slate-200 rounded text-xs bg-white">
               {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
-            <span className="text-slate-400 mx-1">—</span>
+            <span className="text-slate-400 mx-1">&mdash;</span>
             <select value={endMonth} onChange={e => setEndMonth(+e.target.value)} className="px-2 py-1 border border-slate-200 rounded text-xs bg-white">
               {MONTH_NAMES.map((m, i) => <option key={i} value={i}>{m}</option>)}
             </select>
@@ -105,7 +110,7 @@ export const ReportsPage: React.FC = () => {
 
       <div className="flex-1 overflow-y-auto p-5">
         {activeTab === 'pnl' && <PnLReport tx={filteredTx} months={months} categories={categories} />}
-        {activeTab === 'dds' && <DDSReport tx={filteredTx} months={months} accounts={accounts} />}
+        {activeTab === 'dds' && <DDSReport tx={filteredTx} categories={categories} studios={studios} />}
         {activeTab === 'categories' && <CategoriesReport tx={filteredTx} categories={categories} />}
         {activeTab === 'studios' && <StudiosReport tx={filteredTx} studios={studios} categories={categories} />}
       </div>
@@ -156,20 +161,13 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
     });
   };
 
-  const chartData = months.map(m => ({
-    name: m.label,
-    income: totalIncome(m.month, m.year),
-    expense: totalExpense(m.month, m.year),
-    profit: totalIncome(m.month, m.year) - totalExpense(m.month, m.year),
-  }));
-
   const handleExport = () => {
     const rows: any[] = [];
-    rows.push({ 'Статья': 'ДОХОДЫ', ...Object.fromEntries(months.map(m => [m.label, ''])), 'Итого': formatCurrency(grandTotalIncome) });
+    rows.push({ 'Статья': 'ДОХОДЫ', ...Object.fromEntries(months.map(m => [m.label, ''])), 'Итого': grandTotalIncome });
     incomeCategories.forEach(cat => {
       rows.push({ 'Статья': cat.name, ...Object.fromEntries(months.map(m => [m.label, getAmount(cat.id, m.month, m.year)])), 'Итого': getCatTotal(cat.id) });
     });
-    rows.push({ 'Статья': 'РАСХОДЫ', ...Object.fromEntries(months.map(m => [m.label, ''])), 'Итого': formatCurrency(grandTotalExpense) });
+    rows.push({ 'Статья': 'РАСХОДЫ', ...Object.fromEntries(months.map(m => [m.label, ''])), 'Итого': grandTotalExpense });
     expenseCategories.forEach(cat => {
       rows.push({ 'Статья': cat.name, ...Object.fromEntries(months.map(m => [m.label, getAmount(cat.id, m.month, m.year)])), 'Итого': getCatTotal(cat.id) });
     });
@@ -180,15 +178,15 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
     XLSX.writeFile(wb, 'vivi_pnl.xlsx');
   };
 
-  const renderCategoryRow = (cat: typeof categories[0], type: 'income' | 'expense') => {
+  const renderCategoryRow = (cat: typeof categories[0]) => {
     const children = categories.filter(c => c.parentId === cat.id);
     const hasChildren = children.length > 0;
     const isExpanded = expandedCats.has(cat.id);
 
     return (
       <React.Fragment key={cat.id}>
-        <tr className="hover:bg-slate-50/50 group">
-          <td className="py-1.5 px-3 text-xs font-medium text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50/50">
+        <tr className="hover:bg-slate-50/50 group border-b border-slate-100">
+          <td className="py-1.5 px-3 text-xs text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50/50">
             <div className="flex items-center gap-1">
               {hasChildren ? (
                 <button onClick={() => toggleExpand(cat.id)} className="p-0.5 text-slate-400 hover:text-slate-600">
@@ -200,29 +198,19 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
           </td>
           {months.map(m => {
             const val = getAmount(cat.id, m.month, m.year);
-            return (
-              <td key={m.label} className="py-1.5 px-2 text-xs text-right tabular-nums text-slate-600">
-                {val > 0 ? formatCurrency(val) : ''}
-              </td>
-            );
+            return <td key={m.label} className="py-1.5 px-2 text-xs text-right tabular-nums text-slate-600">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
           })}
-          <td className="py-1.5 px-3 text-xs text-right font-semibold tabular-nums text-slate-700">
-            {getCatTotal(cat.id) > 0 ? formatCurrency(getCatTotal(cat.id)) : ''}
-          </td>
+          <td className="py-1.5 px-3 text-xs text-right font-medium tabular-nums text-slate-700">{getCatTotal(cat.id) > 0 ? fmtNum(getCatTotal(cat.id)) : '\u2014'}</td>
         </tr>
         {hasChildren && isExpanded && children.map(child => (
-          <tr key={child.id} className="hover:bg-slate-50/50">
+          <tr key={child.id} className="hover:bg-slate-50/50 border-b border-slate-50">
             <td className="py-1 px-3 pl-10 text-[11px] text-slate-500 sticky left-0 bg-white">{child.name}</td>
             {months.map(m => {
               const val = getChildAmount(child.id, m.month, m.year);
-              return (
-                <td key={m.label} className="py-1 px-2 text-[11px] text-right tabular-nums text-slate-400">
-                  {val > 0 ? formatCurrency(val) : ''}
-                </td>
-              );
+              return <td key={m.label} className="py-1 px-2 text-[11px] text-right tabular-nums text-slate-400">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
             })}
             <td className="py-1 px-3 text-[11px] text-right tabular-nums text-slate-500">
-              {tx.filter(t => t.categoryId === child.id).reduce((s, t) => s + t.amount, 0) > 0 ? formatCurrency(tx.filter(t => t.categoryId === child.id).reduce((s, t) => s + t.amount, 0)) : ''}
+              {tx.filter(t => t.categoryId === child.id).reduce((s, t) => s + t.amount, 0) > 0 ? fmtNum(tx.filter(t => t.categoryId === child.id).reduce((s, t) => s + t.amount, 0)) : '\u2014'}
             </td>
           </tr>
         ))}
@@ -239,66 +227,52 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
         </button>
       </div>
 
-      {months.length > 1 && (
-        <div className="bg-white rounded-lg border border-slate-200 p-4 h-[200px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barGap={4}>
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-              <YAxis hide />
-              <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} formatter={(v: number) => formatCurrency(v)} />
-              <Bar dataKey="income" name="Доходы" fill="#10b981" radius={[3, 3, 0, 0]} barSize={20} />
-              <Bar dataKey="expense" name="Расходы" fill="#f43f5e" radius={[3, 3, 0, 0]} barSize={20} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
       <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
         <table className="w-full border-collapse min-w-[600px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="py-2 px-3 text-left text-[11px] font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50 min-w-[180px]">Статья</th>
+              <th className="py-2 px-3 text-left text-[11px] font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50 min-w-[200px]">Статьи учета</th>
               {months.map(m => <th key={m.label} className="py-2 px-2 text-right text-[11px] font-semibold text-slate-500 uppercase min-w-[100px]">{m.label}</th>)}
               <th className="py-2 px-3 text-right text-[11px] font-semibold text-slate-500 uppercase min-w-[100px]">Итого</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="bg-emerald-50/50 border-b border-slate-100">
-              <td className="py-2 px-3 text-xs font-bold text-emerald-700 sticky left-0 bg-emerald-50/50">ДОХОДЫ</td>
+            <tr className="border-b border-slate-200">
+              <td className="py-2 px-3 text-xs font-bold text-slate-800 sticky left-0 bg-white">Поступления</td>
               {months.map(m => (
-                <td key={m.label} className="py-2 px-2 text-xs text-right font-bold tabular-nums text-emerald-700">
-                  {totalIncome(m.month, m.year) > 0 ? formatCurrency(totalIncome(m.month, m.year)) : ''}
+                <td key={m.label} className="py-2 px-2 text-xs text-right font-bold tabular-nums text-slate-800">
+                  {totalIncome(m.month, m.year) > 0 ? fmtNum(totalIncome(m.month, m.year)) : '\u2014'}
                 </td>
               ))}
-              <td className="py-2 px-3 text-xs text-right font-bold tabular-nums text-emerald-700">{formatCurrency(grandTotalIncome)}</td>
+              <td className="py-2 px-3 text-xs text-right font-bold tabular-nums text-slate-800">{fmtNum(grandTotalIncome)}</td>
             </tr>
 
-            {incomeCategories.map(c => renderCategoryRow(c, 'income'))}
+            {incomeCategories.map(c => renderCategoryRow(c))}
 
-            <tr className="bg-rose-50/50 border-b border-slate-100 border-t border-t-slate-200">
-              <td className="py-2 px-3 text-xs font-bold text-rose-700 sticky left-0 bg-rose-50/50">РАСХОДЫ</td>
+            <tr className="border-b border-slate-200 border-t-2 border-t-slate-200">
+              <td className="py-2 px-3 text-xs font-bold text-slate-800 sticky left-0 bg-white">Выплаты</td>
               {months.map(m => (
-                <td key={m.label} className="py-2 px-2 text-xs text-right font-bold tabular-nums text-rose-700">
-                  {totalExpense(m.month, m.year) > 0 ? formatCurrency(totalExpense(m.month, m.year)) : ''}
+                <td key={m.label} className="py-2 px-2 text-xs text-right font-bold tabular-nums text-slate-800">
+                  {totalExpense(m.month, m.year) > 0 ? fmtNum(totalExpense(m.month, m.year)) : '\u2014'}
                 </td>
               ))}
-              <td className="py-2 px-3 text-xs text-right font-bold tabular-nums text-rose-700">{formatCurrency(grandTotalExpense)}</td>
+              <td className="py-2 px-3 text-xs text-right font-bold tabular-nums text-slate-800">{fmtNum(grandTotalExpense)}</td>
             </tr>
 
-            {expenseCategories.map(c => renderCategoryRow(c, 'expense'))}
+            {expenseCategories.map(c => renderCategoryRow(c))}
 
-            <tr className="bg-slate-100 border-t-2 border-slate-300">
-              <td className="py-2.5 px-3 text-xs font-bold text-slate-800 sticky left-0 bg-slate-100">ЧИСТАЯ ПРИБЫЛЬ</td>
+            <tr className="border-t-2 border-slate-300 bg-slate-50">
+              <td className="py-2.5 px-3 text-xs font-bold text-slate-800 sticky left-0 bg-slate-50">Чистая прибыль</td>
               {months.map(m => {
                 const profit = totalIncome(m.month, m.year) - totalExpense(m.month, m.year);
                 return (
-                  <td key={m.label} className={`py-2.5 px-2 text-xs text-right font-bold tabular-nums ${profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {formatCurrency(profit)}
+                  <td key={m.label} className={`py-2.5 px-2 text-xs text-right font-bold tabular-nums ${profit < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                    {fmtNum(profit)}
                   </td>
                 );
               })}
-              <td className={`py-2.5 px-3 text-xs text-right font-bold tabular-nums ${grandTotalIncome - grandTotalExpense >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {formatCurrency(grandTotalIncome - grandTotalExpense)}
+              <td className={`py-2.5 px-3 text-xs text-right font-bold tabular-nums ${grandTotalIncome - grandTotalExpense < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                {fmtNum(grandTotalIncome - grandTotalExpense)}
               </td>
             </tr>
           </tbody>
@@ -310,46 +284,105 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
 
 interface DDSProps {
   tx: ReturnType<typeof useFinance>['transactions'];
-  months: { month: number; year: number; label: string }[];
-  accounts: ReturnType<typeof useFinance>['accounts'];
+  categories: ReturnType<typeof useFinance>['categories'];
+  studios: ReturnType<typeof useFinance>['studios'];
 }
 
-const DDSReport: React.FC<DDSProps> = ({ tx, months, accounts }) => {
-  const getAccountFlow = (accountId: string, month: number, year: number, type: 'income' | 'expense') => {
-    return tx.filter(t => t.accountId === accountId && t.type === type && new Date(t.date).getMonth() === month && new Date(t.date).getFullYear() === year)
+const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['income', 'expense']));
+
+  const activeStudios = useMemo(() => {
+    const studioIds = new Set(tx.map(t => t.studioId).filter(Boolean));
+    return studios.filter(s => studioIds.has(s.id));
+  }, [tx, studios]);
+
+  const incomeCategories = categories.filter(c => c.type === 'income' && !c.parentId);
+  const expenseCategories = categories.filter(c => c.type === 'expense' && !c.parentId);
+
+  const getAmount = (catIds: string[], studioId?: string) => {
+    return tx.filter(t => catIds.includes(t.categoryId || '') && (!studioId || t.studioId === studioId))
       .reduce((s, t) => s + t.amount, 0);
   };
 
-  const getAccountTransferIn = (accountId: string, month: number, year: number) => {
-    return tx.filter(t => t.type === 'transfer' && t.toAccountId === accountId && new Date(t.date).getMonth() === month && new Date(t.date).getFullYear() === year)
+  const getTypeTotal = (type: 'income' | 'expense', studioId?: string) => {
+    return tx.filter(t => t.type === type && (!studioId || t.studioId === studioId))
       .reduce((s, t) => s + t.amount, 0);
   };
 
-  const getAccountTransferOut = (accountId: string, month: number, year: number) => {
-    return tx.filter(t => t.type === 'transfer' && t.accountId === accountId && new Date(t.date).getMonth() === month && new Date(t.date).getFullYear() === year)
-      .reduce((s, t) => s + t.amount, 0);
-  };
-
-  const totalFlowMonth = (month: number, year: number, type: 'income' | 'expense') => {
-    return tx.filter(t => t.type === type && new Date(t.date).getMonth() === month && new Date(t.date).getFullYear() === year)
-      .reduce((s, t) => s + t.amount, 0);
+  const toggleSection = (id: string) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
   const handleExport = () => {
     const rows: any[] = [];
-    rows.push({ 'Счет': 'ПОСТУПЛЕНИЯ', ...Object.fromEntries(months.map(m => [m.label, totalFlowMonth(m.month, m.year, 'income')])) });
-    accounts.forEach(a => {
-      rows.push({ 'Счет': a.name + ' (приход)', ...Object.fromEntries(months.map(m => [m.label, getAccountFlow(a.id, m.month, m.year, 'income')])) });
+    const header = { 'Статьи учета': '', ...Object.fromEntries(activeStudios.map(s => [s.name, ''])) };
+    
+    rows.push({ ...header, 'Статьи учета': 'Операционный поток' });
+    rows.push({ ...header, 'Статьи учета': 'Поступления', ...Object.fromEntries(activeStudios.map(s => [s.name, getTypeTotal('income', s.id)])) });
+    incomeCategories.forEach(cat => {
+      const children = categories.filter(c => c.parentId === cat.id);
+      const ids = [cat.id, ...children.map(c => c.id)];
+      rows.push({ ...header, 'Статьи учета': '  ' + cat.name, ...Object.fromEntries(activeStudios.map(s => [s.name, getAmount(ids, s.id)])) });
     });
-    rows.push({ 'Счет': 'ВЫПЛАТЫ', ...Object.fromEntries(months.map(m => [m.label, totalFlowMonth(m.month, m.year, 'expense')])) });
-    accounts.forEach(a => {
-      rows.push({ 'Счет': a.name + ' (расход)', ...Object.fromEntries(months.map(m => [m.label, getAccountFlow(a.id, m.month, m.year, 'expense')])) });
+    rows.push({ ...header, 'Статьи учета': 'Выплаты', ...Object.fromEntries(activeStudios.map(s => [s.name, getTypeTotal('expense', s.id)])) });
+    expenseCategories.forEach(cat => {
+      const children = categories.filter(c => c.parentId === cat.id);
+      const ids = [cat.id, ...children.map(c => c.id)];
+      rows.push({ ...header, 'Статьи учета': '  ' + cat.name, ...Object.fromEntries(activeStudios.map(s => [s.name, getAmount(ids, s.id)])) });
     });
+
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'ДДС');
     XLSX.writeFile(wb, 'vivi_dds.xlsx');
   };
+
+  const renderCategoryRows = (parentCats: typeof categories, type: 'income' | 'expense') => {
+    return parentCats.map(cat => {
+      const children = categories.filter(c => c.parentId === cat.id);
+      const hasChildren = children.length > 0;
+      const ids = [cat.id, ...children.map(c => c.id)];
+      const isExpanded = expandedSections.has(cat.id);
+
+      return (
+        <React.Fragment key={cat.id}>
+          <tr className="border-b border-slate-100 hover:bg-slate-50/50 group">
+            <td className="py-1.5 px-3 text-xs text-slate-600 sticky left-0 bg-white group-hover:bg-slate-50/50 pl-8">
+              <div className="flex items-center gap-1">
+                {hasChildren ? (
+                  <button onClick={() => toggleSection(cat.id)} className="p-0.5 text-slate-400 hover:text-slate-600">
+                    {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                  </button>
+                ) : <span className="w-3.5" />}
+                {cat.name}
+              </div>
+            </td>
+            {activeStudios.map(s => {
+              const val = getAmount(ids, s.id);
+              return <td key={s.id} className="py-1.5 px-2 text-xs text-right tabular-nums text-slate-600">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
+            })}
+            <td className="py-1.5 px-3 text-xs text-right font-medium tabular-nums text-slate-700">{getAmount(ids) > 0 ? fmtNum(getAmount(ids)) : '\u2014'}</td>
+          </tr>
+          {hasChildren && isExpanded && children.map(child => (
+            <tr key={child.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+              <td className="py-1 px-3 pl-14 text-[11px] text-slate-500 sticky left-0 bg-white">{child.name}</td>
+              {activeStudios.map(s => {
+                const val = getAmount([child.id], s.id);
+                return <td key={s.id} className="py-1 px-2 text-[11px] text-right tabular-nums text-slate-400">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
+              })}
+              <td className="py-1 px-3 text-[11px] text-right tabular-nums text-slate-500">{getAmount([child.id]) > 0 ? fmtNum(getAmount([child.id])) : '\u2014'}</td>
+            </tr>
+          ))}
+        </React.Fragment>
+      );
+    });
+  };
+
+  const opFlowTotal = (studioId?: string) => getTypeTotal('income', studioId) - getTypeTotal('expense', studioId);
 
   return (
     <div className="space-y-5">
@@ -364,71 +397,59 @@ const DDSReport: React.FC<DDSProps> = ({ tx, months, accounts }) => {
         <table className="w-full border-collapse min-w-[600px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="py-2 px-3 text-left text-[11px] font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50 min-w-[180px]">Счет</th>
-              {months.map(m => <th key={m.label} className="py-2 px-2 text-right text-[11px] font-semibold text-slate-500 uppercase min-w-[100px]">{m.label}</th>)}
+              <th className="py-2 px-3 text-left text-[11px] font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50 min-w-[220px]">Статьи учета</th>
+              {activeStudios.map(s => <th key={s.id} className="py-2 px-2 text-right text-[11px] font-semibold text-slate-500 uppercase min-w-[110px]">{s.name}</th>)}
+              <th className="py-2 px-3 text-right text-[11px] font-semibold text-slate-500 uppercase min-w-[110px]">Итого</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="bg-emerald-50/50 border-b border-slate-100">
-              <td className="py-2 px-3 text-xs font-bold text-emerald-700 sticky left-0 bg-emerald-50/50">ПОСТУПЛЕНИЯ</td>
-              {months.map(m => (
-                <td key={m.label} className="py-2 px-2 text-xs text-right font-bold tabular-nums text-emerald-700">
-                  {formatCurrency(totalFlowMonth(m.month, m.year, 'income'))}
-                </td>
-              ))}
-            </tr>
-
-            {accounts.map(a => (
-              <tr key={a.id + '-in'} className="hover:bg-slate-50/50">
-                <td className="py-1.5 px-3 pl-6 text-xs text-slate-600 sticky left-0 bg-white">{a.name}</td>
-                {months.map(m => {
-                  const val = getAccountFlow(a.id, m.month, m.year, 'income');
-                  return <td key={m.label} className="py-1.5 px-2 text-xs text-right tabular-nums text-slate-500">{val > 0 ? formatCurrency(val) : ''}</td>;
-                })}
-              </tr>
-            ))}
-
-            <tr className="bg-rose-50/50 border-b border-slate-100 border-t border-t-slate-200">
-              <td className="py-2 px-3 text-xs font-bold text-rose-700 sticky left-0 bg-rose-50/50">ВЫПЛАТЫ</td>
-              {months.map(m => (
-                <td key={m.label} className="py-2 px-2 text-xs text-right font-bold tabular-nums text-rose-700">
-                  {formatCurrency(totalFlowMonth(m.month, m.year, 'expense'))}
-                </td>
-              ))}
-            </tr>
-
-            {accounts.map(a => (
-              <tr key={a.id + '-out'} className="hover:bg-slate-50/50">
-                <td className="py-1.5 px-3 pl-6 text-xs text-slate-600 sticky left-0 bg-white">{a.name}</td>
-                {months.map(m => {
-                  const val = getAccountFlow(a.id, m.month, m.year, 'expense');
-                  return <td key={m.label} className="py-1.5 px-2 text-xs text-right tabular-nums text-slate-500">{val > 0 ? formatCurrency(val) : ''}</td>;
-                })}
-              </tr>
-            ))}
-
-            <tr className="bg-blue-50/50 border-b border-slate-100 border-t border-t-slate-200">
-              <td className="py-2 px-3 text-xs font-bold text-blue-700 sticky left-0 bg-blue-50/50">ПЕРЕМЕЩЕНИЯ</td>
-              {months.map(m => {
-                const val = tx.filter(t => t.type === 'transfer' && new Date(t.date).getMonth() === m.month && new Date(t.date).getFullYear() === m.year).reduce((s, t) => s + t.amount, 0);
-                return <td key={m.label} className="py-2 px-2 text-xs text-right font-bold tabular-nums text-blue-700">{val > 0 ? formatCurrency(val) : ''}</td>;
+            <tr className="border-b border-slate-200">
+              <td className="py-2 px-3 text-xs font-bold text-slate-800 sticky left-0 bg-white">Операционный поток</td>
+              {activeStudios.map(s => {
+                const val = opFlowTotal(s.id);
+                return <td key={s.id} className={`py-2 px-2 text-xs text-right font-bold tabular-nums ${val < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{fmtNum(val)}</td>;
               })}
+              <td className={`py-2 px-3 text-xs text-right font-bold tabular-nums ${opFlowTotal() < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{fmtNum(opFlowTotal())}</td>
             </tr>
 
-            <tr className="bg-slate-100 border-t-2 border-slate-300">
-              <td className="py-2.5 px-3 text-xs font-bold text-slate-800 sticky left-0 bg-slate-100">ЧИСТЫЙ ПОТОК</td>
-              {months.map(m => {
-                const net = totalFlowMonth(m.month, m.year, 'income') - totalFlowMonth(m.month, m.year, 'expense');
-                return (
-                  <td key={m.label} className={`py-2.5 px-2 text-xs text-right font-bold tabular-nums ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {formatCurrency(net)}
-                  </td>
-                );
+            <tr className="border-b border-slate-200">
+              <td className="py-1.5 px-3 text-xs font-semibold text-slate-700 sticky left-0 bg-white pl-4 cursor-pointer" onClick={() => toggleSection('income')}>
+                <div className="flex items-center gap-1">
+                  {expandedSections.has('income') ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  Поступления
+                </div>
+              </td>
+              {activeStudios.map(s => {
+                const val = getTypeTotal('income', s.id);
+                return <td key={s.id} className="py-1.5 px-2 text-xs text-right font-semibold tabular-nums text-slate-700">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
               })}
+              <td className="py-1.5 px-3 text-xs text-right font-semibold tabular-nums text-slate-700">{fmtNum(getTypeTotal('income'))}</td>
             </tr>
+
+            {expandedSections.has('income') && renderCategoryRows(incomeCategories, 'income')}
+
+            <tr className="border-b border-slate-200">
+              <td className="py-1.5 px-3 text-xs font-semibold text-slate-700 sticky left-0 bg-white pl-4 cursor-pointer" onClick={() => toggleSection('expense')}>
+                <div className="flex items-center gap-1">
+                  {expandedSections.has('expense') ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  Выплаты
+                </div>
+              </td>
+              {activeStudios.map(s => {
+                const val = getTypeTotal('expense', s.id);
+                return <td key={s.id} className="py-1.5 px-2 text-xs text-right font-semibold tabular-nums text-slate-700">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
+              })}
+              <td className="py-1.5 px-3 text-xs text-right font-semibold tabular-nums text-slate-700">{fmtNum(getTypeTotal('expense'))}</td>
+            </tr>
+
+            {expandedSections.has('expense') && renderCategoryRows(expenseCategories, 'expense')}
           </tbody>
         </table>
       </div>
+
+      {activeStudios.length === 0 && (
+        <div className="p-8 text-center text-slate-400 text-sm bg-white rounded-lg border border-slate-200">Нет данных за выбранный период</div>
+      )}
     </div>
   );
 };
@@ -587,21 +608,21 @@ const StudiosReport: React.FC<StudiosReportProps> = ({ tx, studios, categories }
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {studioData.map((studio, idx) => (
+        {studioData.map((studio) => (
           <div key={studio.id} className="bg-white rounded-lg border border-slate-200 p-4">
             <h3 className="text-sm font-bold text-slate-800 mb-3">{studio.name}</h3>
             <div className="grid grid-cols-3 gap-2 mb-3">
               <div>
                 <div className="text-[10px] text-slate-400 uppercase">Доходы</div>
-                <div className="text-xs font-bold text-emerald-600">{formatCurrency(studio.income)}</div>
+                <div className="text-xs font-bold text-slate-700">{formatCurrency(studio.income)}</div>
               </div>
               <div>
                 <div className="text-[10px] text-slate-400 uppercase">Расходы</div>
-                <div className="text-xs font-bold text-rose-600">{formatCurrency(studio.expense)}</div>
+                <div className="text-xs font-bold text-slate-700">{formatCurrency(studio.expense)}</div>
               </div>
               <div>
                 <div className="text-[10px] text-slate-400 uppercase">Прибыль</div>
-                <div className={`text-xs font-bold ${studio.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(studio.profit)}</div>
+                <div className={`text-xs font-bold ${studio.profit < 0 ? 'text-rose-600' : 'text-slate-700'}`}>{formatCurrency(studio.profit)}</div>
               </div>
             </div>
             {studio.topExpenses.length > 0 && (

@@ -64,16 +64,16 @@ A finance management application (Russian language UI) built with React + Vite f
 - Full CRUD in Directories page under "Мои юрлица" tab
 
 ## Recent Changes
-- Reports page: Full implementation with 4 tabs (ПиУ, ДДС, По статьям, По студиям)
-  - P&L report with monthly breakdown by income/expense categories, expandable subcategories
-  - DDS (cash flow) report with per-account flow breakdown
+- Sidebar: PlanFact-style compact 72px fixed width, vertical icon+label layout, no hover animation, Settings pinned to bottom, teal active indicator
+- Reports page: 4 tabs (ПиУ, ДДС, По статьям, По студиям)
+  - P&L report: neutral white/slate palette (no colored section headers), monthly breakdown by income/expense categories, expandable subcategories, em-dash for zero values, negative values in red
+  - DDS report: studio-based columns (not months), rows show categories under Operational Flow with expandable subcategories
   - Category analysis with pie chart and percentage breakdown
   - Studio analysis with cards showing top expenses per studio
   - Date range filters (month/year), studio and account filters
   - Excel export for P&L and DDS reports
 - Transaction selection: checkbox per row, select all, bulk delete with confirmation
 - Unified teal color scheme (removed purple checkboxes, removed colored filter labels)
-- Sidebar hover-to-expand with 300ms delay
 - Optimized animations (CSS keyframes instead of Tailwind animate-in)
 - Added "Мои юрлица" (Legal Entities) with fields: name, inn, kpp, address, description
 - Accounts now link to legal entities via legal_entity_id

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -18,7 +18,7 @@ const TopBar: React.FC = () => {
   const balance = getTotalBalance();
   
   return (
-    <div className="h-14 bg-white border-b border-slate-200 shadow-sm text-slate-800 flex items-center justify-between px-4 lg:px-6 fixed top-0 right-0 left-16 z-20">
+    <div className="h-14 bg-white border-b border-slate-200 shadow-sm text-slate-800 flex items-center justify-between px-4 lg:px-6 fixed top-0 right-0 left-[72px] z-20">
        <div className="flex items-center gap-4">
        </div>
        <div className="flex items-center gap-5">
@@ -41,12 +41,12 @@ const TopBar: React.FC = () => {
   )
 }
 
-const Layout: React.FC<{ children: React.ReactNode; sidebarExpanded: boolean; onSidebarEnter: () => void; onSidebarLeave: () => void }> = ({ children, sidebarExpanded, onSidebarEnter, onSidebarLeave }) => {
+const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <Sidebar expanded={sidebarExpanded} onMouseEnter={onSidebarEnter} onMouseLeave={onSidebarLeave} />
+      <Sidebar />
       <TopBar />
-      <main className="flex-1 ml-16 mt-14 p-0">
+      <main className="flex-1 ml-[72px] mt-14 p-0">
         {children}
       </main>
     </div>
@@ -59,27 +59,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }
   return children;
 };
 
-
 const AppRoutes = () => {
-    const [sidebarExpanded, setSidebarExpanded] = useState(false);
-    const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const handleSidebarEnter = useCallback(() => {
-      if (collapseTimer.current) {
-        clearTimeout(collapseTimer.current);
-        collapseTimer.current = null;
-      }
-      setSidebarExpanded(true);
-    }, []);
-
-    const handleSidebarLeave = useCallback(() => {
-      collapseTimer.current = setTimeout(() => {
-        setSidebarExpanded(false);
-      }, 300);
-    }, []);
-
     const withLayout = (child: React.ReactNode) => (
-      <Layout sidebarExpanded={sidebarExpanded} onSidebarEnter={handleSidebarEnter} onSidebarLeave={handleSidebarLeave}>
+      <Layout>
         {child}
       </Layout>
     );
