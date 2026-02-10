@@ -2,12 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Transaction } from '../types';
 import { formatCurrency, formatDate, formatDateShort } from '../utils/format';
-import { Search, Download, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar } from 'lucide-react';
+import { Search, Download, Upload, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
 import { FilterSelect } from './ui/FilterSelect';
 import { DatePicker } from './ui/DatePicker';
+import { ImportModal } from './ImportModal';
 import * as XLSX from 'xlsx';
 
 const toLocalDate = (d: Date): string => {
@@ -21,6 +22,7 @@ export const TransactionList: React.FC = () => {
   const { transactions, categories, studios, accounts, contractors, legalEntities, deleteTransaction } = useFinance();
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
@@ -428,6 +430,13 @@ export const TransactionList: React.FC = () => {
                 {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={14}/></button>}
               </div>
               <button 
+                onClick={() => setIsImportOpen(true)}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 text-sm shrink-0"
+                title="Импорт из Excel"
+              >
+                <Upload size={14} /> Импорт
+              </button>
+              <button 
                 onClick={handleExport}
                 className="px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 text-sm shrink-0"
                 title="Экспорт в Excel"
@@ -567,6 +576,8 @@ export const TransactionList: React.FC = () => {
           <TransactionForm onClose={() => setEditingTx(null)} initialData={editingTx} />
         </Modal>
       )}
+
+      <ImportModal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} />
 
       {showDeleteConfirm && (
         <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Подтверждение удаления">

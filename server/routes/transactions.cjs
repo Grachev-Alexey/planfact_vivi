@@ -4,6 +4,75 @@ const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
 const { logAction } = require('../utils/logger.cjs');
 
+router.post('/transactions/bulk-import', async (req, res) => {
+  const { rows } = req.body;
+  const currentUserId = req.headers['x-user-id'];
+
+  if (!rows || !Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: 'No rows provided' });
+  }
+
+  const results = { imported: 0, errors: [] };
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    try {
+      const { date, amount, type, accountId, toAccountId, categoryId, studioId, description, contractorId, confirmed, accrualDate } = row;
+      if (!date || !amount || !type || !accountId) {
+        results.errors.push({ row: i + 1, error: 'Не заполнены обязательные поля (дата, сумма, тип, счет)' });
+        continue;
+      }
+      if (!['income', 'expense', 'transfer'].includes(type)) {
+        results.errors.push({ row: i + 1, error: `Неизвестный тип: ${type}` });
+        continue;
+      }
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        results.errors.push({ row: i + 1, error: 'Сумма должна быть положительным числом' });
+        continue;
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        results.errors.push({ row: i + 1, error: 'Некорректный формат даты' });
+        continue;
+      }
+      if (type === 'transfer' && !toAccountId) {
+        results.errors.push({ row: i + 1, error: 'Для перемещения нужно указать счет назначения' });
+        continue;
+      }
+      if (type === 'transfer' && toAccountId === accountId) {
+        results.errors.push({ row: i + 1, error: 'Счет и счет назначения совпадают' });
+        continue;
+      }
+      if (type !== 'transfer' && !categoryId) {
+        results.errors.push({ row: i + 1, error: 'Не указана статья' });
+        continue;
+      }
+      const accCheck = await db.query('SELECT id FROM accounts WHERE id=$1', [accountId]);
+      if (accCheck.rows.length === 0) {
+        results.errors.push({ row: i + 1, error: 'Счет не найден в базе' });
+        continue;
+      }
+
+      const query = `
+        INSERT INTO transactions (date, amount, type, account_id, to_account_id, category_id, studio_id, description, contractor_id, confirmed, accrual_date)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
+      `;
+      const values = [date, parsedAmount, type, accountId, toAccountId || null, categoryId || null, studioId || null, description || '', contractorId || null, confirmed || false, accrualDate || null];
+      await db.query(query, values);
+      results.imported++;
+    } catch (err) {
+      results.errors.push({ row: i + 1, error: err.message });
+    }
+  }
+
+  if (results.imported > 0) {
+    const word = results.imported === 1 ? 'операция' : results.imported < 5 ? 'операции' : 'операций';
+    await logAction(currentUserId, 'create', 'transaction', null, `Импортировано ${results.imported} ${word} из файла`);
+  }
+
+  res.json(results);
+});
+
 // Create Transaction
 router.post('/transactions', async (req, res) => {
   const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate } = req.body;

@@ -82,3 +82,6 @@ A finance management application (Russian language UI) built with React + Vite f
 - Removed "projects" entity entirely
 - 5-second polling for real-time data sync
 - Vite proxy for API calls (frontend -> backend)
+- XLSX import: upload file, download template, preview with validation, bulk import with server-side checks
+- Import supports all transaction types including transfers (На счет column)
+- Dropdown positioning uses actual rendered height for accurate placement
