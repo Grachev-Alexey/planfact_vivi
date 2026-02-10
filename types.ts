@@ -3,8 +3,8 @@ export type TransactionType = 'income' | 'expense' | 'transfer';
 export interface Studio {
   id: string;
   name: string;
-  address: string;
-  color: string;
+  address?: string;
+  color?: string;
 }
 
 export interface Account {
@@ -13,6 +13,7 @@ export interface Account {
   balance: number;
   type: 'cash' | 'card' | 'account';
   currency: string;
+  initialBalance?: number;
 }
 
 export interface Category {
@@ -23,6 +24,19 @@ export interface Category {
   icon?: string;
 }
 
+export interface Contractor {
+  id: string;
+  name: string;
+  inn?: string;
+  description?: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export interface Transaction {
   id: string;
   date: string; // ISO Date
@@ -31,15 +45,8 @@ export interface Transaction {
   accountId: string;
   toAccountId?: string; // For transfers
   categoryId?: string;
-  studioId?: string; // Which studio this belongs to
+  studioId?: string;
   description: string;
-  contractor?: string;
-}
-
-export interface KPI {
-  revenue: number;
-  expenses: number;
-  profit: number;
-  balance: number;
-  margin: number;
+  contractorId?: string;
+  projectId?: string;
 }

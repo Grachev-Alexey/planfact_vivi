@@ -1,15 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { Transaction } from '../types';
 import { formatCurrency, formatDate } from '../utils/format';
-import { Search, Plus, Upload, Download, MoreVertical, ArrowRight, ArrowLeft, Filter, X, ChevronDown, Calendar, MessageCircle } from 'lucide-react';
+import { Search, Plus, Upload, Download, MoreVertical, ArrowRight, ArrowLeft, ArrowRightLeft, Filter, X, ChevronDown, Calendar, MessageCircle } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
+import * as XLSX from 'xlsx';
 
 export const TransactionList: React.FC = () => {
-  const { transactions, categories, studios, accounts, deleteTransaction, getTotalBalance } = useFinance();
+  const { transactions, categories, studios, accounts, contractors, projects, deleteTransaction } = useFinance();
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set());
 
   // Filter States
@@ -28,8 +31,13 @@ export const TransactionList: React.FC = () => {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
+      // Find related names for search
+      const contractor = contractors.find(c => c.id === t.contractorId)?.name || '';
+      const category = categories.find(c => c.id === t.categoryId)?.name || '';
+      
       const matchesSearch = t.description.toLowerCase().includes(search.toLowerCase()) || 
-                            (t.contractor || '').toLowerCase().includes(search.toLowerCase());
+                            contractor.toLowerCase().includes(search.toLowerCase()) ||
+                            category.toLowerCase().includes(search.toLowerCase());
       
       const matchesType = (t.type === 'income' && filterTypes.income) ||
                           (t.type === 'expense' && filterTypes.expense) ||
@@ -37,7 +45,7 @@ export const TransactionList: React.FC = () => {
       
       return matchesSearch && matchesType;
     });
-  }, [transactions, search, filterTypes]);
+  }, [transactions, search, filterTypes, contractors, categories]);
 
   // Grouping Logic
   const groupedTransactions = useMemo(() => {
@@ -70,6 +78,40 @@ export const TransactionList: React.FC = () => {
   const totalIncome = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
   const totalExpense = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const netResult = totalIncome - totalExpense;
+
+  const handleExport = () => {
+    const data = filteredTransactions.map(tx => {
+      const account = accounts.find(a => a.id === tx.accountId)?.name || '';
+      const toAccount = accounts.find(a => a.id === tx.toAccountId)?.name || '';
+      const category = categories.find(c => c.id === tx.categoryId)?.name || '';
+      const studio = studios.find(s => s.id === tx.studioId)?.name || '';
+      const contractor = contractors.find(c => c.id === tx.contractorId)?.name || '';
+      const project = projects.find(p => p.id === tx.projectId)?.name || '';
+  
+      let typeStr = 'Доход';
+      if (tx.type === 'expense') typeStr = 'Расход';
+      if (tx.type === 'transfer') typeStr = 'Перевод';
+  
+      return {
+        'Дата': tx.date,
+        'Тип': typeStr,
+        'Сумма': tx.amount,
+        'Счет': account,
+        'На счет (Перевод)': toAccount,
+        'Категория': category,
+        'Контрагент': contractor,
+        'Проект': project,
+        'Студия': studio,
+        'Описание': tx.description
+      };
+    });
+  
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Операции");
+    
+    XLSX.writeFile(wb, "vivi_transactions.xlsx");
+  };
 
   return (
     <div className="flex h-[calc(100vh-56px)]">
@@ -112,23 +154,8 @@ export const TransactionList: React.FC = () => {
                 <input 
                   type="text" 
                   placeholder="Укажите период"
-                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded text-sm focus:outline-none focus:border-teal-500"
+                  className="w-full pl-9 pr-3 py-2 bg-white text-slate-900 border border-slate-200 rounded text-sm focus:outline-none focus:border-teal-500"
                 />
-             </div>
-          </div>
-
-          {/* Other Filters (Mock UI) */}
-          <div className="space-y-3">
-             {['Юрлица и счета', 'Контрагенты', 'Статьи учета', 'Проекты'].map(label => (
-               <div key={label} className="border border-slate-200 rounded p-2 flex justify-between items-center bg-white cursor-pointer hover:border-slate-300">
-                  <span className="text-sm text-slate-600">{label}</span>
-                  <ChevronDown size={14} className="text-slate-400" />
-               </div>
-             ))}
-             
-             <div className="flex items-center gap-2 border border-slate-200 rounded p-1 bg-white">
-                <input type="text" placeholder="Сумма от" className="w-1/2 p-1 text-sm outline-none border-r" />
-                <input type="text" placeholder="до" className="w-1/2 p-1 text-sm outline-none" />
              </div>
           </div>
         </div>
@@ -141,14 +168,11 @@ export const TransactionList: React.FC = () => {
           <div className="flex items-center gap-4">
              <h1 className="text-2xl font-bold text-slate-800">Операции</h1>
              <Button 
-               onClick={() => setIsModalOpen(true)} 
+               onClick={() => { setEditingTx(null); setIsModalOpen(true); }} 
                className="bg-teal-600 hover:bg-teal-700 text-white rounded px-4 py-1.5 text-sm font-medium"
              >
                Создать
              </Button>
-             <button className="flex items-center gap-1 px-3 py-1.5 border border-slate-300 rounded text-slate-600 text-sm hover:bg-slate-50">
-               <Upload size={14} /> Импортировать
-             </button>
           </div>
           
           <div className="flex items-center gap-2">
@@ -159,15 +183,16 @@ export const TransactionList: React.FC = () => {
                    onChange={e => setSearch(e.target.value)}
                    type="text" 
                    placeholder="Поиск..." 
-                   className="w-full pl-9 pr-8 py-1.5 border border-slate-200 rounded-full text-sm focus:outline-none focus:border-teal-500 bg-slate-50"
+                   className="w-full pl-9 pr-8 py-1.5 bg-slate-50 text-slate-900 border border-slate-200 rounded-full text-sm focus:outline-none focus:border-teal-500"
                 />
                 {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={14}/></button>}
              </div>
-             <button className="p-1.5 border border-slate-200 rounded text-slate-500 hover:bg-slate-50">
+             <button 
+               onClick={handleExport}
+               className="p-1.5 border border-slate-200 rounded text-slate-500 hover:bg-slate-50 flex items-center"
+               title="Экспорт в Excel"
+             >
                 <Download size={16} /> <span className="text-xs ml-1">.xls</span>
-             </button>
-             <button className="p-1.5 border border-slate-200 rounded text-slate-500 hover:bg-slate-50">
-                <MoreVertical size={16} />
              </button>
           </div>
         </div>
@@ -179,7 +204,7 @@ export const TransactionList: React.FC = () => {
            <div className="w-48">Счет</div>
            <div className="w-10 text-center">Тип</div>
            <div className="w-48">Контрагент</div>
-           <div className="flex-1">Статья</div>
+           <div className="flex-1">Статья / Комментарий</div>
            <div className="w-40">Проект</div>
            <div className="w-32 text-right">Сумма</div>
            <div className="w-8"></div>
@@ -198,44 +223,61 @@ export const TransactionList: React.FC = () => {
                ) : (
                  group.items.map(tx => {
                     const account = accounts.find(a => a.id === tx.accountId);
+                    const toAccount = accounts.find(a => a.id === tx.toAccountId);
                     const category = categories.find(c => c.id === tx.categoryId);
                     const studio = studios.find(s => s.id === tx.studioId);
+                    const contractor = contractors.find(c => c.id === tx.contractorId);
+                    const project = projects.find(p => p.id === tx.projectId);
                     
                     return (
-                      <div key={tx.id} className="flex items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50 group text-sm transition-colors">
+                      <div 
+                        key={tx.id} 
+                        onClick={() => setEditingTx(tx)}
+                        className="flex items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50 group text-sm transition-colors cursor-pointer"
+                      >
                         <div className="w-10 text-center">
                           <input 
                             type="checkbox" 
                             checked={selectedTxIds.has(tx.id)}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={() => toggleTxSelection(tx.id)}
-                            className="rounded text-teal-600 focus:ring-teal-500" 
+                            className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer" 
                           />
                         </div>
                         <div className="w-32 flex flex-col justify-center">
                            <span className="text-slate-700">{formatDate(tx.date)}</span>
                            <span className="text-[10px] text-slate-400">{tx.date}</span>
                         </div>
-                        <div className="w-48 text-slate-700 truncate pr-4">{account?.name}</div>
+                        <div className="w-48 text-slate-700 truncate pr-4" title={account?.name}>
+                            {account?.name} 
+                            {tx.type === 'transfer' && toAccount && (
+                                <span className="text-xs text-slate-500"> → {toAccount.name}</span>
+                            )}
+                        </div>
                         <div className="w-10 text-center flex justify-center">
-                           {tx.type === 'income' ? (
-                             <ArrowLeft size={16} className="text-emerald-500" />
-                           ) : (
-                             <ArrowRight size={16} className="text-rose-500" />
-                           )}
+                           {tx.type === 'income' && <ArrowLeft size={16} className="text-emerald-500" />}
+                           {tx.type === 'expense' && <ArrowRight size={16} className="text-rose-500" />}
+                           {tx.type === 'transfer' && <ArrowRightLeft size={16} className="text-blue-500" />}
                         </div>
-                        <div className="w-48 text-slate-700 truncate pr-4">{tx.contractor || '-'}</div>
-                        <div className="flex-1 flex flex-col pr-4">
-                           <span className="text-slate-700 font-medium truncate">{category?.name}</span>
-                           <span className="text-xs text-slate-400 truncate">{tx.description}</span>
+                        <div className="w-48 text-slate-700 truncate pr-4">{contractor?.name || '-'}</div>
+                        <div className="flex-1 flex flex-col pr-4 min-w-0">
+                           <span className="text-slate-700 font-medium truncate">
+                             {tx.type === 'transfer' ? 'Перевод между счетами' : category?.name}
+                           </span>
+                           {tx.description && <span className="text-xs text-slate-400 truncate">{tx.description}</span>}
                         </div>
-                        <div className="w-40 text-slate-600 text-xs border-b border-dotted border-slate-300 inline-block w-fit mb-auto">
-                            {studio ? `${studio.name}` : '-'}
+                        <div className="w-40 flex flex-col min-w-0">
+                            {studio && <span className="text-xs text-slate-500 truncate">{studio.name}</span>}
+                            {project && <span className="text-xs text-slate-600 truncate bg-slate-100 px-1 rounded w-fit">{project.name}</span>}
                         </div>
-                        <div className={`w-32 text-right font-medium ${tx.type === 'income' ? 'text-slate-800' : 'text-rose-600'}`}>
+                        <div className={`w-32 text-right font-medium ${tx.type === 'income' ? 'text-slate-800' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
                            {tx.type === 'expense' && '-'}{formatCurrency(tx.amount)}
                         </div>
                         <div className="w-8 flex justify-end opacity-0 group-hover:opacity-100">
-                            <button onClick={() => deleteTransaction(tx.id)} className="text-slate-400 hover:text-rose-500">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); deleteTransaction(tx.id); }} 
+                                className="text-slate-400 hover:text-rose-500"
+                            >
                                <MoreVertical size={16} />
                             </button>
                         </div>
@@ -246,7 +288,7 @@ export const TransactionList: React.FC = () => {
             </div>
           ))}
           
-          <div className="h-12"></div> {/* Spacer for sticky footer */}
+          <div className="h-12"></div>
         </div>
 
         {/* Footer Summary */}
@@ -260,16 +302,18 @@ export const TransactionList: React.FC = () => {
               Итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span>
            </div>
         </div>
-
-        {/* Floating Chat Button (as in screenshot) */}
-        <button className="fixed bottom-6 right-6 w-12 h-12 bg-teal-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-teal-700 transition-colors z-50">
-           <MessageCircle size={24} />
-        </button>
       </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Новая операция">
          <TransactionForm onClose={() => setIsModalOpen(false)} />
       </Modal>
+
+      {/* Edit Transaction Modal */}
+      {editingTx && (
+        <Modal isOpen={!!editingTx} onClose={() => setEditingTx(null)} title="Редактирование операции">
+            <TransactionForm onClose={() => setEditingTx(null)} initialData={editingTx} />
+        </Modal>
+      )}
     </div>
   );
 };

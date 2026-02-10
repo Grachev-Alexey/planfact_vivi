@@ -1,13 +1,22 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Transaction, Account, Category, Studio } from '../types';
+import { Transaction, Account, Category, Studio, Contractor, Project } from '../types';
+import { useAuth } from './AuthContext';
 
 interface FinanceContextType {
   transactions: Transaction[];
   accounts: Account[];
   categories: Category[];
   studios: Studio[];
+  contractors: Contractor[];
+  projects: Project[];
+  
   addTransaction: (tx: Partial<Transaction>) => Promise<void>;
+  updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
+  
+  addItem: (type: 'categories' | 'contractors' | 'projects' | 'accounts' | 'studios', data: any) => Promise<void>;
+  deleteItem: (type: 'categories' | 'contractors' | 'projects' | 'accounts' | 'studios', id: string) => Promise<void>;
+
   getAccountBalance: (id: string) => number;
   getTotalBalance: () => number;
   isLoading: boolean;
@@ -15,32 +24,38 @@ interface FinanceContextType {
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
-const API_URL = 'http://localhost:3001/api'; // Adjust if needed
+const API_URL = 'http://localhost:3001/api';
 
 export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [studios, setStudios] = useState<Studio[]>([]);
+  const [contractors, setContractors] = useState<Contractor[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Helper to get headers with Auth ID
+  const getHeaders = () => ({
+    'Content-Type': 'application/json',
+    'x-user-id': user?.id.toString() || ''
+  });
+
   const fetchData = async () => {
+    // Only fetch if authenticated (handled by route protection usually, but good safeguard)
+    if (!user) return;
+    
+    setIsLoading(true);
     try {
       const res = await fetch(`${API_URL}/init`);
-      const data = await res.json();
+      if (!res.ok) throw new Error('Failed to fetch data');
       
-      // Map DB fields to frontend types if casing differs (snake_case -> camelCase)
-      // Postgres returns snake_case by default usually, but let's handle basic mapping if needed.
-      // Assuming server returns matches or we map here.
-      // For now, let's assume the frontend types match or we adapt manually.
-      // Quick adapter for DB snake_case response:
+      const data = await res.json();
       
       const mapTransaction = (t: any): Transaction => ({
         ...t,
-        accountId: t.account_id,
-        categoryId: t.category_id,
-        studioId: t.studio_id,
-        amount: Number(t.amount) // Ensure number
+        amount: Number(t.amount)
       });
       
       const mapAccount = (a: any): Account => ({
@@ -52,45 +67,80 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       setAccounts(data.accounts.map(mapAccount));
       setCategories(data.categories);
       setStudios(data.studios);
+      setContractors(data.contractors);
+      setProjects(data.projects);
     } catch (error) {
-      console.error("Failed to fetch data", error);
+      console.error("API unavailable", error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user) fetchData();
+  }, [user]);
 
   const addTransaction = async (txData: Partial<Transaction>) => {
     try {
+      const { id, ...payload } = txData; 
       const res = await fetch(`${API_URL}/transactions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(txData)
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
       });
-      
-      if (res.ok) {
-        // Refresh all data to get updated balances and sorting
-        fetchData();
-      }
+      if (res.ok) fetchData();
     } catch (error) {
       console.error("Error adding transaction", error);
     }
   };
 
-  const deleteTransaction = async (id: string) => {
+  const updateTransaction = async (id: string, txData: Partial<Transaction>) => {
     try {
       const res = await fetch(`${API_URL}/transactions/${id}`, {
-        method: 'DELETE'
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(txData)
       });
-      
-      if (res.ok) {
-        fetchData();
-      }
+      if (res.ok) fetchData();
+    } catch (error) {
+      console.error("Error updating transaction", error);
+    }
+  };
+
+  const deleteTransaction = async (id: string) => {
+    try {
+      const res = await fetch(`${API_URL}/transactions/${id}`, { 
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      if (res.ok) fetchData();
     } catch (error) {
       console.error("Error deleting transaction", error);
+    }
+  };
+
+  const addItem = async (type: string, data: any) => {
+    try {
+        const res = await fetch(`${API_URL}/${type}`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(data)
+        });
+        if (res.ok) fetchData();
+    } catch (error) {
+        console.error(`Error adding ${type}`, error);
+    }
+  };
+
+  const deleteItem = async (type: string, id: string) => {
+    try {
+        const res = await fetch(`${API_URL}/${type}/${id}`, { 
+            method: 'DELETE',
+            headers: getHeaders()
+        });
+        if (res.ok) fetchData();
+    } catch (error) {
+        console.error(`Error deleting from ${type}`, error);
     }
   };
 
@@ -108,8 +158,13 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       accounts,
       categories,
       studios,
+      contractors,
+      projects,
       addTransaction,
+      updateTransaction,
       deleteTransaction,
+      addItem,
+      deleteItem,
       getAccountBalance,
       getTotalBalance,
       isLoading
