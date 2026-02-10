@@ -64,16 +64,6 @@ export const Sidebar: React.FC = () => {
           </Link>
       </nav>
 
-      <div className="p-4 border-t border-slate-700 bg-[#233140] shrink-0">
-        <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-slate-500 flex items-center justify-center text-white font-bold text-xs shrink-0">
-                A
-            </div>
-            <div className="overflow-hidden opacity-0 lg:group-hover:opacity-100 xl:opacity-100 transition-opacity">
-                <div className="text-sm font-medium text-white truncate">rg1_vivi</div>
-            </div>
-        </div>
-      </div>
     </aside>
   );
 };
