@@ -27,38 +27,48 @@ const accountTypeLabels: Record<string, string> = {
   account: 'Счет',
 };
 
-function DropdownMenu({ onEdit, onDelete, onClose }: { onEdit: () => void; onDelete: () => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
+function ItemMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
+    if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      if (menuRef.current && !menuRef.current.contains(e.target as Node) && btnRef.current && !btnRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
+  }, [open]);
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.right - 160 });
+    }
+    setOpen(!open);
+  };
 
   return (
-    <div ref={ref} className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded shadow-lg z-50 py-1 min-w-[160px]">
-      <button onClick={() => { onEdit(); onClose(); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-        <Edit2 size={14} /> Редактировать
-      </button>
-      <button onClick={() => { onDelete(); onClose(); }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2">
-        <Trash2 size={14} /> Удалить
-      </button>
-    </div>
-  );
-}
-
-function ItemMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative">
-      <button onClick={(e) => { e.stopPropagation(); setOpen(!open); }} className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100">
+    <>
+      <button ref={btnRef} onClick={handleOpen} className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100">
         <MoreVertical size={16} />
       </button>
-      {open && <DropdownMenu onEdit={onEdit} onDelete={onDelete} onClose={() => setOpen(false)} />}
-    </div>
+      {open && (
+        <div ref={menuRef} className="fixed bg-white border border-slate-200 rounded shadow-lg py-1 min-w-[160px]" style={{ top: pos.top, left: pos.left, zIndex: 9999 }}>
+          <button onClick={() => { onEdit(); setOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+            <Edit2 size={14} /> Редактировать
+          </button>
+          <button onClick={() => { onDelete(); setOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2">
+            <Trash2 size={14} /> Удалить
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -449,7 +459,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
 
   const renderAccountsContent = () => {
     return (
-      <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
+      <div className="bg-white rounded border border-slate-200 shadow-sm overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[600px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 font-semibold uppercase">
@@ -481,7 +491,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const renderListContent = () => {
     const items = activeTab === 'contractors' ? contractors : studios;
     return (
-      <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
+      <div className="bg-white rounded border border-slate-200 shadow-sm overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[600px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 font-semibold uppercase">
