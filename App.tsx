@@ -11,29 +11,31 @@ import { LoginPage } from './components/LoginPage';
 import { Button } from './components/ui/Button';
 import { Modal } from './components/ui/Modal';
 import { TransactionForm } from './components/TransactionForm';
-import { Plus, Bell, HelpCircle, LogOut } from 'lucide-react';
+import { Plus, LogOut } from 'lucide-react';
 import { formatCurrency } from './utils/format';
 
 const TopBar: React.FC = () => {
   const { getTotalBalance } = useFinance();
   const { user, logout } = useAuth();
+  const balance = getTotalBalance();
   
   return (
-    <div className="h-14 bg-white border-b border-slate-200 text-slate-800 flex items-center justify-between px-4 lg:px-6 fixed top-0 right-0 left-16 z-20">
+    <div className="h-14 bg-white border-b border-slate-200 shadow-sm text-slate-800 flex items-center justify-between px-4 lg:px-6 fixed top-0 right-0 left-16 z-20">
        <div className="flex items-center gap-4">
        </div>
-       <div className="flex items-center gap-6">
-          <div className="flex flex-col items-end mr-0 md:mr-4">
-             <span className="text-xs text-teal-600 font-semibold whitespace-nowrap">На счетах {formatCurrency(getTotalBalance())}</span>
-          </div>
-          <button className="text-slate-400 hover:text-slate-600">
-             <Bell size={18} />
-          </button>
-          <div className="h-6 w-px bg-slate-200 mx-1"></div>
+       <div className="flex items-center gap-5">
           <div className="flex items-center gap-2">
+             <span className="text-xs text-slate-500 whitespace-nowrap">На счетах</span>
+             <span className={`text-sm font-bold whitespace-nowrap ${balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(balance)}</span>
+          </div>
+          <div className="h-6 w-px bg-slate-200"></div>
+          <div className="flex items-center gap-2">
+             <div className="w-7 h-7 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 font-bold text-xs">
+               {user?.username?.[0]?.toUpperCase() || '?'}
+             </div>
              <span className="text-xs font-medium text-slate-600">{user?.username}</span>
-             <button onClick={logout} className="text-slate-400 hover:text-rose-500" title="Выйти">
-                <LogOut size={16} />
+             <button onClick={logout} className="text-slate-400 hover:text-rose-500 ml-1" title="Выйти">
+                <LogOut size={15} />
              </button>
           </div>
        </div>

@@ -40,7 +40,7 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-slate-100 animate-in fade-in zoom-in-95 duration-300">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-slate-100 fade-enter">
         <div className="text-center mb-8">
           <div className="inline-block bg-teal-600 rounded-xl px-8 py-3 shadow-lg shadow-teal-600/20 mb-4">
             <h1 className="text-2xl font-bold text-white tracking-wide">

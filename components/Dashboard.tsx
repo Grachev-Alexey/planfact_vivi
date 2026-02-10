@@ -52,7 +52,7 @@ export const Dashboard: React.FC = () => {
   });
 
   return (
-    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+    <div className="p-8 space-y-8 fade-enter">
       <h1 className="text-2xl font-bold text-slate-800 mb-6">Сводка</h1>
 
       <div className="flex flex-col md:flex-row gap-6">

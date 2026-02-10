@@ -21,7 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ expanded, onMouseEnter, onMous
     <aside
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`${expanded ? 'w-56' : 'w-16'} bg-[#1e2a38] text-slate-300 flex flex-col h-screen fixed left-0 top-0 z-30 transition-all duration-300 overflow-hidden shadow-xl`}
+      className={`${expanded ? 'w-56' : 'w-16'} bg-[#1e2a38] text-slate-300 flex flex-col h-screen fixed left-0 top-0 z-30 sidebar-transition overflow-hidden shadow-xl`}
     >
       <div className="h-14 flex items-center bg-[#172231] shrink-0">
         <div className={`flex items-center ${expanded ? 'px-4' : 'justify-center w-full px-2'}`}>
