@@ -266,8 +266,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
   const [confirmed, setConfirmed] = useState(false);
   const [accrualDate, setAccrualDate] = useState('');
   const [showNewContractor, setShowNewContractor] = useState(false);
+  const initialized = useRef(false);
 
   useEffect(() => {
+    if (initialized.current) return;
     if (initialData) {
       setType(initialData.type);
       setAmount(initialData.amount.toString());
@@ -280,9 +282,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       setDescription(initialData.description || '');
       setConfirmed(initialData.confirmed || false);
       setAccrualDate(initialData.accrualDate ? initialData.accrualDate.split('T')[0] : '');
-    } else {
-      if (accounts.length > 0 && !accountId) setAccountId(accounts[0].id);
-      if (studios.length > 0 && !studioId) setStudioId(studios[0].id);
+      initialized.current = true;
+    } else if (accounts.length > 0 || studios.length > 0) {
+      if (accounts.length > 0) setAccountId(accounts[0].id);
+      if (studios.length > 0) setStudioId(studios[0].id);
+      initialized.current = true;
     }
   }, [initialData, accounts, studios]);
 
