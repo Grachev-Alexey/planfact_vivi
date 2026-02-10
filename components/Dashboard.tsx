@@ -130,7 +130,7 @@ export const Dashboard: React.FC = () => {
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                   <div 
-                    className={`h-full rounded-full transition-all duration-500 ${s.color.replace('bg-', 'bg-')}`} 
+                    className={`h-full rounded-full transition-all duration-500 bg-teal-500`} 
                     style={{ width: `${Math.min(Math.max((s.profit / (income || 1)) * 100, 0), 100)}%` }}
                   />
                 </div>

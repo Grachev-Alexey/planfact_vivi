@@ -52,13 +52,13 @@ A finance management application (Russian language UI) built with React + Vite f
 - Username: grachev, Password: cd5d56a8
 
 ### Categories
-- 5 types: income, expense, asset, liability, capital (CategoryType in types.ts)
+- 2 types: income, expense (CategoryType in types.ts)
 - Hierarchical: parent categories with subcategories (parent_id in DB)
 - Tree view with collapsible parents in Directories page
 
 ## Recent Changes
 - Added edit dialogs for all directory items (categories, contractors, accounts, studios)
-- Expanded category types to 5 (Доходы, Расходы, Активы, Обязательства, Капитал)
+- Category types: Доходы, Расходы (only 2 types)
 - Implemented hierarchical categories with subcategories (parent/child tree view)
 - Fixed creation forms to include all fields (studios: address, accounts: type/currency/initialBalance)
 - Added PUT endpoints for updating dictionary items

@@ -1,5 +1,5 @@
 export type TransactionType = 'income' | 'expense' | 'transfer';
-export type CategoryType = 'income' | 'expense' | 'asset' | 'liability' | 'capital';
+export type CategoryType = 'income' | 'expense';
 
 export interface Studio {
   id: string;

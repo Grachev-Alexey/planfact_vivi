@@ -14,17 +14,11 @@ interface DirectoriesProps {
 const categoryTabs: { id: CategoryType; label: string }[] = [
   { id: 'income', label: 'Доходы' },
   { id: 'expense', label: 'Расходы' },
-  { id: 'asset', label: 'Активы' },
-  { id: 'liability', label: 'Обязательства' },
-  { id: 'capital', label: 'Капитал' },
 ];
 
 const categoryTypeLabels: Record<CategoryType, string> = {
   income: 'Доход',
   expense: 'Расход',
-  asset: 'Актив',
-  liability: 'Обязательство',
-  capital: 'Капитал',
 };
 
 const accountTypeLabels: Record<string, string> = {
