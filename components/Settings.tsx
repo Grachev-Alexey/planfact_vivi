@@ -204,7 +204,7 @@ export const Settings: React.FC = () => {
                         {u.username}
                      </td>
                      <td className="px-6 py-3">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${u.role === 'admin' ? 'bg-teal-50 text-teal-700' : 'bg-slate-100 text-slate-600'}`}>
                             {u.role === 'admin' ? 'Администратор' : 'Пользователь'}
                         </span>
                      </td>

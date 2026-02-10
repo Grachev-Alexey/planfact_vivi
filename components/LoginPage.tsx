@@ -44,7 +44,7 @@ export const LoginPage: React.FC = () => {
         <div className="text-center mb-8">
           <div className="inline-block bg-teal-600 rounded-xl px-8 py-3 shadow-lg shadow-teal-600/20 mb-4">
             <h1 className="text-2xl font-bold text-white tracking-wide">
-              ViVi Finance
+              ПланФакт ViVi
             </h1>
           </div>
         </div>
