@@ -59,7 +59,9 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
     return options.filter(o => o.label.toLowerCase().includes(q) || (o.sublabel && o.sublabel.toLowerCase().includes(q)));
   }, [options, search]);
 
-  const selectedLabel = options.find(o => o.id === value)?.label || '';
+  const selectedOpt = options.find(o => o.id === value);
+  const selectedLabel = selectedOpt?.label || '';
+  const selectedSublabel = selectedOpt?.sublabel || '';
 
   const dropdown = (
     <div
@@ -134,7 +136,10 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
         onClick={() => { setOpen(!open); setSearch(''); }}
         className={`w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all flex items-center justify-between ${value ? 'text-slate-900' : 'text-slate-400'}`}
       >
-        <span className="truncate">{selectedLabel || placeholder}</span>
+        <span className="truncate min-w-0">
+          {selectedLabel || placeholder}
+          {selectedSublabel && <span className="text-xs text-slate-400 ml-1.5">{selectedSublabel}</span>}
+        </span>
         <ChevronDown size={14} className={`text-slate-400 shrink-0 ml-2 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
