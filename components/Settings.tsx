@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Users, Trash2, Shield, Activity, Clock, Plus } from 'lucide-react';
+import { Users, Trash2, Shield, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, Filter } from 'lucide-react';
 import { formatDate } from '../utils/format';
 
 interface User {
@@ -21,26 +21,73 @@ interface Log {
   createdAt: string;
 }
 
+const actionOptions = [
+  { value: '', label: 'Все действия' },
+  { value: 'Создание', label: 'Создание' },
+  { value: 'Изменение', label: 'Изменение' },
+  { value: 'Удаление', label: 'Удаление' },
+];
+
+const entityOptions = [
+  { value: '', label: 'Все объекты' },
+  { value: 'Операция', label: 'Операции' },
+  { value: 'Статья', label: 'Статьи' },
+  { value: 'Контрагент', label: 'Контрагенты' },
+  { value: 'Счет', label: 'Счета' },
+  { value: 'Студия', label: 'Студии' },
+  { value: 'Пользователь', label: 'Пользователи' },
+];
+
 export const Settings: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users');
-  
-  // Data State
+
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
-  
-  // UI State
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const logsPerPage = 50;
+
+  const [filterAction, setFilterAction] = useState('');
+  const [filterEntity, setFilterEntity] = useState('');
+  const [filterUsername, setFilterUsername] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'user' });
 
   useEffect(() => {
     fetchUsers();
-    fetchLogs();
   }, []);
 
+  const fetchLogs = useCallback(async (page = 1) => {
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', String(logsPerPage));
+      if (filterAction) params.set('action', filterAction);
+      if (filterEntity) params.set('entityType', filterEntity);
+      if (filterUsername) params.set('username', filterUsername);
+      if (searchText) params.set('search', searchText);
+
+      const res = await fetch(`/api/logs?${params.toString()}`);
+      const data = await res.json();
+      setLogs(data.logs || []);
+      setTotalLogs(data.total || 0);
+      setTotalPages(data.totalPages || 1);
+      setCurrentPage(data.page || 1);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [filterAction, filterEntity, filterUsername, searchText]);
+
   useEffect(() => {
-    if (activeTab === 'logs') fetchLogs();
-  }, [activeTab]);
+    if (activeTab === 'logs') {
+      fetchLogs(1);
+    }
+  }, [activeTab, filterAction, filterEntity, filterUsername, searchText]);
 
   const fetchUsers = async () => {
     try {
@@ -52,24 +99,14 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const fetchLogs = async () => {
-    try {
-      const res = await fetch('/api/logs');
-      const data = await res.json();
-      setLogs(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await fetch('/api/users', {
         method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'x-user-id': user?.id.toString() || '' 
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id.toString() || ''
         },
         body: JSON.stringify({ ...newUser, currentUserId: user?.id })
       });
@@ -94,26 +131,42 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearchText(searchInput);
+  };
+
+  const clearFilters = () => {
+    setFilterAction('');
+    setFilterEntity('');
+    setFilterUsername('');
+    setSearchText('');
+    setSearchInput('');
+  };
+
+  const hasFilters = filterAction || filterEntity || filterUsername || searchText;
+
   const getActionColor = (action: string) => {
     const a = action.toLowerCase();
     if (a === 'создание' || a === 'create') return 'text-emerald-600 bg-emerald-50';
     if (a === 'удаление' || a === 'delete') return 'text-rose-600 bg-rose-50';
     if (a === 'изменение' || a === 'update') return 'text-blue-600 bg-blue-50';
-    if (a === 'вход' || a === 'login') return 'text-slate-600 bg-slate-100';
     return 'text-slate-600 bg-slate-50';
   };
+
+  const uniqueUsernames = [...new Set(logs.map(l => l.username).filter(Boolean))];
 
   return (
     <div className="flex h-[calc(100vh-56px)] bg-slate-50 flex-col">
        <div className="px-8 pt-6 pb-0 flex items-center justify-between">
            <div className="flex gap-8">
-               <button 
+               <button
                 onClick={() => setActiveTab('users')}
                 className={`pb-4 text-xl font-bold transition-colors border-b-2 px-1 ${activeTab === 'users' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
                >
                    Пользователи
                </button>
-               <button 
+               <button
                 onClick={() => setActiveTab('logs')}
                 className={`pb-4 text-xl font-bold transition-colors border-b-2 px-1 ${activeTab === 'logs' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
                >
@@ -168,40 +221,127 @@ export const Settings: React.FC = () => {
              </table>
            </div>
          ) : (
-           <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden">
-             <table className="w-full text-left">
-               <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-semibold border-b border-slate-200">
-                 <tr>
-                   <th className="px-6 py-3 w-48">Время</th>
-                   <th className="px-6 py-3 w-40">Пользователь</th>
-                   <th className="px-6 py-3 w-32">Действие</th>
-                   <th className="px-6 py-3 w-32">Объект</th>
-                   <th className="px-6 py-3">Детали</th>
-                 </tr>
-               </thead>
-               <tbody className="divide-y divide-slate-100 text-sm">
-                 {logs.map(log => (
-                   <tr key={log.id} className="hover:bg-slate-50">
-                     <td className="px-6 py-3 text-slate-500 text-xs">
-                        <div className="flex items-center gap-2">
-                            <Clock size={12} />
-                            {new Date(log.createdAt).toLocaleString('ru-RU')}
-                        </div>
-                     </td>
-                     <td className="px-6 py-3 font-medium text-slate-700">{log.username || 'Система'}</td>
-                     <td className="px-6 py-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getActionColor(log.action)}`}>
-                            {log.action}
-                        </span>
-                     </td>
-                     <td className="px-6 py-3 text-slate-500 capitalize">{log.entityType}</td>
-                     <td className="px-6 py-3 text-slate-600 truncate max-w-xs" title={log.details}>
-                        {log.details}
-                     </td>
+           <div>
+             <div className="mb-4 flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
+               <form onSubmit={handleSearch} className="relative flex-1 min-w-[200px] max-w-md">
+                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                 <input
+                   type="text"
+                   value={searchInput}
+                   onChange={e => setSearchInput(e.target.value)}
+                   placeholder="Поиск по деталям..."
+                   className="w-full pl-10 pr-3 py-2 text-sm border border-slate-300 rounded bg-white text-slate-900 focus:outline-none focus:border-teal-500"
+                 />
+               </form>
+
+               <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded bg-white text-slate-700">
+                 {actionOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+               </select>
+
+               <select value={filterEntity} onChange={e => setFilterEntity(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded bg-white text-slate-700">
+                 {entityOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+               </select>
+
+               <select value={filterUsername} onChange={e => setFilterUsername(e.target.value)} className="px-3 py-2 text-sm border border-slate-300 rounded bg-white text-slate-700">
+                 <option value="">Все пользователи</option>
+                 {users.map(u => <option key={u.id} value={u.username}>{u.username}</option>)}
+               </select>
+
+               {hasFilters && (
+                 <button onClick={clearFilters} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 px-2 py-2">
+                   <X size={14} /> Сбросить
+                 </button>
+               )}
+
+               <div className="text-sm text-slate-400 ml-auto">
+                 Найдено: {totalLogs}
+               </div>
+             </div>
+
+             <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden">
+               <table className="w-full text-left">
+                 <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-semibold border-b border-slate-200">
+                   <tr>
+                     <th className="px-6 py-3 w-48">Время</th>
+                     <th className="px-6 py-3 w-40">Пользователь</th>
+                     <th className="px-6 py-3 w-32">Действие</th>
+                     <th className="px-6 py-3 w-32">Объект</th>
+                     <th className="px-6 py-3">Детали</th>
                    </tr>
-                 ))}
-               </tbody>
-             </table>
+                 </thead>
+                 <tbody className="divide-y divide-slate-100 text-sm">
+                   {logs.length === 0 ? (
+                     <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-400">Нет записей</td></tr>
+                   ) : logs.map(log => (
+                     <tr key={log.id} className="hover:bg-slate-50">
+                       <td className="px-6 py-3 text-slate-500 text-xs">
+                          <div className="flex items-center gap-2">
+                              <Clock size={12} />
+                              {new Date(log.createdAt).toLocaleString('ru-RU')}
+                          </div>
+                       </td>
+                       <td className="px-6 py-3 font-medium text-slate-700">{log.username || 'Система'}</td>
+                       <td className="px-6 py-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getActionColor(log.action)}`}>
+                              {log.action}
+                          </span>
+                       </td>
+                       <td className="px-6 py-3 text-slate-500">{log.entityType}</td>
+                       <td className="px-6 py-3 text-slate-600">
+                          <div className="max-w-md" title={log.details}>
+                              {log.details}
+                          </div>
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
+
+             {totalPages > 1 && (
+               <div className="flex items-center justify-between mt-4">
+                 <div className="text-sm text-slate-500">
+                   Страница {currentPage} из {totalPages}
+                 </div>
+                 <div className="flex items-center gap-2">
+                   <button
+                     onClick={() => fetchLogs(currentPage - 1)}
+                     disabled={currentPage <= 1}
+                     className="flex items-center gap-1 px-3 py-1.5 text-sm border border-slate-300 rounded bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                   >
+                     <ChevronLeft size={14} /> Назад
+                   </button>
+                   {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                     let page: number;
+                     if (totalPages <= 7) {
+                       page = i + 1;
+                     } else if (currentPage <= 4) {
+                       page = i + 1;
+                     } else if (currentPage >= totalPages - 3) {
+                       page = totalPages - 6 + i;
+                     } else {
+                       page = currentPage - 3 + i;
+                     }
+                     return (
+                       <button
+                         key={page}
+                         onClick={() => fetchLogs(page)}
+                         className={`w-8 h-8 text-sm rounded ${page === currentPage ? 'bg-teal-600 text-white' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                       >
+                         {page}
+                       </button>
+                     );
+                   })}
+                   <button
+                     onClick={() => fetchLogs(currentPage + 1)}
+                     disabled={currentPage >= totalPages}
+                     className="flex items-center gap-1 px-3 py-1.5 text-sm border border-slate-300 rounded bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                   >
+                     Вперед <ChevronRight size={14} />
+                   </button>
+                 </div>
+               </div>
+             )}
            </div>
          )}
        </div>
@@ -210,8 +350,8 @@ export const Settings: React.FC = () => {
            <form onSubmit={handleCreateUser} className="space-y-4">
                <div>
                    <label className="block text-sm font-bold text-slate-500 mb-1">Имя пользователя</label>
-                   <input 
-                     type="text" 
+                   <input
+                     type="text"
                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                      value={newUser.username}
                      onChange={e => setNewUser({...newUser, username: e.target.value})}
@@ -220,8 +360,8 @@ export const Settings: React.FC = () => {
                </div>
                <div>
                    <label className="block text-sm font-bold text-slate-500 mb-1">Пароль</label>
-                   <input 
-                     type="password" 
+                   <input
+                     type="password"
                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                      value={newUser.password}
                      onChange={e => setNewUser({...newUser, password: e.target.value})}
@@ -230,7 +370,7 @@ export const Settings: React.FC = () => {
                </div>
                <div>
                    <label className="block text-sm font-bold text-slate-500 mb-1">Роль</label>
-                   <select 
+                   <select
                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"
                      value={newUser.role}
                      onChange={e => setNewUser({...newUser, role: e.target.value})}

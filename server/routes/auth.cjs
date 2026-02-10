@@ -11,7 +11,6 @@ router.post('/login', async (req, res) => {
     const result = await db.query("SELECT * FROM users WHERE username = $1 AND password = $2", [username, password]);
     if (result.rows.length > 0) {
       const user = result.rows[0];
-      await logAction(user.id, 'login', 'auth', null, 'Вход в систему');
       res.json(toCamelCase(user));
     } else {
       res.status(401).json({ error: 'Invalid credentials' });
@@ -61,12 +60,53 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
-// Get Logs
+// Get Logs with pagination, filtering, search
 router.get('/logs', async (req, res) => {
   try {
-    const result = await db.query("SELECT * FROM activity_logs ORDER BY created_at DESC LIMIT 200");
-    res.json(result.rows.map(toCamelCase));
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+    const { action, entityType, search, username } = req.query;
+
+    let where = [];
+    let params = [];
+    let paramIdx = 1;
+
+    if (action) {
+      where.push(`action = $${paramIdx++}`);
+      params.push(action);
+    }
+    if (entityType) {
+      where.push(`entity_type = $${paramIdx++}`);
+      params.push(entityType);
+    }
+    if (username) {
+      where.push(`username = $${paramIdx++}`);
+      params.push(username);
+    }
+    if (search) {
+      where.push(`details ILIKE $${paramIdx++}`);
+      params.push(`%${search}%`);
+    }
+
+    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
+    const countResult = await db.query(`SELECT COUNT(*) FROM activity_logs ${whereClause}`, params);
+    const total = parseInt(countResult.rows[0].count);
+
+    const dataResult = await db.query(
+      `SELECT * FROM activity_logs ${whereClause} ORDER BY created_at DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+      [...params, limit, offset]
+    );
+
+    res.json({
+      logs: dataResult.rows.map(toCamelCase),
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Error fetching logs' });
   }
 });
