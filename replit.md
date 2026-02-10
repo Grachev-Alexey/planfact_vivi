@@ -45,13 +45,23 @@ A finance management application (Russian language UI) built with React + Vite f
 - All frontend API calls use `/api` prefix, proxied by Vite to backend on port 3001
 - Auth: POST /api/login, GET/POST/DELETE /api/users
 - Transactions: POST/PUT/DELETE /api/transactions
-- Dictionaries: POST/DELETE for categories, contractors, accounts, studios
+- Dictionaries: POST/PUT/DELETE for categories, contractors, accounts, studios
 - Init data: GET /api/init
 
 ### Default Login
 - Username: grachev, Password: cd5d56a8
 
+### Categories
+- 5 types: income, expense, asset, liability, capital (CategoryType in types.ts)
+- Hierarchical: parent categories with subcategories (parent_id in DB)
+- Tree view with collapsible parents in Directories page
+
 ## Recent Changes
+- Added edit dialogs for all directory items (categories, contractors, accounts, studios)
+- Expanded category types to 5 (Доходы, Расходы, Активы, Обязательства, Капитал)
+- Implemented hierarchical categories with subcategories (parent/child tree view)
+- Fixed creation forms to include all fields (studios: address, accounts: type/currency/initialBalance)
+- Added PUT endpoints for updating dictionary items
 - Removed "projects" entity entirely (DB, backend, frontend)
 - Activity history logs now display in Russian
 - Added 5-second polling for real-time data sync between users
