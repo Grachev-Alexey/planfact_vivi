@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 
@@ -22,22 +22,11 @@ interface DatePickerProps {
   compact?: boolean;
 }
 
-function calcCalendarPos(triggerEl: HTMLElement) {
-  const rect = triggerEl.getBoundingClientRect();
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const dropdownHeight = 320;
-  const top = spaceBelow > dropdownHeight ? rect.bottom + 4 : rect.top - dropdownHeight - 4;
-  return {
-    top: Math.max(4, top),
-    left: Math.max(4, rect.left),
-  };
-}
-
 export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 'дд.мм.гггг', required, compact = false }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const posRef = useRef({ top: -9999, left: -9999 });
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
 
   const selectedDate = value ? new Date(value + 'T00:00:00') : null;
   const [viewYear, setViewYear] = useState(selectedDate?.getFullYear() || new Date().getFullYear());
@@ -51,30 +40,19 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
     }
   }, [value]);
 
-  const handleOpen = () => {
-    if (open) { setOpen(false); return; }
+  const updatePosition = useCallback(() => {
     if (ref.current) {
-      posRef.current = calcCalendarPos(ref.current);
+      const rect = ref.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 320;
+      const top = spaceBelow > dropdownHeight ? rect.bottom + 4 : rect.top - dropdownHeight - 4;
+      setDropdownPos({ top: Math.max(4, top), left: Math.max(4, rect.left) });
     }
-    setOpen(true);
-  };
+  }, []);
 
   useEffect(() => {
-    if (!open) return;
-    const update = () => {
-      if (ref.current && dropdownRef.current) {
-        const p = calcCalendarPos(ref.current);
-        dropdownRef.current.style.top = `${p.top}px`;
-        dropdownRef.current.style.left = `${p.left}px`;
-      }
-    };
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-    return () => {
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
-    };
-  }, [open]);
+    if (open) updatePosition();
+  }, [open, updatePosition]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -146,76 +124,77 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
     ? `w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-[11px] bg-slate-50 text-left focus:outline-none focus:border-teal-500 focus:bg-white transition-all flex items-center justify-between gap-1.5 ${displayValue ? 'text-slate-800' : 'text-slate-400'}`
     : `w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all flex items-center justify-between gap-2 ${displayValue ? 'text-slate-900' : 'text-slate-400'}`;
 
+  const calendarDropdown = (
+    <div
+      ref={dropdownRef}
+      className="fixed z-[100] bg-white border border-slate-200 rounded-xl shadow-2xl p-3 w-[280px]"
+      style={{ top: dropdownPos.top, left: dropdownPos.left }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <button type="button" onClick={prevMonth} className="p-1 hover:bg-slate-100 rounded text-slate-500">
+          <ChevronLeft size={16} />
+        </button>
+        <span className="text-sm font-semibold text-slate-800">
+          {MONTH_NAMES[viewMonth]} {viewYear}
+        </span>
+        <button type="button" onClick={nextMonth} className="p-1 hover:bg-slate-100 rounded text-slate-500">
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 mb-1">
+        {DAY_NAMES.map(d => (
+          <div key={d} className="text-center text-[10px] font-semibold text-slate-400 py-1">{d}</div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7">
+        {cells.map((cell, i) => {
+          const cellStr = `${cell.year}-${String(cell.month + 1).padStart(2, '0')}-${String(cell.day).padStart(2, '0')}`;
+          const isSelected = cellStr === value;
+          const isToday = cellStr === todayStr;
+          const isSat = (i % 7) === 5;
+          const isSun = (i % 7) === 6;
+
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => handleSelect(cell)}
+              className={`h-8 w-8 mx-auto flex items-center justify-center text-xs rounded-lg transition-all ${
+                isSelected
+                  ? 'bg-teal-600 text-white font-bold'
+                  : isToday
+                    ? 'bg-teal-50 text-teal-700 font-semibold ring-1 ring-teal-300'
+                    : cell.isCurrentMonth
+                      ? (isSat || isSun ? 'text-rose-400 hover:bg-slate-100' : 'text-slate-700 hover:bg-slate-100')
+                      : 'text-slate-300'
+              }`}
+            >
+              {cell.day}
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={handleToday}
+        className="w-full mt-2 py-1.5 text-xs text-teal-600 hover:bg-teal-50 rounded-lg font-medium"
+      >
+        Сегодня
+      </button>
+    </div>
+  );
+
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={handleOpen} className={btnClass}>
+      <button type="button" onClick={() => setOpen(!open)} className={btnClass}>
         <span className="truncate">{displayValue || placeholder}</span>
         <Calendar size={compact ? 12 : 15} className="text-slate-400 shrink-0" />
       </button>
 
-      {open && createPortal(
-        <div
-          ref={dropdownRef}
-          className="fixed z-[100] bg-white border border-slate-200 rounded-xl shadow-2xl p-3 w-[280px]"
-          style={{ top: posRef.current.top, left: posRef.current.left }}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <button type="button" onClick={prevMonth} className="p-1 hover:bg-slate-100 rounded text-slate-500">
-              <ChevronLeft size={16} />
-            </button>
-            <span className="text-sm font-semibold text-slate-800">
-              {MONTH_NAMES[viewMonth]} {viewYear}
-            </span>
-            <button type="button" onClick={nextMonth} className="p-1 hover:bg-slate-100 rounded text-slate-500">
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 mb-1">
-            {DAY_NAMES.map(d => (
-              <div key={d} className="text-center text-[10px] font-semibold text-slate-400 py-1">{d}</div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7">
-            {cells.map((cell, i) => {
-              const cellStr = `${cell.year}-${String(cell.month + 1).padStart(2, '0')}-${String(cell.day).padStart(2, '0')}`;
-              const isSelected = cellStr === value;
-              const isToday = cellStr === todayStr;
-              const isSat = (i % 7) === 5;
-              const isSun = (i % 7) === 6;
-
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => handleSelect(cell)}
-                  className={`h-8 w-8 mx-auto flex items-center justify-center text-xs rounded-lg transition-all ${
-                    isSelected
-                      ? 'bg-teal-600 text-white font-bold'
-                      : isToday
-                        ? 'bg-teal-50 text-teal-700 font-semibold ring-1 ring-teal-300'
-                        : cell.isCurrentMonth
-                          ? (isSat || isSun ? 'text-rose-400 hover:bg-slate-100' : 'text-slate-700 hover:bg-slate-100')
-                          : 'text-slate-300'
-                  }`}
-                >
-                  {cell.day}
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={handleToday}
-            className="w-full mt-2 py-1.5 text-xs text-teal-600 hover:bg-teal-50 rounded-lg font-medium"
-          >
-            Сегодня
-          </button>
-        </div>,
-        document.body
-      )}
+      {open && createPortal(calendarDropdown, document.body)}
     </div>
   );
 };
