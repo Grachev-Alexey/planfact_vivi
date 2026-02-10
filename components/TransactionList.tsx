@@ -1,18 +1,21 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Transaction } from '../types';
 import { formatCurrency, formatDate } from '../utils/format';
-import { Search, Download, ArrowRight, ArrowLeft, ArrowRightLeft, X } from 'lucide-react';
+import { Search, Download, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
 import * as XLSX from 'xlsx';
 
 export const TransactionList: React.FC = () => {
-  const { transactions, categories, studios, accounts, contractors } = useFinance();
+  const { transactions, categories, studios, accounts, contractors, deleteTransaction } = useFinance();
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [filterTypes, setFilterTypes] = useState({
     income: true,
@@ -108,187 +111,300 @@ export const TransactionList: React.FC = () => {
     setFilterTypes({ income: true, expense: true, transfer: true });
   };
 
+  const filteredIds = useMemo(() => new Set(filteredTransactions.map(t => t.id)), [filteredTransactions]);
+
+  useEffect(() => {
+    setSelectedIds(prev => {
+      const reconciled = new Set([...prev].filter(id => filteredIds.has(id)));
+      return reconciled.size !== prev.size ? reconciled : prev;
+    });
+  }, [filteredIds]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredTransactions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredTransactions.map(t => t.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setIsDeleting(true);
+    const idsToDelete = [...selectedIds];
+    const failed: string[] = [];
+    for (const id of idsToDelete) {
+      try {
+        await deleteTransaction(id);
+      } catch (err) {
+        console.error('Error deleting transaction:', id, err);
+        failed.push(id);
+      }
+    }
+    if (failed.length > 0) {
+      setSelectedIds(new Set(failed));
+    } else {
+      setSelectedIds(new Set());
+      setShowDeleteConfirm(false);
+    }
+    setIsDeleting(false);
+  };
+
+  const visibleSelectedCount = [...selectedIds].filter(id => filteredIds.has(id)).length;
+  const allSelected = filteredTransactions.length > 0 && visibleSelectedCount === filteredTransactions.length;
+  const someSelected = visibleSelectedCount > 0 && visibleSelectedCount < filteredTransactions.length;
+
   return (
     <div className="flex h-[calc(100vh-56px)]">
-      <div className="w-60 bg-white border-r border-slate-200 flex-col hidden lg:flex shrink-0">
-        <div className="p-4 border-b border-slate-100">
-          <h2 className="font-bold text-sm text-slate-800 uppercase tracking-wider">Фильтры</h2>
+      <div className="w-56 bg-white border-r border-slate-200 flex-col hidden lg:flex shrink-0">
+        <div className="px-4 py-3 border-b border-slate-100">
+          <h2 className="font-bold text-xs text-slate-500 uppercase tracking-wider">Фильтры</h2>
         </div>
         
-        <div className="p-4 space-y-5 overflow-y-auto flex-1">
+        <div className="p-4 space-y-4 overflow-y-auto flex-1">
           <div>
             <div className="text-xs font-medium text-slate-500 mb-2">Тип операции</div>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {[
-                { key: 'income' as const, label: 'Поступление' },
-                { key: 'expense' as const, label: 'Выплата' },
-                { key: 'transfer' as const, label: 'Перемещение' },
+                { key: 'income' as const, label: 'Поступление', color: 'text-emerald-600' },
+                { key: 'expense' as const, label: 'Выплата', color: 'text-rose-600' },
+                { key: 'transfer' as const, label: 'Перемещение', color: 'text-blue-600' },
               ].map(item => (
-                <label key={item.key} className="flex items-center gap-2 cursor-pointer py-0.5">
+                <label key={item.key} className="flex items-center gap-2 cursor-pointer py-0.5 group">
                   <input type="checkbox" checked={filterTypes[item.key]} onChange={e => setFilterTypes(p => ({...p, [item.key]: e.target.checked}))} className="rounded text-teal-600 focus:ring-teal-500 h-3.5 w-3.5" />
-                  <span className="text-sm text-slate-700">{item.label}</span>
+                  <span className={`text-sm ${item.color}`}>{item.label}</span>
                 </label>
               ))}
             </div>
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-2">Юрлица и счета</div>
-            <select value={filterAccountId} onChange={e => setFilterAccountId(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-200 rounded text-sm focus:outline-none focus:border-teal-500">
+            <div className="text-xs font-medium text-slate-500 mb-1.5">Счет</div>
+            <select value={filterAccountId} onChange={e => setFilterAccountId(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
               <option value="">Все счета</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-2">Контрагенты</div>
-            <select value={filterContractorId} onChange={e => setFilterContractorId(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-200 rounded text-sm focus:outline-none focus:border-teal-500">
+            <div className="text-xs font-medium text-slate-500 mb-1.5">Контрагент</div>
+            <select value={filterContractorId} onChange={e => setFilterContractorId(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
               <option value="">Все</option>
               {contractors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-2">Статьи учета</div>
-            <select value={filterCategoryId} onChange={e => setFilterCategoryId(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-200 rounded text-sm focus:outline-none focus:border-teal-500">
+            <div className="text-xs font-medium text-slate-500 mb-1.5">Статья</div>
+            <select value={filterCategoryId} onChange={e => setFilterCategoryId(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
               <option value="">Все статьи</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-2">Студия</div>
-            <select value={filterStudioId} onChange={e => setFilterStudioId(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-200 rounded text-sm focus:outline-none focus:border-teal-500">
+            <div className="text-xs font-medium text-slate-500 mb-1.5">Студия</div>
+            <select value={filterStudioId} onChange={e => setFilterStudioId(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
               <option value="">Все студии</option>
               {studios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
 
           {hasActiveFilters && (
-            <button onClick={clearFilters} className="text-xs text-teal-600 hover:text-teal-700 font-medium">
-              Сбросить фильтры
+            <button onClick={clearFilters} className="text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1">
+              <X size={12} /> Сбросить фильтры
             </button>
           )}
         </div>
       </div>
 
       <div className="flex-1 flex flex-col bg-white min-w-0">
-        <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-             <h1 className="text-lg font-bold text-slate-800">Операции</h1>
-             <Button 
-               onClick={() => { setEditingTx(null); setIsModalOpen(true); }} 
-               className="bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-4 py-1.5 text-sm font-medium"
-             >
-               Создать
-             </Button>
+        {visibleSelectedCount > 0 ? (
+          <div className="px-4 py-2.5 border-b border-teal-200 bg-teal-50 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setSelectedIds(new Set())} className="text-slate-500 hover:text-slate-700">
+                <X size={16} />
+              </button>
+              <span className="text-sm font-medium text-teal-800">
+                Выбрано: <b>{visibleSelectedCount}</b>
+              </span>
+            </div>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-medium"
+            >
+              <Trash2 size={13} /> Удалить
+            </button>
           </div>
-          
-          <div className="flex items-center gap-2">
-             <div className="relative w-56">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+        ) : (
+          <div className="px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg font-bold text-slate-800">Операции</h1>
+              <Button 
+                onClick={() => { setEditingTx(null); setIsModalOpen(true); }} 
+                className="bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-4 py-1.5 text-sm font-medium"
+              >
+                Создать
+              </Button>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <div className="relative w-52">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <input 
-                   value={search}
-                   onChange={e => setSearch(e.target.value)}
-                   type="text" 
-                   placeholder="Поиск по операциям" 
-                   className="w-full pl-9 pr-8 py-1.5 bg-slate-50 text-slate-900 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-teal-500 focus:bg-white"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  type="text" 
+                  placeholder="Поиск по операциям" 
+                  className="w-full pl-8 pr-7 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white"
                 />
-                {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={14}/></button>}
-             </div>
-             <button 
-               onClick={handleExport}
-               className="p-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 flex items-center gap-1"
-               title="Экспорт в Excel"
-             >
-                <Download size={15} /> <span className="text-xs">.xls</span>
-             </button>
+                {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={13}/></button>}
+              </div>
+              <button 
+                onClick={handleExport}
+                className="p-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 flex items-center gap-1 text-xs"
+                title="Экспорт в Excel"
+              >
+                <Download size={14} /> .xls
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="grid grid-cols-[100px_1fr_36px_1fr_1fr_120px_100px] px-4 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-           <div>Дата</div>
-           <div>Счет</div>
-           <div className="text-center">Тип</div>
-           <div>Контрагент</div>
-           <div>Статья</div>
-           <div>Студия</div>
-           <div className="text-right">Сумма</div>
+        <div className="grid grid-cols-[32px_90px_1fr_32px_1fr_1fr_100px_90px] px-3 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={el => { if (el) el.indeterminate = someSelected; }}
+              onChange={toggleSelectAll}
+              className="rounded text-teal-600 focus:ring-teal-500 h-3.5 w-3.5 cursor-pointer"
+            />
+          </div>
+          <div>Дата</div>
+          <div>Счет</div>
+          <div></div>
+          <div>Контрагент</div>
+          <div>Статья</div>
+          <div>Студия</div>
+          <div className="text-right">Сумма</div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {groupedTransactions.length === 0 && (
-            <div className="p-8 text-center text-slate-400 text-sm">Нет операций</div>
+            <div className="p-12 text-center text-slate-400 text-sm">Нет операций</div>
           )}
           {groupedTransactions.map(group => (
             <div key={group.title}>
-               <div className="px-4 py-1.5 bg-slate-50 text-xs font-bold text-slate-600 border-b border-slate-100 sticky top-0">
-                 {group.title}
-               </div>
+              <div className="px-3 py-1.5 bg-slate-50/80 text-xs font-semibold text-slate-500 border-b border-slate-100 sticky top-0 backdrop-blur-sm">
+                {group.title}
+              </div>
                
-               {group.items.map(tx => {
-                  const account = accounts.find(a => a.id === tx.accountId);
-                  const toAccount = accounts.find(a => a.id === tx.toAccountId);
-                  const category = categories.find(c => c.id === tx.categoryId);
-                  const studio = studios.find(s => s.id === tx.studioId);
-                  const contractor = contractors.find(c => c.id === tx.contractorId);
-                  
-                  return (
-                    <div 
-                      key={tx.id} 
-                      onClick={() => setEditingTx(tx)}
-                      className="grid grid-cols-[100px_1fr_36px_1fr_1fr_120px_100px] items-center px-4 py-2.5 border-b border-slate-100 hover:bg-teal-50/30 text-sm cursor-pointer group"
-                    >
-                      <div className="text-slate-600 text-xs">{formatDate(tx.date)}</div>
-                      <div className="text-slate-700 truncate pr-3 text-xs" title={account?.name}>
-                          {account?.name}
-                          {tx.type === 'transfer' && toAccount && (
-                              <span className="text-slate-400"> → {toAccount.name}</span>
-                          )}
-                      </div>
-                      <div className="flex justify-center">
-                         {tx.type === 'income' && <ArrowLeft size={14} className="text-emerald-500" />}
-                         {tx.type === 'expense' && <ArrowRight size={14} className="text-rose-500" />}
-                         {tx.type === 'transfer' && <ArrowRightLeft size={14} className="text-blue-500" />}
-                      </div>
-                      <div className="text-slate-600 truncate pr-3 text-xs">{contractor?.name || ''}</div>
-                      <div className="flex flex-col pr-3 min-w-0">
-                         <span className="text-teal-700 font-medium truncate text-xs">
-                           {tx.type === 'transfer' ? 'Перевод между счетами' : category?.name || ''}
-                         </span>
-                         {tx.description && <span className="text-[11px] text-slate-400 truncate">{tx.description}</span>}
-                      </div>
-                      <div className="text-xs text-slate-500 truncate">{studio?.name || ''}</div>
-                      <div className={`text-right text-xs font-semibold ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
-                         {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}
-                      </div>
+              {group.items.map(tx => {
+                const account = accounts.find(a => a.id === tx.accountId);
+                const toAccount = accounts.find(a => a.id === tx.toAccountId);
+                const category = categories.find(c => c.id === tx.categoryId);
+                const studio = studios.find(s => s.id === tx.studioId);
+                const contractor = contractors.find(c => c.id === tx.contractorId);
+                const isSelected = selectedIds.has(tx.id);
+                
+                return (
+                  <div 
+                    key={tx.id} 
+                    onClick={() => setEditingTx(tx)}
+                    className={`grid grid-cols-[32px_90px_1fr_32px_1fr_1fr_100px_90px] items-center px-3 py-2 border-b border-slate-50 text-sm cursor-pointer group ${isSelected ? 'bg-teal-50/50' : 'hover:bg-slate-50/70'}`}
+                  >
+                    <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(tx.id)}
+                        className="rounded text-teal-600 focus:ring-teal-500 h-3.5 w-3.5 cursor-pointer"
+                      />
                     </div>
-                  )
-               })}
+                    <div className="text-slate-500 text-xs">{formatDate(tx.date)}</div>
+                    <div className="text-slate-700 truncate pr-2 text-xs font-medium" title={account?.name}>
+                      {account?.name}
+                      {tx.type === 'transfer' && toAccount && (
+                        <span className="text-slate-400 font-normal"> → {toAccount.name}</span>
+                      )}
+                    </div>
+                    <div className="flex justify-center">
+                      {tx.type === 'income' && <ArrowLeft size={13} className="text-emerald-500" />}
+                      {tx.type === 'expense' && <ArrowRight size={13} className="text-rose-500" />}
+                      {tx.type === 'transfer' && <ArrowRightLeft size={13} className="text-blue-500" />}
+                    </div>
+                    <div className="text-slate-600 truncate pr-2 text-xs">{contractor?.name || ''}</div>
+                    <div className="flex flex-col pr-2 min-w-0">
+                      <span className="text-slate-700 truncate text-xs">
+                        {tx.type === 'transfer' ? 'Перевод между счетами' : category?.name || ''}
+                      </span>
+                      {tx.description && <span className="text-[11px] text-slate-400 truncate">{tx.description}</span>}
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">{studio?.name || ''}</div>
+                    <div className={`text-right text-xs font-bold tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
+                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           ))}
         </div>
 
-        <div className="h-10 bg-slate-50 border-t border-slate-200 flex items-center px-4 text-[11px] text-slate-500 justify-between shrink-0">
-           <div className="flex gap-4">
-              <span><b>{filteredTransactions.length}</b> операций</span>
-              <span>поступления: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
-              <span>выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
-              <span>перемещения: <b>{formatCurrency(totalTransfers)}</b></span>
-           </div>
-           <div className="font-bold">
-              Итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span>
-           </div>
+        <div className="h-9 bg-slate-50 border-t border-slate-200 flex items-center px-4 text-[11px] text-slate-500 justify-between shrink-0">
+          <div className="flex gap-4">
+            <span><b>{filteredTransactions.length}</b> операций</span>
+            <span>поступления: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
+            <span>выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
+            <span>перемещения: <b>{formatCurrency(totalTransfers)}</b></span>
+          </div>
+          <div className="font-bold">
+            Итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span>
+          </div>
         </div>
       </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Создание операции">
-         <TransactionForm onClose={() => setIsModalOpen(false)} />
+        <TransactionForm onClose={() => setIsModalOpen(false)} />
       </Modal>
 
       {editingTx && (
         <Modal isOpen={!!editingTx} onClose={() => setEditingTx(null)} title="Редактирование операции">
-            <TransactionForm onClose={() => setEditingTx(null)} initialData={editingTx} />
+          <TransactionForm onClose={() => setEditingTx(null)} initialData={editingTx} />
+        </Modal>
+      )}
+
+      {showDeleteConfirm && (
+        <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Подтверждение удаления">
+          <div className="p-6">
+            <p className="text-slate-700 mb-6">
+              Вы уверены, что хотите удалить <b>{selectedIds.size}</b> {selectedIds.size === 1 ? 'операцию' : selectedIds.size < 5 ? 'операции' : 'операций'}?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-medium disabled:opacity-50"
+              >
+                {isDeleting ? 'Удаление...' : 'Удалить'}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
