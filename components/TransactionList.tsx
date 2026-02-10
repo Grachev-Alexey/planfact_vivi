@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Transaction } from '../types';
-import { formatCurrency, formatDate } from '../utils/format';
+import { formatCurrency, formatDate, formatDateShort } from '../utils/format';
 import { Search, Download, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -382,9 +382,9 @@ export const TransactionList: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col bg-white min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white min-w-0">
         {visibleSelectedCount > 0 ? (
-          <div className="px-4 py-2.5 border-b border-teal-200 bg-teal-50 flex items-center justify-between gap-3 shrink-0">
+          <div className="px-6 py-3 border-b border-teal-200 bg-teal-50 flex items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-3">
               <button onClick={() => setSelectedIds(new Set())} className="text-slate-500 hover:text-slate-700">
                 <X size={16} />
@@ -401,32 +401,32 @@ export const TransactionList: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="px-6 py-3 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3">
-              <h1 className="text-lg font-bold text-slate-800">Операции</h1>
+              <h1 className="text-xl font-bold text-slate-800">Операции</h1>
               <Button 
                 onClick={() => { setEditingTx(null); setIsModalOpen(true); }} 
-                className="bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-4 py-1.5 text-sm font-medium"
+                className="bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-5 py-1.5 text-sm font-medium"
               >
                 Создать
               </Button>
             </div>
             
-            <div className="flex items-center gap-2">
-              <div className="relative w-48">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <input 
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   type="text" 
                   placeholder="Поиск по операциям" 
-                  className="w-full pl-8 pr-7 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white"
+                  className="w-52 pl-9 pr-8 py-2 bg-white text-slate-800 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-teal-500"
                 />
-                {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={13}/></button>}
+                {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={14}/></button>}
               </div>
               <button 
                 onClick={handleExport}
-                className="p-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 flex items-center gap-1 text-xs shrink-0"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 text-sm shrink-0"
                 title="Экспорт в Excel"
               >
                 <Download size={14} /> .xls
@@ -435,95 +435,117 @@ export const TransactionList: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-[32px_80px_minmax(80px,1fr)_28px_minmax(80px,1fr)_minmax(80px,1.2fr)_minmax(60px,0.8fr)_minmax(70px,90px)] px-3 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider shrink-0">
-          <div className="flex items-center justify-center">
-            <input
-              type="checkbox"
-              checked={allSelected}
-              ref={el => { if (el) el.indeterminate = someSelected; }}
-              onChange={toggleSelectAll}
-              className="rounded accent-teal-600 h-3.5 w-3.5 cursor-pointer"
-            />
-          </div>
-          <div>Дата</div>
-          <div className="truncate">Счет</div>
-          <div></div>
-          <div className="truncate">Контрагент</div>
-          <div className="truncate">Статья</div>
-          <div className="truncate">Студия</div>
-          <div className="text-right">Сумма</div>
+        <div className="flex-1 overflow-auto">
+          <table className="w-full border-collapse" style={{ minWidth: 700 }}>
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="w-10 px-2 py-2.5 text-center">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    ref={el => { if (el) el.indeterminate = someSelected; }}
+                    onChange={toggleSelectAll}
+                    className="rounded accent-teal-600 h-3.5 w-3.5 cursor-pointer"
+                  />
+                </th>
+                <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider" style={{ width: '10%' }}>Дата</th>
+                <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider" style={{ width: '15%' }}>Счет</th>
+                <th className="w-8 px-1 py-2.5 text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Тип</th>
+                <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider" style={{ width: '18%' }}>Контрагент</th>
+                <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider" style={{ width: '25%' }}>Статья</th>
+                <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider" style={{ width: '14%' }}>Студия</th>
+                <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wider" style={{ width: '10%' }}>Сумма</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groupedTransactions.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="p-12 text-center text-slate-400 text-sm">Нет операций</td>
+                </tr>
+              )}
+              {groupedTransactions.map(group => (
+                <React.Fragment key={group.title}>
+                  <tr>
+                    <td colSpan={8} className="px-3 py-2 bg-slate-50/80 text-xs font-semibold text-slate-500 border-b border-slate-100">
+                      {group.title}
+                    </td>
+                  </tr>
+                  {group.items.map(tx => {
+                    const account = accounts.find(a => a.id === tx.accountId);
+                    const toAccount = accounts.find(a => a.id === tx.toAccountId);
+                    const category = categories.find(c => c.id === tx.categoryId);
+                    const studio = studios.find(s => s.id === tx.studioId);
+                    const contractor = contractors.find(c => c.id === tx.contractorId);
+                    const isSelected = selectedIds.has(tx.id);
+                    
+                    return (
+                      <tr 
+                        key={tx.id} 
+                        onClick={() => setEditingTx(tx)}
+                        className={`border-b border-slate-100 cursor-pointer ${isSelected ? 'bg-teal-50/40' : 'hover:bg-slate-50/60'}`}
+                      >
+                        <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(tx.id)}
+                            className="rounded accent-teal-600 h-3.5 w-3.5 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-3 py-3 text-slate-500 text-[13px] whitespace-nowrap align-top">
+                          {formatDateShort(tx.date)}
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <div className="text-slate-800 text-[13px]">
+                            {account?.name}
+                          </div>
+                          {tx.type === 'transfer' && toAccount && (
+                            <div className="text-slate-400 text-[12px]">{toAccount.name}</div>
+                          )}
+                        </td>
+                        <td className="px-1 py-3 text-center align-top">
+                          {tx.type === 'income' && <ArrowLeft size={14} className="text-emerald-500 inline-block" />}
+                          {tx.type === 'expense' && <ArrowRight size={14} className="text-rose-500 inline-block" />}
+                          {tx.type === 'transfer' && <ArrowRightLeft size={14} className="text-blue-500 inline-block" />}
+                        </td>
+                        <td className="px-3 py-3 text-slate-700 text-[13px] align-top">
+                          {contractor?.name || ''}
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <div className="text-slate-800 text-[13px] font-medium">
+                            {tx.type === 'transfer' ? (
+                              <span className="text-slate-500 font-normal">[Перемещение]</span>
+                            ) : category?.name || ''}
+                          </div>
+                          {tx.description && (
+                            <div className="text-[12px] text-slate-400 mt-0.5 leading-snug">{tx.description}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-slate-600 text-[13px] align-top">
+                          {studio?.name || ''}
+                        </td>
+                        <td className={`px-4 py-3 text-right align-top whitespace-nowrap text-[13px] font-semibold tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
+                          <div className="flex items-center justify-end gap-1">
+                            {tx.confirmed && <CheckCircle2 size={13} className="text-teal-500 shrink-0" />}
+                            <span>{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-auto">
-          {groupedTransactions.length === 0 && (
-            <div className="p-12 text-center text-slate-400 text-sm">Нет операций</div>
-          )}
-          {groupedTransactions.map(group => (
-            <div key={group.title}>
-              <div className="px-3 py-1.5 bg-slate-50/80 text-xs font-semibold text-slate-500 border-b border-slate-100 sticky top-0 backdrop-blur-sm">
-                {group.title}
-              </div>
-               
-              {group.items.map(tx => {
-                const account = accounts.find(a => a.id === tx.accountId);
-                const toAccount = accounts.find(a => a.id === tx.toAccountId);
-                const category = categories.find(c => c.id === tx.categoryId);
-                const studio = studios.find(s => s.id === tx.studioId);
-                const contractor = contractors.find(c => c.id === tx.contractorId);
-                const isSelected = selectedIds.has(tx.id);
-                
-                return (
-                  <div 
-                    key={tx.id} 
-                    onClick={() => setEditingTx(tx)}
-                    className={`grid grid-cols-[32px_80px_minmax(80px,1fr)_28px_minmax(80px,1fr)_minmax(80px,1.2fr)_minmax(60px,0.8fr)_minmax(70px,90px)] items-center px-3 py-2 border-b border-slate-50 text-sm cursor-pointer group ${isSelected ? 'bg-teal-50/50' : 'hover:bg-slate-50/70'}`}
-                  >
-                    <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(tx.id)}
-                        className="rounded accent-teal-600 h-3.5 w-3.5 cursor-pointer"
-                      />
-                    </div>
-                    <div className="text-slate-500 text-xs truncate">{formatDate(tx.date)}</div>
-                    <div className="text-slate-700 truncate pr-2 text-xs font-medium" title={account?.name}>
-                      {account?.name}
-                      {tx.type === 'transfer' && toAccount && (
-                        <span className="text-slate-400 font-normal"> → {toAccount.name}</span>
-                      )}
-                    </div>
-                    <div className="flex justify-center">
-                      {tx.type === 'income' && <ArrowLeft size={13} className="text-emerald-500" />}
-                      {tx.type === 'expense' && <ArrowRight size={13} className="text-rose-500" />}
-                      {tx.type === 'transfer' && <ArrowRightLeft size={13} className="text-blue-500" />}
-                    </div>
-                    <div className="text-slate-600 truncate pr-2 text-xs">{contractor?.name || ''}</div>
-                    <div className="flex flex-col pr-2 min-w-0">
-                      <span className="text-slate-700 truncate text-xs">
-                        {tx.type === 'transfer' ? 'Перевод между счетами' : category?.name || ''}
-                      </span>
-                      {tx.description && <span className="text-[11px] text-slate-400 truncate">{tx.description}</span>}
-                    </div>
-                    <div className="text-xs text-slate-500 truncate">{studio?.name || ''}</div>
-                    <div className={`text-right text-xs font-bold tabular-nums flex items-center justify-end gap-1 ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
-                      {tx.confirmed && <CheckCircle2 size={12} className="text-teal-500 shrink-0" />}
-                      <span className="truncate">{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ))}
-        </div>
-
-        <div className="h-9 bg-slate-50 border-t border-slate-200 flex items-center px-4 text-[11px] text-slate-500 justify-between shrink-0">
-          <div className="flex gap-3 flex-wrap min-w-0">
-            <span><b>{filteredTransactions.length}</b> операций</span>
-            <span className="hidden sm:inline">поступления: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
-            <span className="hidden sm:inline">выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
+        <div className="h-10 bg-slate-50 border-t border-slate-200 flex items-center px-6 text-[12px] text-slate-500 justify-between shrink-0">
+          <div className="flex gap-4 flex-wrap min-w-0">
+            <span><b className="text-slate-700">{filteredTransactions.length}</b> операций</span>
+            <span>поступление: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
+            <span>выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
           </div>
-          <div className="font-bold shrink-0">
+          <div className="font-semibold text-slate-700 shrink-0">
             Итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span>
           </div>
         </div>
