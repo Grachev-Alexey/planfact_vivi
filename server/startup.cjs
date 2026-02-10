@@ -95,10 +95,10 @@ const initDB = async () => {
       )
     `);
 
-    const adminCheck = await db.query("SELECT * FROM users WHERE username = 'admin'");
+    const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
-      await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['admin', 'admin', 'admin']);
-      console.log("Default admin user created (admin/admin)");
+      await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['grachev', 'cd5d56a8', 'admin']);
+      console.log("Default admin user created (grachev/cd5d56a8)");
     }
     
     console.log("Database initialized successfully");

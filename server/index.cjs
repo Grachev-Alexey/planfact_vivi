@@ -21,6 +21,6 @@ app.use('/api', transactionRoutes);
 app.use('/api', dictionaryRoutes);
 app.use('/api', initialDataRoutes);
 
-app.listen(PORT, 'localhost', () => {
-  console.log(`ViVi Finance Server running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`ViVi Finance Server running on http://0.0.0.0:${PORT}`);
 });
