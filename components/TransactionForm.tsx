@@ -17,15 +17,14 @@ interface SearchableSelectProps {
   createLabel?: string;
 }
 
-function calcDropdownPos(triggerEl: HTMLElement, dropdownH: number = 300) {
+function positionDropdown(triggerEl: HTMLElement, ddEl: HTMLDivElement) {
   const rect = triggerEl.getBoundingClientRect();
+  const ddHeight = ddEl.offsetHeight || 280;
   const spaceBelow = window.innerHeight - rect.bottom;
-  const top = spaceBelow > dropdownH ? rect.bottom + 2 : rect.top - dropdownH - 2;
-  return {
-    top: Math.max(4, top),
-    left: rect.left,
-    width: rect.width,
-  };
+  const top = spaceBelow > ddHeight + 4 ? rect.bottom + 2 : rect.top - ddHeight - 2;
+  ddEl.style.top = `${Math.max(4, top)}px`;
+  ddEl.style.left = `${rect.left}px`;
+  ddEl.style.width = `${rect.width}px`;
 }
 
 const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, placeholder, options, required, onCreateNew, createLabel }) => {
@@ -34,26 +33,20 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const posRef = useRef({ top: -9999, left: -9999, width: 300 });
 
   const handleOpen = () => {
     if (open) { setOpen(false); return; }
-    if (ref.current) {
-      posRef.current = calcDropdownPos(ref.current);
-    }
     setOpen(true);
     setSearch('');
     setTimeout(() => inputRef.current?.focus(), 10);
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !ref.current || !dropdownRef.current) return;
+    positionDropdown(ref.current, dropdownRef.current);
     const update = () => {
       if (ref.current && dropdownRef.current) {
-        const p = calcDropdownPos(ref.current);
-        dropdownRef.current.style.top = `${p.top}px`;
-        dropdownRef.current.style.left = `${p.left}px`;
-        dropdownRef.current.style.width = `${p.width}px`;
+        positionDropdown(ref.current, dropdownRef.current);
       }
     };
     window.addEventListener('resize', update);
@@ -103,7 +96,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
         <div
           ref={dropdownRef}
           className="fixed z-[100] bg-white border border-slate-200 rounded-lg shadow-2xl max-h-[280px] flex flex-col"
-          style={{ top: posRef.current.top, left: posRef.current.left, width: posRef.current.width }}
+          style={{ top: -9999, left: -9999 }}
         >
           <div className="p-2 border-b border-slate-100 shrink-0">
             <div className="relative">

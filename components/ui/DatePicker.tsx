@@ -22,22 +22,19 @@ interface DatePickerProps {
   compact?: boolean;
 }
 
-function calcCalendarPos(triggerEl: HTMLElement) {
+function positionCalendar(triggerEl: HTMLElement, ddEl: HTMLDivElement) {
   const rect = triggerEl.getBoundingClientRect();
+  const ddHeight = ddEl.offsetHeight || 320;
   const spaceBelow = window.innerHeight - rect.bottom;
-  const dropdownHeight = 320;
-  const top = spaceBelow > dropdownHeight ? rect.bottom + 4 : rect.top - dropdownHeight - 4;
-  return {
-    top: Math.max(4, top),
-    left: Math.max(4, rect.left),
-  };
+  const top = spaceBelow > ddHeight + 4 ? rect.bottom + 4 : rect.top - ddHeight - 4;
+  ddEl.style.top = `${Math.max(4, top)}px`;
+  ddEl.style.left = `${Math.max(4, rect.left)}px`;
 }
 
 export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 'дд.мм.гггг', required, compact = false }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const posRef = useRef({ top: -9999, left: -9999 });
 
   const selectedDate = value ? new Date(value + 'T00:00:00') : null;
   const [viewYear, setViewYear] = useState(selectedDate?.getFullYear() || new Date().getFullYear());
@@ -53,19 +50,15 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
 
   const handleOpen = () => {
     if (open) { setOpen(false); return; }
-    if (ref.current) {
-      posRef.current = calcCalendarPos(ref.current);
-    }
     setOpen(true);
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !ref.current || !dropdownRef.current) return;
+    positionCalendar(ref.current, dropdownRef.current);
     const update = () => {
       if (ref.current && dropdownRef.current) {
-        const p = calcCalendarPos(ref.current);
-        dropdownRef.current.style.top = `${p.top}px`;
-        dropdownRef.current.style.left = `${p.left}px`;
+        positionCalendar(ref.current, dropdownRef.current);
       }
     };
     window.addEventListener('resize', update);
@@ -157,7 +150,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
         <div
           ref={dropdownRef}
           className="fixed z-[100] bg-white border border-slate-200 rounded-xl shadow-2xl p-3 w-[280px]"
-          style={{ top: posRef.current.top, left: posRef.current.left }}
+          style={{ top: -9999, left: -9999 }}
         >
           <div className="flex items-center justify-between mb-2">
             <button type="button" onClick={prevMonth} className="p-1 hover:bg-slate-100 rounded text-slate-500">

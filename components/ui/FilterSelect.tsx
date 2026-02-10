@@ -17,15 +17,14 @@ interface FilterSelectProps {
   searchable?: boolean;
 }
 
-function calcDropdownPos(triggerEl: HTMLElement, dropdownH: number = 260, minWidth: number = 200) {
+function positionDropdown(triggerEl: HTMLElement, ddEl: HTMLDivElement, minWidth: number = 200) {
   const rect = triggerEl.getBoundingClientRect();
+  const ddHeight = ddEl.offsetHeight || 250;
   const spaceBelow = window.innerHeight - rect.bottom;
-  const top = spaceBelow > dropdownH ? rect.bottom + 2 : rect.top - dropdownH - 2;
-  return {
-    top: Math.max(4, top),
-    left: rect.left,
-    width: Math.max(rect.width, minWidth),
-  };
+  const top = spaceBelow > ddHeight + 4 ? rect.bottom + 2 : rect.top - ddHeight - 2;
+  ddEl.style.top = `${Math.max(4, top)}px`;
+  ddEl.style.left = `${rect.left}px`;
+  ddEl.style.width = `${Math.max(rect.width, minWidth)}px`;
 }
 
 export const FilterSelect: React.FC<FilterSelectProps> = ({ value, onChange, placeholder, options, searchable = true }) => {
@@ -34,26 +33,20 @@ export const FilterSelect: React.FC<FilterSelectProps> = ({ value, onChange, pla
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const posRef = useRef({ top: -9999, left: -9999, width: 200 });
 
   const handleOpen = () => {
     if (open) { setOpen(false); return; }
-    if (ref.current) {
-      posRef.current = calcDropdownPos(ref.current);
-    }
     setOpen(true);
     setSearch('');
     setTimeout(() => inputRef.current?.focus(), 10);
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !ref.current || !dropdownRef.current) return;
+    positionDropdown(ref.current, dropdownRef.current);
     const update = () => {
       if (ref.current && dropdownRef.current) {
-        const p = calcDropdownPos(ref.current);
-        dropdownRef.current.style.top = `${p.top}px`;
-        dropdownRef.current.style.left = `${p.left}px`;
-        dropdownRef.current.style.width = `${p.width}px`;
+        positionDropdown(ref.current, dropdownRef.current);
       }
     };
     window.addEventListener('resize', update);
@@ -112,7 +105,7 @@ export const FilterSelect: React.FC<FilterSelectProps> = ({ value, onChange, pla
         <div
           ref={dropdownRef}
           className="fixed z-[100] bg-white border border-slate-200 rounded-lg shadow-2xl max-h-[250px] flex flex-col"
-          style={{ top: posRef.current.top, left: posRef.current.left, width: posRef.current.width }}
+          style={{ top: -9999, left: -9999 }}
         >
           {searchable && (
             <div className="p-1.5 border-b border-slate-100 shrink-0">
