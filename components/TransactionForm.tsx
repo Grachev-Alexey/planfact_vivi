@@ -3,6 +3,7 @@ import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
 import { Transaction, TransactionType } from '../types';
 import { Button } from './ui/Button';
+import { DatePicker } from './ui/DatePicker';
 import { ChevronDown, ChevronRight, Search, Plus, X, Check } from 'lucide-react';
 
 interface SearchableSelectProps {
@@ -46,7 +47,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
       <button
         type="button"
         onClick={() => { setOpen(!open); setSearch(''); }}
-        className={`w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all flex items-center justify-between ${value ? 'text-slate-900' : 'text-slate-400'}`}
+        className={`w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all flex items-center justify-between ${value ? 'text-slate-900' : 'text-slate-400'}`}
       >
         <span className="truncate">{selectedLabel || placeholder}</span>
         <ChevronDown size={14} className={`text-slate-400 shrink-0 ml-2 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -193,13 +194,20 @@ const NewContractorModal: React.FC<NewContractorModalProps> = ({ onClose, onCrea
   );
 };
 
+const FormRow: React.FC<{ label: string; children: React.ReactNode; className?: string }> = ({ label, children, className = '' }) => (
+  <div className={`grid grid-cols-[140px_1fr] items-start gap-3 ${className}`}>
+    <label className="text-sm font-medium text-slate-600 pt-2.5 text-right">{label}</label>
+    <div>{children}</div>
+  </div>
+);
+
 interface TransactionFormProps {
   onClose: () => void;
   initialData?: Transaction;
 }
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initialData }) => {
-  const { categories, accounts, studios, contractors, addTransaction, updateTransaction, refreshData } = useFinance();
+  const { categories, accounts, studios, contractors, addTransaction, updateTransaction, refreshData, deleteTransaction } = useFinance();
   
   const [type, setType] = useState<TransactionType>('income');
   const [amount, setAmount] = useState('');
@@ -235,7 +243,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || !accountId) return;
+    if (!amount || !accountId || !date) return;
     if (type !== 'transfer' && !categoryId) return;
     if (type === 'transfer' && !toAccountId) return;
 
@@ -259,6 +267,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       addTransaction(payload);
     }
     onClose();
+  };
+
+  const handleDelete = async () => {
+    if (initialData) {
+      await deleteTransaction(initialData.id);
+      onClose();
+    }
   };
 
   const categoryOptions = useMemo(() => {
@@ -294,103 +309,56 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
     await refreshData();
   };
 
+  const tabClass = (t: TransactionType, activeColor: string) =>
+    `px-5 py-2.5 text-sm font-medium transition-all whitespace-nowrap rounded-t-lg ${
+      type === t
+        ? `${activeColor} text-white`
+        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+    }`;
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex border-b border-slate-200 mb-6 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setType('income')}
-          className={`flex-1 sm:flex-none px-6 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
-            type === 'income' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
+        <button type="button" onClick={() => setType('income')} className={tabClass('income', 'bg-emerald-500')}>
           Поступление
         </button>
-        <button
-          type="button"
-          onClick={() => setType('expense')}
-          className={`flex-1 sm:flex-none px-6 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
-            type === 'expense' ? 'border-rose-500 text-rose-600' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
+        <button type="button" onClick={() => setType('expense')} className={tabClass('expense', 'bg-teal-600')}>
           Выплата
         </button>
-        <button
-          type="button"
-          onClick={() => setType('transfer')}
-          className={`flex-1 sm:flex-none px-6 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
-            type === 'transfer' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
+        <button type="button" onClick={() => setType('transfer')} className={tabClass('transfer', 'bg-blue-500')}>
           Перемещение
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-end">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1.5">Дата оплаты</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
-              style={{ colorScheme: 'light' }}
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1.5">Сумма</label>
-            <div className="relative">
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full px-4 py-2.5 pr-8 bg-white text-slate-900 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
-                placeholder="0.00"
-                required
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₽</div>
+      <form onSubmit={handleSubmit} className="space-y-4 flex-1">
+        <FormRow label="Дата оплаты">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <DatePicker value={date} onChange={setDate} required />
             </div>
-          </div>
-        </div>
-
-        {type !== 'transfer' && (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
-              <div className="relative flex items-center">
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  onChange={(e) => setConfirmed(e.target.checked)}
-                  className="peer h-5 w-5 cursor-pointer appearance-none rounded bg-white border border-slate-300 shadow-sm checked:bg-teal-600 checked:border-teal-600 transition-all"
-                />
-                <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white pointer-events-none opacity-0 peer-checked:opacity-100" viewBox="0 0 14 14" fill="none">
-                  <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <span className="text-sm font-medium text-slate-700">
-                {type === 'income' ? 'Подтвердить доход' : 'Подтвердить оплату'}
-              </span>
-            </label>
-
-            {type === 'expense' && (
-              <div className="flex-1">
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">Дата начисления</label>
-                <input
-                  type="date"
-                  value={accrualDate}
-                  onChange={(e) => setAccrualDate(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
-                  style={{ colorScheme: 'light' }}
-                />
-              </div>
+            {type !== 'transfer' && (
+              <label className="flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
+                <div className="relative flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={confirmed}
+                    onChange={(e) => setConfirmed(e.target.checked)}
+                    className="peer h-4.5 w-4.5 cursor-pointer appearance-none rounded border border-slate-300 bg-white checked:bg-teal-600 checked:border-teal-600 transition-all"
+                    style={{ width: '18px', height: '18px' }}
+                  />
+                  <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100" viewBox="0 0 14 14" fill="none">
+                    <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <span className="text-sm text-slate-600">
+                  {type === 'income' ? 'Подтвердить доход' : 'Подтвердить оплату'}
+                </span>
+              </label>
             )}
           </div>
-        )}
+        </FormRow>
 
-        <div>
-          <label className="block text-xs font-bold text-slate-500 mb-1.5">Счет</label>
+        <FormRow label="Счет">
           <SearchableSelect
             value={accountId}
             onChange={setAccountId}
@@ -398,11 +366,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
             options={accountOptions}
             required
           />
-        </div>
+        </FormRow>
 
-        {type === 'transfer' ? (
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1.5">На какой счет</label>
+        {type === 'transfer' && (
+          <FormRow label="На счет">
             <SearchableSelect
               value={toAccountId}
               onChange={setToAccountId}
@@ -410,22 +377,33 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
               options={toAccountOptions}
               required
             />
-          </div>
-        ) : (
-          <>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1.5">Статья</label>
-              <SearchableSelect
-                value={categoryId}
-                onChange={setCategoryId}
-                placeholder="Выберите статью"
-                options={categoryOptions}
-                required
-              />
-            </div>
+          </FormRow>
+        )}
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1.5">Контрагент</label>
+        <FormRow label="Сумма">
+          <div className="relative">
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full px-3 py-2.5 pr-16 bg-white text-slate-900 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+              placeholder="0"
+              required
+              step="0.01"
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">RUB (Российский рубль)</div>
+          </div>
+        </FormRow>
+
+        {type === 'expense' && (
+          <FormRow label="Дата начисления">
+            <DatePicker value={accrualDate} onChange={setAccrualDate} placeholder="дд.мм.гггг" />
+          </FormRow>
+        )}
+
+        {type !== 'transfer' && (
+          <>
+            <FormRow label="Контрагент">
               <SearchableSelect
                 value={contractorId}
                 onChange={setContractorId}
@@ -434,34 +412,59 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
                 onCreateNew={() => setShowNewContractor(true)}
                 createLabel="Создать контрагента"
               />
-            </div>
+            </FormRow>
+
+            <FormRow label="Статья">
+              <SearchableSelect
+                value={categoryId}
+                onChange={setCategoryId}
+                placeholder="Выберите статью"
+                options={categoryOptions}
+                required
+              />
+            </FormRow>
           </>
         )}
 
-        <div>
-          <label className="block text-xs font-bold text-slate-500 mb-1.5">Студия</label>
+        <FormRow label="Студия">
           <SearchableSelect
             value={studioId}
             onChange={setStudioId}
             placeholder="Не выбрано"
             options={studioOptions}
           />
-        </div>
+        </FormRow>
 
-        <div>
-          <label className="block text-xs font-bold text-slate-500 mb-1.5">Назначение платежа</label>
+        <FormRow label="Назначение платежа">
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all resize-none"
+            className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all resize-y min-h-[60px]"
             rows={2}
             placeholder="Комментарий..."
           />
-        </div>
+        </FormRow>
 
-        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-          <Button type="button" variant="ghost" onClick={onClose} className="text-slate-500 hover:text-slate-700">Отменить</Button>
-          <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white shadow-lg shadow-teal-600/20">{initialData ? 'Сохранить' : 'Создать'}</Button>
+        <div className="pt-4 flex items-center justify-between border-t border-slate-100">
+          <div>
+            {initialData && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-4 py-2 text-sm bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Удалить
+              </button>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-teal-600 hover:bg-teal-50 rounded-lg font-medium transition-colors">
+              Отменить
+            </button>
+            <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg text-sm font-medium shadow-sm">
+              {initialData ? 'Сохранить' : 'Создать'}
+            </Button>
+          </div>
         </div>
       </form>
 

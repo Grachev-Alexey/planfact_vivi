@@ -26,6 +26,7 @@ export const TransactionList: React.FC = () => {
   const [filterContractorId, setFilterContractorId] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState('');
   const [filterStudioId, setFilterStudioId] = useState('');
+  const [filterConfirmed, setFilterConfirmed] = useState<'' | 'yes' | 'no'>('');
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
@@ -47,10 +48,11 @@ export const TransactionList: React.FC = () => {
       const matchesContractor = !filterContractorId || t.contractorId === filterContractorId;
       const matchesCategory = !filterCategoryId || t.categoryId === filterCategoryId;
       const matchesStudio = !filterStudioId || t.studioId === filterStudioId;
+      const matchesConfirmed = !filterConfirmed || (filterConfirmed === 'yes' ? t.confirmed : !t.confirmed);
       
-      return matchesSearch && matchesType && matchesAccount && matchesContractor && matchesCategory && matchesStudio;
+      return matchesSearch && matchesType && matchesAccount && matchesContractor && matchesCategory && matchesStudio && matchesConfirmed;
     });
-  }, [transactions, search, filterTypes, filterAccountId, filterContractorId, filterCategoryId, filterStudioId, contractors, categories, accounts]);
+  }, [transactions, search, filterTypes, filterAccountId, filterContractorId, filterCategoryId, filterStudioId, filterConfirmed, contractors, categories, accounts]);
 
   const groupedTransactions = useMemo(() => {
     const groups: { [key: string]: typeof transactions } = {};
@@ -101,13 +103,14 @@ export const TransactionList: React.FC = () => {
     XLSX.writeFile(wb, "vivi_transactions.xlsx");
   };
 
-  const hasActiveFilters = filterAccountId || filterContractorId || filterCategoryId || filterStudioId || !filterTypes.income || !filterTypes.expense || !filterTypes.transfer;
+  const hasActiveFilters = filterAccountId || filterContractorId || filterCategoryId || filterStudioId || filterConfirmed || !filterTypes.income || !filterTypes.expense || !filterTypes.transfer;
 
   const clearFilters = () => {
     setFilterAccountId('');
     setFilterContractorId('');
     setFilterCategoryId('');
     setFilterStudioId('');
+    setFilterConfirmed('');
     setFilterTypes({ income: true, expense: true, transfer: true });
   };
 
@@ -215,6 +218,15 @@ export const TransactionList: React.FC = () => {
             <select value={filterStudioId} onChange={e => setFilterStudioId(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
               <option value="">Все студии</option>
               {studios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <div className="text-xs font-medium text-slate-500 mb-1.5">Статус</div>
+            <select value={filterConfirmed} onChange={e => setFilterConfirmed(e.target.value as '' | 'yes' | 'no')} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
+              <option value="">Все</option>
+              <option value="yes">Подтверждённые</option>
+              <option value="no">Неподтверждённые</option>
             </select>
           </div>
 
