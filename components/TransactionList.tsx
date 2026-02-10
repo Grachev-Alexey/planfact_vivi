@@ -6,6 +6,8 @@ import { Search, Download, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, Che
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
+import { FilterSelect } from './ui/FilterSelect';
+import { DatePicker } from './ui/DatePicker';
 import * as XLSX from 'xlsx';
 
 const toLocalDate = (d: Date): string => {
@@ -39,6 +41,27 @@ export const TransactionList: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [filterAmountFrom, setFilterAmountFrom] = useState('');
   const [filterAmountTo, setFilterAmountTo] = useState('');
+
+  const categoryTreeOptions = useMemo(() => {
+    const result: { id: string; label: string; indent?: number }[] = [];
+    const addChildren = (parentId: string | null, depth: number) => {
+      const items = categories.filter(c => depth === 0 ? !c.parentId : c.parentId === parentId);
+      items.forEach(item => {
+        result.push({ id: item.id, label: item.name, indent: depth });
+        addChildren(item.id, depth + 1);
+      });
+    };
+    addChildren(null, 0);
+    return result;
+  }, [categories]);
+
+  const accountOptions = useMemo(() => accounts.map(a => ({ id: a.id, label: a.name })), [accounts]);
+  const contractorOptions = useMemo(() => contractors.map(c => ({ id: c.id, label: c.name + (c.inn ? ` (${c.inn})` : '') })), [contractors]);
+  const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
+  const confirmedOptions = useMemo(() => [
+    { id: 'yes', label: 'Подтверждённые' },
+    { id: 'no', label: 'Неподтверждённые' },
+  ], []);
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
@@ -189,16 +212,53 @@ export const TransactionList: React.FC = () => {
   const allSelected = filteredTransactions.length > 0 && visibleSelectedCount === filteredTransactions.length;
   const someSelected = visibleSelectedCount > 0 && visibleSelectedCount < filteredTransactions.length;
 
+  const datePresets = [
+    { label: 'Просроченные', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); setFilterDateFrom(''); setFilterDateTo(toLocalDate(d)); }},
+    { label: 'Будущие', fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); setFilterDateFrom(toLocalDate(d)); setFilterDateTo(''); }},
+    { label: 'Вчера', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); const s = toLocalDate(d); setFilterDateFrom(s); setFilterDateTo(s); }},
+    { label: 'Сегодня', fn: () => { const s = toLocalDate(new Date()); setFilterDateFrom(s); setFilterDateTo(s); }},
+    { label: 'Прошлая неделя', fn: () => {
+      const now = new Date(); const day = now.getDay() || 7;
+      const mon = new Date(now); mon.setDate(now.getDate() - day - 6);
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      setFilterDateFrom(toLocalDate(mon)); setFilterDateTo(toLocalDate(sun));
+    }},
+    { label: 'Эта неделя', fn: () => {
+      const now = new Date(); const day = now.getDay() || 7;
+      const mon = new Date(now); mon.setDate(now.getDate() - day + 1);
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      setFilterDateFrom(toLocalDate(mon)); setFilterDateTo(toLocalDate(sun));
+    }},
+    { label: 'Прошлый месяц', fn: () => {
+      const now = new Date(); const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear(); const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      setFilterDateFrom(toLocalDate(new Date(y, m, 1))); setFilterDateTo(toLocalDate(new Date(y, m + 1, 0)));
+    }},
+    { label: 'Этот месяц', fn: () => {
+      const now = new Date();
+      setFilterDateFrom(toLocalDate(new Date(now.getFullYear(), now.getMonth(), 1))); setFilterDateTo(toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
+    }},
+    { label: 'Прошлый квартал', fn: () => {
+      const now = new Date(); const q = Math.floor(now.getMonth() / 3); const pq = q === 0 ? 3 : q - 1; const y = q === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      setFilterDateFrom(toLocalDate(new Date(y, pq * 3, 1))); setFilterDateTo(toLocalDate(new Date(y, pq * 3 + 3, 0)));
+    }},
+    { label: 'Этот квартал', fn: () => {
+      const now = new Date(); const q = Math.floor(now.getMonth() / 3);
+      setFilterDateFrom(toLocalDate(new Date(now.getFullYear(), q * 3, 1))); setFilterDateTo(toLocalDate(new Date(now.getFullYear(), q * 3 + 3, 0)));
+    }},
+    { label: 'Прошлый год', fn: () => { const y = new Date().getFullYear() - 1; setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`); }},
+    { label: 'Этот год', fn: () => { const y = new Date().getFullYear(); setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`); }},
+  ];
+
   return (
-    <div className="flex h-[calc(100vh-56px)]">
+    <div className="flex h-[calc(100vh-56px)] overflow-hidden">
       <div className="w-56 bg-white border-r border-slate-200 flex-col hidden lg:flex shrink-0">
         <div className="px-4 py-3 border-b border-slate-100">
           <h2 className="font-bold text-xs text-slate-500 uppercase tracking-wider">Фильтры</h2>
         </div>
         
-        <div className="p-4 space-y-4 overflow-y-auto flex-1">
+        <div className="p-3 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-1.5">Период</div>
+            <div className="text-[11px] font-medium text-slate-500 mb-1">Период</div>
             <button
               type="button"
               onClick={() => setShowDatePicker(!showDatePicker)}
@@ -208,89 +268,35 @@ export const TransactionList: React.FC = () => {
                   : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
               }`}
             >
-              <Calendar size={12} className="shrink-0" />
-              <span className="truncate">
+              <Calendar size={11} className="shrink-0" />
+              <span className="truncate text-[11px]">
                 {filterDateFrom || filterDateTo
                   ? `${filterDateFrom ? formatDate(filterDateFrom) : '...'} – ${filterDateTo ? formatDate(filterDateTo) : '...'}`
                   : 'Укажите период'}
               </span>
+              {(filterDateFrom || filterDateTo) && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); setFilterDateFrom(''); setFilterDateTo(''); }} className="shrink-0 text-teal-400 hover:text-teal-600 ml-auto">
+                  <X size={10} />
+                </button>
+              )}
             </button>
             {showDatePicker && (
-              <div className="mt-2 border border-slate-200 rounded-lg bg-white shadow-sm p-2.5 space-y-2">
+              <div className="mt-2 border border-slate-200 rounded-lg bg-white shadow-sm p-2 space-y-2">
                 <div className="grid grid-cols-2 gap-1">
-                  {[
-                    { label: 'Просроченные', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); setFilterDateFrom(''); setFilterDateTo(toLocalDate(d)); }},
-                    { label: 'Будущие', fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); setFilterDateFrom(toLocalDate(d)); setFilterDateTo(''); }},
-                    { label: 'Вчера', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); const s = toLocalDate(d); setFilterDateFrom(s); setFilterDateTo(s); }},
-                    { label: 'Сегодня', fn: () => { const s = toLocalDate(new Date()); setFilterDateFrom(s); setFilterDateTo(s); }},
-                    { label: 'Прошлая неделя', fn: () => {
-                      const now = new Date(); const day = now.getDay() || 7;
-                      const mon = new Date(now); mon.setDate(now.getDate() - day - 6);
-                      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-                      setFilterDateFrom(toLocalDate(mon)); setFilterDateTo(toLocalDate(sun));
-                    }},
-                    { label: 'Эта неделя', fn: () => {
-                      const now = new Date(); const day = now.getDay() || 7;
-                      const mon = new Date(now); mon.setDate(now.getDate() - day + 1);
-                      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-                      setFilterDateFrom(toLocalDate(mon)); setFilterDateTo(toLocalDate(sun));
-                    }},
-                    { label: 'Прошлый месяц', fn: () => {
-                      const now = new Date(); const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear(); const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-                      const first = new Date(y, m, 1); const last = new Date(y, m + 1, 0);
-                      setFilterDateFrom(toLocalDate(first)); setFilterDateTo(toLocalDate(last));
-                    }},
-                    { label: 'Этот месяц', fn: () => {
-                      const now = new Date(); const first = new Date(now.getFullYear(), now.getMonth(), 1); const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                      setFilterDateFrom(toLocalDate(first)); setFilterDateTo(toLocalDate(last));
-                    }},
-                    { label: 'Прошлый квартал', fn: () => {
-                      const now = new Date(); const q = Math.floor(now.getMonth() / 3); const pq = q === 0 ? 3 : q - 1; const y = q === 0 ? now.getFullYear() - 1 : now.getFullYear();
-                      const first = new Date(y, pq * 3, 1); const last = new Date(y, pq * 3 + 3, 0);
-                      setFilterDateFrom(toLocalDate(first)); setFilterDateTo(toLocalDate(last));
-                    }},
-                    { label: 'Этот квартал', fn: () => {
-                      const now = new Date(); const q = Math.floor(now.getMonth() / 3);
-                      const first = new Date(now.getFullYear(), q * 3, 1); const last = new Date(now.getFullYear(), q * 3 + 3, 0);
-                      setFilterDateFrom(toLocalDate(first)); setFilterDateTo(toLocalDate(last));
-                    }},
-                    { label: 'Прошлый год', fn: () => {
-                      const y = new Date().getFullYear() - 1;
-                      setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`);
-                    }},
-                    { label: 'Этот год', fn: () => {
-                      const y = new Date().getFullYear();
-                      setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`);
-                    }},
-                  ].map(preset => (
+                  {datePresets.map(preset => (
                     <button
                       key={preset.label}
                       type="button"
                       onClick={preset.fn}
-                      className="px-2 py-1.5 text-[11px] text-slate-600 hover:bg-slate-100 rounded border border-slate-150 text-center transition-colors"
+                      className="px-1.5 py-1 text-[10px] text-slate-600 hover:bg-teal-50 hover:text-teal-700 rounded border border-slate-200 text-center transition-colors leading-tight"
                     >
                       {preset.label}
                     </button>
                   ))}
                 </div>
-                <div className="flex items-center gap-1.5 pt-1">
-                  <input
-                    type="date"
-                    value={filterDateFrom}
-                    onChange={e => setFilterDateFrom(e.target.value)}
-                    className="flex-1 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-[11px] text-slate-700 focus:outline-none focus:border-teal-500"
-                    placeholder="Начало периода"
-                    style={{ colorScheme: 'light' }}
-                  />
-                  <span className="text-slate-300 text-xs">–</span>
-                  <input
-                    type="date"
-                    value={filterDateTo}
-                    onChange={e => setFilterDateTo(e.target.value)}
-                    className="flex-1 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-[11px] text-slate-700 focus:outline-none focus:border-teal-500"
-                    placeholder="Конец периода"
-                    style={{ colorScheme: 'light' }}
-                  />
+                <div className="space-y-1.5 pt-1">
+                  <DatePicker value={filterDateFrom} onChange={setFilterDateFrom} placeholder="Начало периода" compact />
+                  <DatePicker value={filterDateTo} onChange={setFilterDateTo} placeholder="Конец периода" compact />
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button type="button" onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }} className="flex-1 text-[11px] text-slate-500 hover:text-slate-700 py-1">
@@ -305,22 +311,22 @@ export const TransactionList: React.FC = () => {
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-1.5">Сумма</div>
-            <div className="flex items-center gap-1.5">
+            <div className="text-[11px] font-medium text-slate-500 mb-1">Сумма</div>
+            <div className="flex items-center gap-1">
               <input
                 type="number"
                 value={filterAmountFrom}
                 onChange={e => setFilterAmountFrom(e.target.value)}
-                className="flex-1 w-0 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
-                placeholder="Сумма от"
+                className="flex-1 w-0 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                placeholder="от"
                 step="0.01"
               />
-              <span className="text-slate-300 text-xs">–</span>
+              <span className="text-slate-300 text-[10px]">–</span>
               <input
                 type="number"
                 value={filterAmountTo}
                 onChange={e => setFilterAmountTo(e.target.value)}
-                className="flex-1 w-0 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                className="flex-1 w-0 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
                 placeholder="до"
                 step="0.01"
               />
@@ -328,73 +334,57 @@ export const TransactionList: React.FC = () => {
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-2">Тип операции</div>
-            <div className="space-y-1">
+            <div className="text-[11px] font-medium text-slate-500 mb-1.5">Тип операции</div>
+            <div className="space-y-0.5">
               {[
                 { key: 'income' as const, label: 'Поступление' },
                 { key: 'expense' as const, label: 'Выплата' },
                 { key: 'transfer' as const, label: 'Перемещение' },
               ].map(item => (
-                <label key={item.key} className="flex items-center gap-2 cursor-pointer py-0.5 group">
-                  <input type="checkbox" checked={filterTypes[item.key]} onChange={e => setFilterTypes(p => ({...p, [item.key]: e.target.checked}))} className="rounded accent-teal-600 h-3.5 w-3.5" />
-                  <span className="text-sm text-slate-700">{item.label}</span>
+                <label key={item.key} className="flex items-center gap-2 cursor-pointer py-0.5">
+                  <input type="checkbox" checked={filterTypes[item.key]} onChange={e => setFilterTypes(p => ({...p, [item.key]: e.target.checked}))} className="rounded accent-teal-600 h-3 w-3" />
+                  <span className="text-[11px] text-slate-700">{item.label}</span>
                 </label>
               ))}
             </div>
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-1.5">Счет</div>
-            <select value={filterAccountId} onChange={e => setFilterAccountId(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
-              <option value="">Все счета</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+            <div className="text-[11px] font-medium text-slate-500 mb-1">Счет</div>
+            <FilterSelect value={filterAccountId} onChange={setFilterAccountId} placeholder="Все счета" options={accountOptions} />
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-1.5">Контрагент</div>
-            <select value={filterContractorId} onChange={e => setFilterContractorId(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
-              <option value="">Все</option>
-              {contractors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <div className="text-[11px] font-medium text-slate-500 mb-1">Контрагент</div>
+            <FilterSelect value={filterContractorId} onChange={setFilterContractorId} placeholder="Все" options={contractorOptions} />
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-1.5">Статья</div>
-            <select value={filterCategoryId} onChange={e => setFilterCategoryId(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
-              <option value="">Все статьи</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <div className="text-[11px] font-medium text-slate-500 mb-1">Статья</div>
+            <FilterSelect value={filterCategoryId} onChange={setFilterCategoryId} placeholder="Все статьи" options={categoryTreeOptions} />
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-1.5">Студия</div>
-            <select value={filterStudioId} onChange={e => setFilterStudioId(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
-              <option value="">Все студии</option>
-              {studios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <div className="text-[11px] font-medium text-slate-500 mb-1">Студия</div>
+            <FilterSelect value={filterStudioId} onChange={setFilterStudioId} placeholder="Все студии" options={studioOptions} />
           </div>
 
           <div>
-            <div className="text-xs font-medium text-slate-500 mb-1.5">Статус</div>
-            <select value={filterConfirmed} onChange={e => setFilterConfirmed(e.target.value as '' | 'yes' | 'no')} className="w-full px-2.5 py-1.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-teal-500 focus:bg-white">
-              <option value="">Все</option>
-              <option value="yes">Подтверждённые</option>
-              <option value="no">Неподтверждённые</option>
-            </select>
+            <div className="text-[11px] font-medium text-slate-500 mb-1">Статус</div>
+            <FilterSelect value={filterConfirmed} onChange={(v) => setFilterConfirmed(v as '' | 'yes' | 'no')} placeholder="Все" options={confirmedOptions} searchable={false} />
           </div>
 
           {hasActiveFilters && (
-            <button onClick={clearFilters} className="text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1">
-              <X size={12} /> Сбросить фильтры
+            <button onClick={clearFilters} className="text-[11px] text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1 pt-1">
+              <X size={11} /> Сбросить все фильтры
             </button>
           )}
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col bg-white min-w-0">
+      <div className="flex-1 flex flex-col bg-white min-w-0 overflow-hidden">
         {visibleSelectedCount > 0 ? (
-          <div className="px-4 py-2.5 border-b border-teal-200 bg-teal-50 flex items-center justify-between gap-3">
+          <div className="px-4 py-2.5 border-b border-teal-200 bg-teal-50 flex items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-3">
               <button onClick={() => setSelectedIds(new Set())} className="text-slate-500 hover:text-slate-700">
                 <X size={16} />
@@ -411,7 +401,7 @@ export const TransactionList: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-3">
               <h1 className="text-lg font-bold text-slate-800">Операции</h1>
               <Button 
@@ -423,7 +413,7 @@ export const TransactionList: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-2">
-              <div className="relative w-52">
+              <div className="relative w-48">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <input 
                   value={search}
@@ -436,7 +426,7 @@ export const TransactionList: React.FC = () => {
               </div>
               <button 
                 onClick={handleExport}
-                className="p-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 flex items-center gap-1 text-xs"
+                className="p-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 flex items-center gap-1 text-xs shrink-0"
                 title="Экспорт в Excel"
               >
                 <Download size={14} /> .xls
@@ -445,7 +435,7 @@ export const TransactionList: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-[32px_90px_1fr_32px_1fr_1fr_100px_90px] px-3 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+        <div className="grid grid-cols-[32px_80px_minmax(80px,1fr)_28px_minmax(80px,1fr)_minmax(80px,1.2fr)_minmax(60px,0.8fr)_minmax(70px,90px)] px-3 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider shrink-0">
           <div className="flex items-center justify-center">
             <input
               type="checkbox"
@@ -456,15 +446,15 @@ export const TransactionList: React.FC = () => {
             />
           </div>
           <div>Дата</div>
-          <div>Счет</div>
+          <div className="truncate">Счет</div>
           <div></div>
-          <div>Контрагент</div>
-          <div>Статья</div>
-          <div>Студия</div>
+          <div className="truncate">Контрагент</div>
+          <div className="truncate">Статья</div>
+          <div className="truncate">Студия</div>
           <div className="text-right">Сумма</div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-auto">
           {groupedTransactions.length === 0 && (
             <div className="p-12 text-center text-slate-400 text-sm">Нет операций</div>
           )}
@@ -486,7 +476,7 @@ export const TransactionList: React.FC = () => {
                   <div 
                     key={tx.id} 
                     onClick={() => setEditingTx(tx)}
-                    className={`grid grid-cols-[32px_90px_1fr_32px_1fr_1fr_100px_90px] items-center px-3 py-2 border-b border-slate-50 text-sm cursor-pointer group ${isSelected ? 'bg-teal-50/50' : 'hover:bg-slate-50/70'}`}
+                    className={`grid grid-cols-[32px_80px_minmax(80px,1fr)_28px_minmax(80px,1fr)_minmax(80px,1.2fr)_minmax(60px,0.8fr)_minmax(70px,90px)] items-center px-3 py-2 border-b border-slate-50 text-sm cursor-pointer group ${isSelected ? 'bg-teal-50/50' : 'hover:bg-slate-50/70'}`}
                   >
                     <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
                       <input
@@ -496,7 +486,7 @@ export const TransactionList: React.FC = () => {
                         className="rounded accent-teal-600 h-3.5 w-3.5 cursor-pointer"
                       />
                     </div>
-                    <div className="text-slate-500 text-xs">{formatDate(tx.date)}</div>
+                    <div className="text-slate-500 text-xs truncate">{formatDate(tx.date)}</div>
                     <div className="text-slate-700 truncate pr-2 text-xs font-medium" title={account?.name}>
                       {account?.name}
                       {tx.type === 'transfer' && toAccount && (
@@ -518,7 +508,7 @@ export const TransactionList: React.FC = () => {
                     <div className="text-xs text-slate-500 truncate">{studio?.name || ''}</div>
                     <div className={`text-right text-xs font-bold tabular-nums flex items-center justify-end gap-1 ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
                       {tx.confirmed && <CheckCircle2 size={12} className="text-teal-500 shrink-0" />}
-                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}
+                      <span className="truncate">{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}</span>
                     </div>
                   </div>
                 )
@@ -528,13 +518,12 @@ export const TransactionList: React.FC = () => {
         </div>
 
         <div className="h-9 bg-slate-50 border-t border-slate-200 flex items-center px-4 text-[11px] text-slate-500 justify-between shrink-0">
-          <div className="flex gap-4">
+          <div className="flex gap-3 flex-wrap min-w-0">
             <span><b>{filteredTransactions.length}</b> операций</span>
-            <span>поступления: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
-            <span>выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
-            <span>перемещения: <b>{formatCurrency(totalTransfers)}</b></span>
+            <span className="hidden sm:inline">поступления: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
+            <span className="hidden sm:inline">выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
           </div>
-          <div className="font-bold">
+          <div className="font-bold shrink-0">
             Итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span>
           </div>
         </div>
