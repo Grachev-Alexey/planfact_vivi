@@ -14,6 +14,7 @@ interface FinanceContextType {
   deleteTransaction: (id: string) => Promise<void>;
   
   addItem: (type: 'categories' | 'contractors' | 'accounts' | 'studios', data: any) => Promise<void>;
+  updateItem: (type: 'categories' | 'contractors' | 'accounts' | 'studios', id: string, data: any) => Promise<void>;
   deleteItem: (type: 'categories' | 'contractors' | 'accounts' | 'studios', id: string) => Promise<void>;
 
   getAccountBalance: (id: string) => number;
@@ -147,6 +148,19 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
+  const updateItem = async (type: string, id: string, data: any) => {
+    try {
+      const res = await fetch(`${API_URL}/${type}/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(data)
+      });
+      if (res.ok) fetchData(true);
+    } catch (error) {
+      console.error(`Error updating ${type}`, error);
+    }
+  };
+
   const deleteItem = async (type: string, id: string) => {
     try {
         const res = await fetch(`${API_URL}/${type}/${id}`, { 
@@ -180,6 +194,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       updateTransaction,
       deleteTransaction,
       addItem,
+      updateItem,
       deleteItem,
       getAccountBalance,
       getTotalBalance,

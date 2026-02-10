@@ -1,4 +1,5 @@
 export type TransactionType = 'income' | 'expense' | 'transfer';
+export type CategoryType = 'income' | 'expense' | 'asset' | 'liability' | 'capital';
 
 export interface Studio {
   id: string;
@@ -19,7 +20,7 @@ export interface Account {
 export interface Category {
   id: string;
   name: string;
-  type: TransactionType;
+  type: CategoryType;
   parentId?: string;
   icon?: string;
 }
