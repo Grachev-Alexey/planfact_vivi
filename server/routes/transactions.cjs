@@ -18,8 +18,25 @@ router.post('/transactions', async (req, res) => {
 
     const result = await db.query(query, values);
     const newTx = result.rows[0];
-    
-    await logAction(currentUserId, 'create', 'transaction', newTx.id, { type, amount });
+
+    const typeLabels = { income: 'поступление', expense: 'выплата', transfer: 'перемещение' };
+    const parts = [`${typeLabels[type] || type}, ${amount}₽`];
+    if (date) parts.push(`дата: ${date}`);
+    const [accName, catName, stdName, contrName, toAccName] = await Promise.all([
+      accountId ? db.query('SELECT name FROM accounts WHERE id=$1', [accountId]).then(r => r.rows[0]?.name) : null,
+      categoryId ? db.query('SELECT name FROM categories WHERE id=$1', [categoryId]).then(r => r.rows[0]?.name) : null,
+      studioId ? db.query('SELECT name FROM studios WHERE id=$1', [studioId]).then(r => r.rows[0]?.name) : null,
+      contractorId ? db.query('SELECT name FROM contractors WHERE id=$1', [contractorId]).then(r => r.rows[0]?.name) : null,
+      toAccountId ? db.query('SELECT name FROM accounts WHERE id=$1', [toAccountId]).then(r => r.rows[0]?.name) : null,
+    ]);
+    if (accName) parts.push(`счет: ${accName}`);
+    if (toAccName) parts.push(`→ ${toAccName}`);
+    if (catName) parts.push(`статья: ${catName}`);
+    if (stdName) parts.push(`студия: ${stdName}`);
+    if (contrName) parts.push(`контрагент: ${contrName}`);
+    if (description) parts.push(`"${description}"`);
+
+    await logAction(currentUserId, 'create', 'transaction', newTx.id, `Создана операция: ${parts.join(', ')}`);
     res.json(toCamelCase(newTx));
   } catch (err) {
     console.error(err);
@@ -93,8 +110,34 @@ router.put('/transactions/:id', async (req, res) => {
 router.delete('/transactions/:id', async (req, res) => {
   const currentUserId = req.headers['x-user-id'];
   try {
+    const oldRes = await db.query(`
+      SELECT t.*, a.name as account_name, c.name as category_name, 
+        s.name as studio_name, co.name as contractor_name, ta.name as to_account_name
+      FROM transactions t
+      LEFT JOIN accounts a ON t.account_id = a.id
+      LEFT JOIN accounts ta ON t.to_account_id = ta.id
+      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN studios s ON t.studio_id = s.id
+      LEFT JOIN contractors co ON t.contractor_id = co.id
+      WHERE t.id = $1
+    `, [req.params.id]);
+
     await db.query('DELETE FROM transactions WHERE id = $1', [req.params.id]);
-    await logAction(currentUserId, 'delete', 'transaction', req.params.id, 'Удалена операция');
+
+    const typeLabels = { income: 'поступление', expense: 'выплата', transfer: 'перемещение' };
+    let detail = 'Удалена операция';
+    if (oldRes.rows.length > 0) {
+      const old = oldRes.rows[0];
+      const parts = [`${typeLabels[old.type] || old.type}, ${Number(old.amount)}₽`];
+      if (old.account_name) parts.push(`счет: ${old.account_name}`);
+      if (old.to_account_name) parts.push(`→ ${old.to_account_name}`);
+      if (old.category_name) parts.push(`статья: ${old.category_name}`);
+      if (old.studio_name) parts.push(`студия: ${old.studio_name}`);
+      if (old.contractor_name) parts.push(`контрагент: ${old.contractor_name}`);
+      detail = `Удалена операция: ${parts.join(', ')}`;
+    }
+
+    await logAction(currentUserId, 'delete', 'transaction', req.params.id, detail);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting transaction' });
