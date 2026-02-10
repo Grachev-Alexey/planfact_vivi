@@ -1,148 +1,288 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { formatCurrency } from '../utils/format';
-import { ArrowUpRight, ArrowDownRight, Wallet, TrendingUp } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  Legend, CartesianGrid, BarChart,
+} from 'recharts';
+
+const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+const formatCompact = (v: number): string => {
+  if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)} млн`;
+  if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(0)} тыс`;
+  return String(v);
+};
+
+const formatNumber = (v: number): string => {
+  return new Intl.NumberFormat('ru-RU').format(Math.round(v));
+};
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload) return null;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-sm">
+      <div className="font-medium text-slate-700 mb-1.5">{label}</div>
+      {payload.map((p: any, i: number) => (
+        <div key={i} className="flex items-center gap-2 py-0.5">
+          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: p.color }} />
+          <span className="text-slate-500">{p.name}:</span>
+          <span className="font-medium text-slate-800">{formatNumber(p.value)} ₽</span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export const Dashboard: React.FC = () => {
-  const { transactions, getTotalBalance, studios } = useFinance();
+  const { transactions, accounts, studios } = useFinance();
+  const [year, setYear] = useState(new Date().getFullYear());
 
-  // Basic Stats for current month
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-  
-  const currentMonthTx = transactions.filter(t => {
-    const d = new Date(t.date);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  });
 
-  const income = currentMonthTx.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const expense = currentMonthTx.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-  const profit = income - expense;
 
-  // Chart Data Preparation (Last 6 months)
-  const chartData = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    const monthKey = d.toLocaleString('ru-RU', { month: 'short' });
-    
-    const monthTx = transactions.filter(t => {
-      const td = new Date(t.date);
-      return td.getMonth() === d.getMonth() && td.getFullYear() === d.getFullYear();
+  const totalBalance = useMemo(() => accounts.reduce((s, a) => s + a.balance, 0), [accounts]);
+
+  const yearTx = useMemo(() =>
+    transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getFullYear() === year;
+    }),
+    [transactions, year]
+  );
+
+  const monthlyData = useMemo(() => {
+    return MONTHS_SHORT.map((name, i) => {
+      const monthTx = yearTx.filter(t => new Date(t.date).getMonth() === i);
+      const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+      const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+      const profit = income - expense;
+      const profitability = income > 0 ? (profit / income) * 100 : 0;
+      const inflows = income;
+      const outflows = expense;
+      return { name, income, expense, profit, profitability, inflows, outflows, diff: inflows - outflows };
     });
-    
-    const mIncome = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const mExpense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    
-    chartData.push({
-      name: monthKey,
-      income: mIncome,
-      expense: mExpense,
-      profit: mIncome - mExpense
-    });
-  }
+  }, [yearTx]);
 
-  // Profit by Studio (Current Month)
-  const studioStats = studios.map(studio => {
-    const sTxs = currentMonthTx.filter(t => t.studioId === studio.id);
-    const sIncome = sTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const sExpense = sTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-    return { ...studio, profit: sIncome - sExpense };
-  });
+  const totals = useMemo(() => {
+    const income = yearTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expense = yearTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const profit = income - expense;
+    const profitability = income > 0 ? (profit / income) * 100 : 0;
+    const inflows = income;
+    const outflows = expense;
+    const diff = inflows - outflows;
+    return { income, expense, profit, profitability, inflows, outflows, diff };
+  }, [yearTx]);
+
+  const cashFlowData = useMemo(() => {
+    return monthlyData.map(m => ({
+      name: m.name,
+      inflows: m.inflows,
+      outflows: -m.outflows,
+    }));
+  }, [monthlyData]);
+
+  const profitChartData = useMemo(() => {
+    return monthlyData.map(m => ({
+      name: m.name,
+      income: m.income,
+      expense: m.expense,
+      profit: m.profit,
+    }));
+  }, [monthlyData]);
 
   return (
-    <div className="p-8 space-y-8 fade-enter">
-      <h1 className="text-2xl font-bold text-slate-800 mb-6">Сводка</h1>
-
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* Month Stats */}
-        <div className="flex-1 grid grid-cols-2 gap-4">
-          <div className="bg-white p-6 rounded shadow-sm border border-slate-200">
-            <div className="flex items-center gap-2 text-slate-500 mb-2 text-sm font-medium">
-              <div className="p-1.5 bg-emerald-50 rounded-full text-emerald-600">
-                <ArrowUpRight size={16} />
-              </div>
-              Доход (мес)
-            </div>
-            <div className="text-2xl font-bold text-slate-800">{formatCurrency(income)}</div>
+    <div className="p-6 space-y-6 fade-enter bg-slate-50 min-h-full">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800">Показатели</h1>
+          <div className="text-sm text-slate-400 mt-0.5">
+            {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
-          <div className="bg-white p-6 rounded shadow-sm border border-slate-200">
-            <div className="flex items-center gap-2 text-slate-500 mb-2 text-sm font-medium">
-              <div className="p-1.5 bg-rose-50 rounded-full text-rose-600">
-                <ArrowDownRight size={16} />
-              </div>
-              Расход (мес)
-            </div>
-            <div className="text-2xl font-bold text-slate-800">{formatCurrency(expense)}</div>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-0.5">
+            <button onClick={() => setYear(y => y - 1)} className="p-1.5 hover:bg-slate-50 rounded text-slate-500">
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-sm font-medium text-slate-700 px-2 min-w-[120px] text-center">
+              Янв '{String(year).slice(2)}—Дек '{String(year).slice(2)}
+            </span>
+            <button onClick={() => setYear(y => y + 1)} className="p-1.5 hover:bg-slate-50 rounded text-slate-500">
+              <ChevronRight size={16} />
+            </button>
           </div>
-          <div className="col-span-2 bg-white p-6 rounded shadow-sm border border-slate-200">
-             <div className="flex items-center gap-2 text-slate-500 mb-2 text-sm font-medium">
-              <div className="p-1.5 bg-slate-50 rounded-full text-primary-600">
-                <TrendingUp size={16} />
-              </div>
-              Чистая прибыль (мес)
-            </div>
-            <div className={`text-2xl font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {formatCurrency(profit)}
-            </div>
+          <div className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm">
+            <span className="text-slate-500">На счетах </span>
+            <span className={`font-bold ${totalBalance >= 0 ? 'text-teal-600' : 'text-rose-600'}`}>
+              {formatNumber(totalBalance)} ₽
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Main Chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-6 rounded shadow-sm border border-slate-200 h-[400px]">
-          <h3 className="text-lg font-bold text-slate-800 mb-6">Динамика финансов</h3>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barGap={8}>
-              <XAxis 
-                dataKey="name" 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{fill: '#94a3b8', fontSize: 12}} 
-                dy={10}
-              />
-              <YAxis 
-                hide={true} 
-              />
-              <Tooltip 
-                cursor={{fill: '#f1f5f9'}}
-                contentStyle={{borderRadius: '4px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-              />
-              <Bar dataKey="income" name="Доход" fill="#10b981" radius={[2, 2, 0, 0]} barSize={30} />
-              <Bar dataKey="expense" name="Расход" fill="#f43f5e" radius={[2, 2, 0, 0]} barSize={30} />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="p-5 pb-0 flex items-center gap-6 border-b border-slate-100">
+          <h2 className="text-base font-bold text-slate-800">Прибыль, ₽</h2>
+          <div className="flex-1" />
         </div>
 
-        {/* Studio Stats */}
-        <div className="bg-white p-6 rounded shadow-sm border border-slate-200">
-          <h3 className="text-lg font-bold text-slate-800 mb-6">Прибыль по студиям</h3>
-          <div className="space-y-6">
-            {studioStats.map(s => (
-              <div key={s.id} className="group">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium text-slate-700">{s.name}</span>
-                  <span className={`font-semibold ${s.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {formatCurrency(s.profit)}
-                  </span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full transition-all duration-500 bg-teal-500`} 
-                    style={{ width: `${Math.min(Math.max((s.profit / (income || 1)) * 100, 0), 100)}%` }}
-                  />
-                </div>
+        <div className="flex flex-col lg:flex-row">
+          <div className="p-5 lg:w-[260px] flex-shrink-0 space-y-4 border-r border-slate-100">
+            <MetricRow label="Доходы" value={totals.income} color="text-slate-800" />
+            <MetricRow label="Расходы" value={totals.expense} color="text-slate-800" />
+            <MetricRow label="Чистая прибыль" value={totals.profit} color={totals.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'} />
+            <div className="pt-2 border-t border-slate-100">
+              <div className="text-sm text-slate-400 mb-0.5">Рентабельность, %</div>
+              <div className={`text-2xl font-bold ${totals.profitability >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
+                {totals.profitability.toFixed(2)}%
               </div>
-            ))}
+            </div>
           </div>
-          <div className="mt-8 pt-6 border-t border-slate-100">
-             <div className="text-sm text-slate-400 text-center">
-               Данные за текущий месяц
-             </div>
+
+          <div className="flex-1 p-4 min-h-[300px]">
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={profitChartData} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 12 }}
+                  dy={8}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tickFormatter={formatCompact}
+                  width={60}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend
+                  iconType="square"
+                  iconSize={10}
+                  wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }}
+                />
+                <Bar dataKey="income" name="Доходы" fill="#38bdf8" radius={[2, 2, 0, 0]} barSize={20} />
+                <Bar dataKey="expense" name="Расходы" fill="#fb923c" radius={[2, 2, 0, 0]} barSize={20} />
+                <Line
+                  dataKey="profit"
+                  name="Чистая прибыль"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: '#10b981', stroke: '#fff', strokeWidth: 1 }}
+                  activeDot={{ r: 5 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="p-5 pb-0 border-b border-slate-100">
+          <h2 className="text-base font-bold text-slate-800">Денежный поток, ₽</h2>
+        </div>
+
+        <div className="flex flex-col lg:flex-row">
+          <div className="p-5 lg:w-[260px] flex-shrink-0 space-y-4 border-r border-slate-100">
+            <MetricRow label="Поступления" value={totals.inflows} color="text-slate-800" />
+            <MetricRow label="Выплаты" value={totals.outflows} color="text-slate-800" />
+            <div className="pt-2 border-t border-slate-100">
+              <div className="text-sm text-slate-400 mb-0.5">Разница</div>
+              <div className={`text-2xl font-bold ${totals.diff >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
+                {formatNumber(totals.diff)}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 p-4 min-h-[260px]">
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={cashFlowData} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 12 }}
+                  dy={8}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tickFormatter={formatCompact}
+                  width={60}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="inflows" name="Поступления" fill="#38bdf8" radius={[2, 2, 0, 0]} barSize={24} />
+                <Bar dataKey="outflows" name="Выплаты" fill="#fb923c" radius={[2, 2, 0, 0]} barSize={24} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {studios.length > 0 && <StudioBreakdown yearTx={yearTx} studios={studios} />}
+    </div>
+  );
+};
+
+const MetricRow: React.FC<{ label: string; value: number; color?: string }> = ({ label, value, color = 'text-slate-800' }) => (
+  <div>
+    <div className="text-sm text-slate-400 mb-0.5">{label}</div>
+    <div className={`text-2xl font-bold tracking-tight ${color}`}>
+      {formatNumber(value)}
+    </div>
+  </div>
+);
+
+const StudioBreakdown: React.FC<{ yearTx: any[]; studios: any[] }> = ({ yearTx, studios }) => {
+  const studioData = useMemo(() => {
+    return studios.map(studio => {
+      const txs = yearTx.filter(t => t.studioId === studio.id);
+      const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+      const expense = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+      return { name: studio.name, income, expense, profit: income - expense };
+    }).filter(s => s.income > 0 || s.expense > 0);
+  }, [yearTx, studios]);
+
+  if (studioData.length === 0) return null;
+
+  const maxVal = Math.max(...studioData.map(s => Math.max(s.income, s.expense, Math.abs(s.profit))), 1);
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <h2 className="text-base font-bold text-slate-800 mb-4">Прибыль по студиям</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {studioData.map(s => (
+          <div key={s.name} className="border border-slate-100 rounded-lg p-4">
+            <div className="text-sm font-medium text-slate-600 mb-3">{s.name}</div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>Доход</span>
+                <span className="font-medium text-slate-700">{formatNumber(s.income)} ₽</span>
+              </div>
+              <div className="w-full bg-slate-50 rounded-full h-1.5">
+                <div className="h-full bg-sky-400 rounded-full" style={{ width: `${(s.income / maxVal) * 100}%` }} />
+              </div>
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>Расход</span>
+                <span className="font-medium text-slate-700">{formatNumber(s.expense)} ₽</span>
+              </div>
+              <div className="w-full bg-slate-50 rounded-full h-1.5">
+                <div className="h-full bg-orange-400 rounded-full" style={{ width: `${(s.expense / maxVal) * 100}%` }} />
+              </div>
+              <div className="flex justify-between text-xs text-slate-400 pt-1 border-t border-slate-50">
+                <span>Прибыль</span>
+                <span className={`font-bold ${s.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {formatNumber(s.profit)} ₽
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
