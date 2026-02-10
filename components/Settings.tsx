@@ -40,7 +40,7 @@ export const Settings: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/users');
+      const res = await fetch('/api/users');
       const data = await res.json();
       setUsers(data);
     } catch (err) {
@@ -50,7 +50,7 @@ export const Settings: React.FC = () => {
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/logs');
+      const res = await fetch('/api/logs');
       const data = await res.json();
       setLogs(data);
     } catch (err) {
@@ -61,7 +61,7 @@ export const Settings: React.FC = () => {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await fetch('http://localhost:3001/api/users', {
+      await fetch('/api/users', {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json',
@@ -80,7 +80,7 @@ export const Settings: React.FC = () => {
   const handleDeleteUser = async (id: number) => {
     if (!confirm('Вы уверены?')) return;
     try {
-      await fetch(`http://localhost:3001/api/users/${id}`, {
+      await fetch(`/api/users/${id}`, {
         method: 'DELETE',
         headers: { 'x-user-id': user?.id.toString() || '' }
       });

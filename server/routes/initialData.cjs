@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
-const { toCamelCase } = require('../utils/helpers');
+const db = require('../db.cjs');
+const { toCamelCase } = require('../utils/helpers.cjs');
 
 router.get('/init', async (req, res) => {
   try {

@@ -24,7 +24,7 @@ interface FinanceContextType {
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = '/api';
 
 export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();

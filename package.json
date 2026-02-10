@@ -4,16 +4,23 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"node server/index.cjs\" \"vite\"",
+    "dev:server": "node server/index.cjs",
+    "dev:client": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.4",
+    "express": "^5.2.1",
+    "lucide-react": "^0.563.0",
+    "pg": "^8.18.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "recharts": "^3.7.0",
-    "lucide-react": "^0.563.0",
     "react-router-dom": "^7.13.0",
+    "recharts": "^3.7.0",
     "xlsx": "0.18.5"
   },
   "devDependencies": {

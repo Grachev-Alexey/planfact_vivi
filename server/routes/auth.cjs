@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
-const { toCamelCase } = require('../utils/helpers');
-const { logAction } = require('../utils/logger');
+const db = require('../db.cjs');
+const { toCamelCase } = require('../utils/helpers.cjs');
+const { logAction } = require('../utils/logger.cjs');
 
 // Login
 router.post('/login', async (req, res) => {
