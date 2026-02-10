@@ -14,14 +14,13 @@ import { TransactionForm } from './components/TransactionForm';
 import { Plus, Bell, HelpCircle, LogOut } from 'lucide-react';
 import { formatCurrency } from './utils/format';
 
-const TopBar: React.FC = () => {
+const TopBar: React.FC<{ sidebarCollapsed: boolean }> = ({ sidebarCollapsed }) => {
   const { getTotalBalance } = useFinance();
   const { user, logout } = useAuth();
   
   return (
-    <div className="h-14 bg-[#34495e] text-white flex items-center justify-between px-4 lg:px-6 shadow-md fixed top-0 right-0 left-16 xl:left-56 z-20 transition-all duration-300">
+    <div className={`h-14 bg-[#34495e] text-white flex items-center justify-between px-4 lg:px-6 shadow-md fixed top-0 right-0 z-20 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-56'}`}>
        <div className="flex items-center gap-4">
-          {/* Left side items */}
        </div>
        <div className="flex items-center gap-6">
           <div className="flex flex-col items-end mr-0 md:mr-4">
@@ -43,12 +42,12 @@ const TopBar: React.FC = () => {
   )
 }
 
-const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const Layout: React.FC<{ children: React.ReactNode; sidebarCollapsed: boolean; onToggleSidebar: () => void }> = ({ children, sidebarCollapsed, onToggleSidebar }) => {
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <Sidebar />
-      <TopBar />
-      <main className="flex-1 ml-16 xl:ml-56 mt-14 p-0 transition-all duration-300">
+      <Sidebar collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
+      <TopBar sidebarCollapsed={sidebarCollapsed} />
+      <main className={`flex-1 mt-14 p-0 transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
         {children}
       </main>
     </div>
@@ -71,14 +70,31 @@ const ReportsPage = () => (
 );
 
 const AppRoutes = () => {
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+      const saved = localStorage.getItem('sidebarCollapsed');
+      return saved !== null ? saved === 'true' : true;
+    });
+    const toggleSidebar = () => {
+      setSidebarCollapsed(prev => {
+        localStorage.setItem('sidebarCollapsed', String(!prev));
+        return !prev;
+      });
+    };
+
+    const withLayout = (child: React.ReactNode) => (
+      <Layout sidebarCollapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar}>
+        {child}
+      </Layout>
+    );
+
     return (
         <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/transactions" element={<ProtectedRoute><Layout><TransactionList /></Layout></ProtectedRoute>} />
-            <Route path="/directories" element={<ProtectedRoute><Layout><Directories initialTab="categories" /></Layout></ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute><Layout><ReportsPage /></Layout></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
-            <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+            <Route path="/transactions" element={<ProtectedRoute>{withLayout(<TransactionList />)}</ProtectedRoute>} />
+            <Route path="/directories" element={<ProtectedRoute>{withLayout(<Directories initialTab="categories" />)}</ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute>{withLayout(<ReportsPage />)}</ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute>{withLayout(<Settings />)}</ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute>{withLayout(<Dashboard />)}</ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     )
