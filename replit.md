@@ -39,13 +39,13 @@ A finance management application (Russian language UI) built with React + Vite f
 - `server/utils/logger.cjs` - Activity logging with Russian translations
 
 ### Database Tables
-- users, activity_logs, accounts, categories, studios, contractors, transactions
+- users, activity_logs, accounts, categories, studios, contractors, transactions, legal_entities
 
 ### API
 - All frontend API calls use `/api` prefix, proxied by Vite to backend on port 3001
 - Auth: POST /api/login, GET/POST/DELETE /api/users
 - Transactions: POST/PUT/DELETE /api/transactions
-- Dictionaries: POST/PUT/DELETE for categories, contractors, accounts, studios
+- Dictionaries: POST/PUT/DELETE for categories, contractors, accounts, studios, legal_entities
 - Init data: GET /api/init
 
 ### Default Login
@@ -56,15 +56,25 @@ A finance management application (Russian language UI) built with React + Vite f
 - Hierarchical: parent categories with subcategories (parent_id in DB)
 - Tree view with collapsible parents in Directories page
 
+### Legal Entities
+- Table: legal_entities (name, inn, kpp, address, description)
+- Accounts have optional legal_entity_id foreign key
+- Accounts table displays linked legal entity name
+- Legal entities table displays linked accounts as tags
+- Full CRUD in Directories page under "Мои юрлица" tab
+
 ## Recent Changes
-- Added edit dialogs for all directory items (categories, contractors, accounts, studios)
+- Added "Мои юрлица" (Legal Entities) with fields: name, inn, kpp, address, description
+- Accounts now link to legal entities via legal_entity_id
+- Accounts table shows legal entity column; legal entities table shows linked accounts
+- Activity history: pagination (50/page), filtering by action/entity/user, text search
+- Detailed before/after change tracking for transaction edits in Russian
+- Login actions no longer logged in activity history
+- Added edit dialogs for all directory items (categories, contractors, accounts, studios, legal_entities)
 - Category types: Доходы, Расходы (only 2 types)
 - Implemented hierarchical categories with subcategories (parent/child tree view)
-- Fixed creation forms to include all fields (studios: address, accounts: type/currency/initialBalance)
-- Added PUT endpoints for updating dictionary items
 - Removed "projects" entity entirely (DB, backend, frontend)
 - Activity history logs now display in Russian
 - Added 5-second polling for real-time data sync between users
-- Preloaded Settings page data to eliminate loading delays
 - Migrated to Replit environment
 - Configured Vite proxy for API calls (frontend -> backend)

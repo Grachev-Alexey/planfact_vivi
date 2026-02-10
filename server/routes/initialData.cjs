@@ -9,7 +9,7 @@ router.get('/init', async (req, res) => {
     
     // Dynamic balance calculation
     const accountsQuery = `
-      SELECT a.id, a.name, a.type, a.currency, a.initial_balance,
+      SELECT a.id, a.name, a.type, a.currency, a.initial_balance, a.legal_entity_id,
         (COALESCE(a.initial_balance, 0) + COALESCE((
             SELECT SUM(CASE 
                 WHEN t.account_id = a.id AND t.type = 'income' THEN t.amount
@@ -23,12 +23,13 @@ router.get('/init', async (req, res) => {
       FROM accounts a WHERE a.is_archived = FALSE ORDER BY a.name
     `;
 
-    const [txRes, accRes, catRes, stdRes, contrRes] = await Promise.all([
+    const [txRes, accRes, catRes, stdRes, contrRes, leRes] = await Promise.all([
       db.query(transactionsQuery),
       db.query(accountsQuery),
       db.query('SELECT * FROM categories ORDER BY name'),
       db.query('SELECT * FROM studios ORDER BY name'),
-      db.query('SELECT * FROM contractors ORDER BY name')
+      db.query('SELECT * FROM contractors ORDER BY name'),
+      db.query('SELECT * FROM legal_entities ORDER BY name')
     ]);
 
     res.json({
@@ -36,7 +37,8 @@ router.get('/init', async (req, res) => {
       accounts: accRes.rows.map(toCamelCase),
       categories: catRes.rows.map(toCamelCase),
       studios: stdRes.rows.map(toCamelCase),
-      contractors: contrRes.rows.map(toCamelCase)
+      contractors: contrRes.rows.map(toCamelCase),
+      legalEntities: leRes.rows.map(toCamelCase)
     });
 
   } catch (err) {

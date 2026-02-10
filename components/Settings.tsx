@@ -35,6 +35,7 @@ const entityOptions = [
   { value: 'Контрагент', label: 'Контрагенты' },
   { value: 'Счет', label: 'Счета' },
   { value: 'Студия', label: 'Студии' },
+  { value: 'Юрлицо', label: 'Юрлица' },
   { value: 'Пользователь', label: 'Пользователи' },
 ];
 

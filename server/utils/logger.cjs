@@ -14,7 +14,8 @@ const entityLabels = {
   categories: 'Статья',
   contractors: 'Контрагент',
   accounts: 'Счет',
-  studios: 'Студия'
+  studios: 'Студия',
+  legal_entities: 'Юрлицо'
 };
 
 const typeLabels = {

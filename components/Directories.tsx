@@ -5,7 +5,7 @@ import { Button } from './ui/Button';
 import { formatCurrency } from '../utils/format';
 import { CategoryType, Category } from '../types';
 
-type TabType = 'categories' | 'contractors' | 'accounts' | 'studios';
+type TabType = 'categories' | 'contractors' | 'accounts' | 'studios' | 'legal_entities';
 
 interface DirectoriesProps {
   initialTab?: TabType;
@@ -74,7 +74,7 @@ function ItemMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => vo
 
 export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categories' }) => {
   const {
-    categories, contractors, accounts, studios,
+    categories, contractors, accounts, studios, legalEntities,
     addItem, updateItem, deleteItem
   } = useFinance();
 
@@ -91,6 +91,8 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const [newCurrency, setNewCurrency] = useState('RUB');
   const [newInitialBalance, setNewInitialBalance] = useState('0');
   const [newAddress, setNewAddress] = useState('');
+  const [newKpp, setNewKpp] = useState('');
+  const [newLegalEntityId, setNewLegalEntityId] = useState('');
 
   const [editModal, setEditModal] = useState<{ type: TabType; item: any } | null>(null);
   const [editName, setEditName] = useState('');
@@ -101,6 +103,8 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const [editCurrency, setEditCurrency] = useState('RUB');
   const [editInitialBalance, setEditInitialBalance] = useState('0');
   const [editAddress, setEditAddress] = useState('');
+  const [editKpp, setEditKpp] = useState('');
+  const [editLegalEntityId, setEditLegalEntityId] = useState('');
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -115,6 +119,8 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
     setNewCurrency('RUB');
     setNewInitialBalance('0');
     setNewAddress('');
+    setNewKpp('');
+    setNewLegalEntityId('');
   };
 
   const openEditModal = (type: TabType, item: any) => {
@@ -129,8 +135,14 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       setEditAccountType(item.type || 'cash');
       setEditCurrency(item.currency || 'RUB');
       setEditInitialBalance(String(item.initialBalance ?? 0));
+      setEditLegalEntityId(item.legalEntityId || '');
     } else if (type === 'studios') {
       setEditAddress(item.address || '');
+    } else if (type === 'legal_entities') {
+      setEditInn(item.inn || '');
+      setEditKpp(item.kpp || '');
+      setEditAddress(item.address || '');
+      setEditDescription(item.description || '');
     }
   };
 
@@ -150,8 +162,14 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       data.type = newAccountType;
       data.currency = newCurrency;
       data.initialBalance = Number(newInitialBalance) || 0;
+      if (newLegalEntityId) data.legalEntityId = Number(newLegalEntityId);
     } else if (activeTab === 'studios') {
       data.address = newAddress;
+    } else if (activeTab === 'legal_entities') {
+      data.inn = newInn;
+      data.kpp = newKpp;
+      data.address = newAddress;
+      data.description = newDescription;
     }
 
     await addItem(activeTab, data);
@@ -175,8 +193,14 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       data.type = editAccountType;
       data.currency = editCurrency;
       data.initialBalance = Number(editInitialBalance) || 0;
+      data.legalEntityId = editLegalEntityId ? Number(editLegalEntityId) : null;
     } else if (type === 'studios') {
       data.address = editAddress;
+    } else if (type === 'legal_entities') {
+      data.inn = editInn;
+      data.kpp = editKpp;
+      data.address = editAddress;
+      data.description = editDescription;
     }
 
     await updateItem(type, item.id, data);
@@ -192,10 +216,17 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
     });
   };
 
+  const getLegalEntityName = (id?: string) => {
+    if (!id) return '-';
+    const le = legalEntities.find(l => String(l.id) === String(id));
+    return le ? le.name : '-';
+  };
+
   const tabs = [
     { id: 'categories' as TabType, label: 'Учетные статьи' },
     { id: 'contractors' as TabType, label: 'Контрагенты' },
     { id: 'accounts' as TabType, label: 'Мои счета' },
+    { id: 'legal_entities' as TabType, label: 'Мои юрлица' },
     { id: 'studios' as TabType, label: 'Студии' },
   ];
 
@@ -275,6 +306,13 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
             <label className="text-sm font-medium text-slate-700">Начальный остаток</label>
             <input type="number" value={newInitialBalance} onChange={e => setNewInitialBalance(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
           </div>
+          <div className="w-full md:w-48 space-y-1">
+            <label className="text-sm font-medium text-slate-700">Юрлицо</label>
+            <select value={newLegalEntityId} onChange={e => setNewLegalEntityId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900">
+              <option value="">— Не указано —</option>
+              {legalEntities.map(le => <option key={le.id} value={le.id}>{le.name}</option>)}
+            </select>
+          </div>
           <div className="flex w-full md:w-auto gap-2">
             <Button type="submit" className="flex-1 md:flex-none bg-teal-600 text-white">Сохранить</Button>
             <Button type="button" variant="secondary" onClick={() => { setIsAdding(false); resetAddForm(); }} className="flex-1 md:flex-none">Отмена</Button>
@@ -293,6 +331,37 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
           <div className="w-full md:w-64 space-y-1">
             <label className="text-sm font-medium text-slate-700">Адрес</label>
             <input type="text" value={newAddress} onChange={e => setNewAddress(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+          </div>
+          <div className="flex w-full md:w-auto gap-2">
+            <Button type="submit" className="flex-1 md:flex-none bg-teal-600 text-white">Сохранить</Button>
+            <Button type="button" variant="secondary" onClick={() => { setIsAdding(false); resetAddForm(); }} className="flex-1 md:flex-none">Отмена</Button>
+          </div>
+        </form>
+      );
+    }
+
+    if (activeTab === 'legal_entities') {
+      return (
+        <form onSubmit={handleAdd} className="flex flex-col md:flex-row gap-4 items-end max-w-4xl flex-wrap">
+          <div className="w-full md:flex-1 space-y-1">
+            <label className="text-sm font-medium text-slate-700">Название</label>
+            <input autoFocus type="text" value={newName} onChange={e => setNewName(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" placeholder="Введите название..." />
+          </div>
+          <div className="w-full md:w-40 space-y-1">
+            <label className="text-sm font-medium text-slate-700">ИНН</label>
+            <input type="text" value={newInn} onChange={e => setNewInn(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+          </div>
+          <div className="w-full md:w-40 space-y-1">
+            <label className="text-sm font-medium text-slate-700">КПП</label>
+            <input type="text" value={newKpp} onChange={e => setNewKpp(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+          </div>
+          <div className="w-full md:w-56 space-y-1">
+            <label className="text-sm font-medium text-slate-700">Адрес</label>
+            <input type="text" value={newAddress} onChange={e => setNewAddress(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+          </div>
+          <div className="w-full md:w-56 space-y-1">
+            <label className="text-sm font-medium text-slate-700">Описание</label>
+            <input type="text" value={newDescription} onChange={e => setNewDescription(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
           </div>
           <div className="flex w-full md:w-auto gap-2">
             <Button type="submit" className="flex-1 md:flex-none bg-teal-600 text-white">Сохранить</Button>
@@ -373,6 +442,13 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
                   <label className="text-sm font-medium text-slate-700">Начальный остаток</label>
                   <input type="number" value={editInitialBalance} onChange={e => setEditInitialBalance(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
                 </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Юрлицо</label>
+                  <select value={editLegalEntityId} onChange={e => setEditLegalEntityId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900">
+                    <option value="">— Не указано —</option>
+                    {legalEntities.map(le => <option key={le.id} value={le.id}>{le.name}</option>)}
+                  </select>
+                </div>
               </>
             )}
 
@@ -381,6 +457,27 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
                 <label className="text-sm font-medium text-slate-700">Адрес</label>
                 <input type="text" value={editAddress} onChange={e => setEditAddress(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
               </div>
+            )}
+
+            {type === 'legal_entities' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">ИНН</label>
+                  <input type="text" value={editInn} onChange={e => setEditInn(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">КПП</label>
+                  <input type="text" value={editKpp} onChange={e => setEditKpp(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Адрес</label>
+                  <input type="text" value={editAddress} onChange={e => setEditAddress(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Описание</label>
+                  <input type="text" value={editDescription} onChange={e => setEditDescription(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+                </div>
+              </>
             )}
           </div>
 
@@ -460,28 +557,78 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const renderAccountsContent = () => {
     return (
       <div className="bg-white rounded border border-slate-200 shadow-sm overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[600px]">
+        <table className="w-full text-left border-collapse min-w-[700px]">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 font-semibold uppercase">
               <th className="px-6 py-3">Название</th>
               <th className="px-6 py-3">Тип</th>
+              <th className="px-6 py-3">Юрлицо</th>
               <th className="px-6 py-3 text-right">Текущий остаток</th>
               <th className="px-4 py-3 w-10"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {accounts.length === 0 ? (
-              <tr><td colSpan={4} className="p-8 text-center text-slate-400">Нет счетов</td></tr>
+              <tr><td colSpan={5} className="p-8 text-center text-slate-400">Нет счетов</td></tr>
             ) : accounts.map(a => (
               <tr key={a.id} className="hover:bg-slate-50 group">
                 <td className="px-6 py-3 font-medium text-slate-700">{a.name}</td>
                 <td className="px-6 py-3 text-slate-500">{accountTypeLabels[a.type] || a.type}</td>
+                <td className="px-6 py-3 text-slate-500">{getLegalEntityName(a.legalEntityId)}</td>
                 <td className="px-6 py-3 text-right font-medium text-slate-700">{formatCurrency(a.balance)}</td>
                 <td className="px-4 py-3 text-right">
                   <ItemMenu onEdit={() => openEditModal('accounts', a)} onDelete={() => deleteItem('accounts', a.id)} />
                 </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderLegalEntitiesContent = () => {
+    return (
+      <div className="bg-white rounded border border-slate-200 shadow-sm overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-[700px]">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 font-semibold uppercase">
+              <th className="px-6 py-3">Название</th>
+              <th className="px-6 py-3">ИНН</th>
+              <th className="px-6 py-3">КПП</th>
+              <th className="px-6 py-3">Адрес</th>
+              <th className="px-6 py-3">Привязанные счета</th>
+              <th className="px-4 py-3 w-10"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-sm">
+            {legalEntities.length === 0 ? (
+              <tr><td colSpan={6} className="p-8 text-center text-slate-400">Нет юрлиц</td></tr>
+            ) : legalEntities.map(le => {
+              const linkedAccounts = accounts.filter(a => String(a.legalEntityId) === String(le.id));
+              return (
+                <tr key={le.id} className="hover:bg-slate-50 group">
+                  <td className="px-6 py-3 font-medium text-slate-700">{le.name}</td>
+                  <td className="px-6 py-3 text-slate-500">{le.inn || '-'}</td>
+                  <td className="px-6 py-3 text-slate-500">{le.kpp || '-'}</td>
+                  <td className="px-6 py-3 text-slate-500">{le.address || '-'}</td>
+                  <td className="px-6 py-3 text-slate-500">
+                    {linkedAccounts.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {linkedAccounts.map(acc => (
+                          <span key={acc.id} className="px-2 py-0.5 bg-teal-50 text-teal-700 rounded text-xs">{acc.name}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <ItemMenu onEdit={() => openEditModal('legal_entities', le)} onDelete={() => deleteItem('legal_entities', le.id)} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -525,6 +672,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const renderContent = () => {
     if (activeTab === 'categories') return renderCategoriesContent();
     if (activeTab === 'accounts') return renderAccountsContent();
+    if (activeTab === 'legal_entities') return renderLegalEntitiesContent();
     return renderListContent();
   };
 

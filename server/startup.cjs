@@ -26,12 +26,25 @@ const initDB = async () => {
     `);
 
     await db.query(`
+      CREATE TABLE IF NOT EXISTS legal_entities (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        inn TEXT,
+        kpp TEXT,
+        address TEXT,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await db.query(`
       CREATE TABLE IF NOT EXISTS accounts (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         type TEXT DEFAULT 'cash',
         currency TEXT DEFAULT 'RUB',
         initial_balance NUMERIC(15,2) DEFAULT 0,
+        legal_entity_id INTEGER REFERENCES legal_entities(id),
         is_archived BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT NOW()
       )
@@ -70,6 +83,15 @@ const initDB = async () => {
 
     await db.query(`ALTER TABLE IF EXISTS transactions DROP COLUMN IF EXISTS project_id`);
     await db.query(`DROP TABLE IF EXISTS projects`);
+
+    // Add legal_entity_id to accounts if not exists
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='legal_entity_id') THEN
+          ALTER TABLE accounts ADD COLUMN legal_entity_id INTEGER REFERENCES legal_entities(id);
+        END IF;
+      END $$;
+    `);
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS transactions (

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { Transaction, Account, Category, Studio, Contractor } from '../types';
+import { Transaction, Account, Category, Studio, Contractor, LegalEntity } from '../types';
 import { useAuth } from './AuthContext';
+
+type DictType = 'categories' | 'contractors' | 'accounts' | 'studios' | 'legal_entities';
 
 interface FinanceContextType {
   transactions: Transaction[];
@@ -8,14 +10,15 @@ interface FinanceContextType {
   categories: Category[];
   studios: Studio[];
   contractors: Contractor[];
+  legalEntities: LegalEntity[];
   
   addTransaction: (tx: Partial<Transaction>) => Promise<void>;
   updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   
-  addItem: (type: 'categories' | 'contractors' | 'accounts' | 'studios', data: any) => Promise<void>;
-  updateItem: (type: 'categories' | 'contractors' | 'accounts' | 'studios', id: string, data: any) => Promise<void>;
-  deleteItem: (type: 'categories' | 'contractors' | 'accounts' | 'studios', id: string) => Promise<void>;
+  addItem: (type: DictType, data: any) => Promise<void>;
+  updateItem: (type: DictType, id: string, data: any) => Promise<void>;
+  deleteItem: (type: DictType, id: string) => Promise<void>;
 
   getAccountBalance: (id: string) => number;
   getTotalBalance: () => number;
@@ -35,6 +38,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [categories, setCategories] = useState<Category[]>([]);
   const [studios, setStudios] = useState<Studio[]>([]);
   const [contractors, setContractors] = useState<Contractor[]>([]);
+  const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const initialLoadDone = useRef(false);
 
@@ -59,6 +63,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     setCategories(data.categories);
     setStudios(data.studios);
     setContractors(data.contractors);
+    setLegalEntities(data.legalEntities || []);
   }, []);
 
   const fetchData = useCallback(async (silent = false) => {
@@ -190,6 +195,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       categories,
       studios,
       contractors,
+      legalEntities,
       addTransaction,
       updateTransaction,
       deleteTransaction,

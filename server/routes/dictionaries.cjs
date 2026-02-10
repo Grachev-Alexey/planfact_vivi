@@ -70,7 +70,8 @@ const createCrudHandlers = (tableName, fields) => {
 
 createCrudHandlers('categories', ['name', 'type', 'parentId', 'icon']);
 createCrudHandlers('contractors', ['name', 'inn', 'description']);
-createCrudHandlers('accounts', ['name', 'type', 'currency', 'initialBalance']);
+createCrudHandlers('accounts', ['name', 'type', 'currency', 'initialBalance', 'legalEntityId']);
 createCrudHandlers('studios', ['name', 'address', 'color']);
+createCrudHandlers('legal_entities', ['name', 'inn', 'kpp', 'address', 'description']);
 
 module.exports = router;

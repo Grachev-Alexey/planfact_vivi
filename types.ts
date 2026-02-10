@@ -8,6 +8,15 @@ export interface Studio {
   color?: string;
 }
 
+export interface LegalEntity {
+  id: string;
+  name: string;
+  inn?: string;
+  kpp?: string;
+  address?: string;
+  description?: string;
+}
+
 export interface Account {
   id: string;
   name: string;
@@ -15,6 +24,7 @@ export interface Account {
   type: 'cash' | 'card' | 'account';
   currency: string;
   initialBalance?: number;
+  legalEntityId?: string;
 }
 
 export interface Category {
