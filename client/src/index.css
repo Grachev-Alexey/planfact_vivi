@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ViVi Brand Colors - Violet/Purple theme */
+  /* Primary: Violet 600 */
+  --primary: 262 83% 58%;
+  --primary-foreground: 210 40% 98%;
+
+  /* Backgrounds: Clean, slight warmth for "airy" feel */
+  --background: 210 20% 99%;
+  --foreground: 222 47% 11%;
+
+  /* Cards: Pure white with subtle borders */
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  /* Secondary: Soft lavender/gray */
+  --secondary: 262 30% 96%;
+  --secondary-foreground: 262 47% 11%;
+
+  /* Muted: Grays */
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+
+  /* Accents */
+  --accent: 262 30% 96%;
+  --accent-foreground: 262 47% 11%;
+
+  /* Destructive */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+
+  /* Borders & Inputs */
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 262 83% 58%;
+
+  /* Chart Colors */
+  --income: 142 71% 45%;   /* Green */
+  --expense: 0 84% 60%;    /* Red */
+  
+  --radius: 0.75rem;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/20;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', sans-serif;
+    @apply tracking-tight font-semibold text-foreground;
+  }
+}
+
+@layer components {
+  /* Glassmorphism utility */
+  .glass {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-sm;
+  }
+  
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-primary/20;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/30 transition-colors;
+}
