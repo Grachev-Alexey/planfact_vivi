@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
 import { Transaction, TransactionType } from '../types';
@@ -10,7 +11,7 @@ interface SearchableSelectProps {
   value: string;
   onChange: (val: string) => void;
   placeholder: string;
-  options: { id: string; label: string; indent?: boolean }[];
+  options: { id: string; label: string; sublabel?: string; indent?: boolean }[];
   required?: boolean;
   onCreateNew?: () => void;
   createLabel?: string;
@@ -20,27 +21,111 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+
+  const updatePos = useCallback(() => {
+    if (ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownH = 300;
+      const top = spaceBelow > dropdownH ? rect.bottom + 2 : rect.top - dropdownH - 2;
+      setPos({ top: Math.max(4, top), left: rect.left, width: rect.width });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      updatePos();
+      setTimeout(() => inputRef.current?.focus(), 10);
+    }
+  }, [open, updatePos]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  useEffect(() => {
-    if (open && inputRef.current) inputRef.current.focus();
-  }, [open]);
-
   const filtered = useMemo(() => {
     if (!search.trim()) return options;
     const q = search.toLowerCase();
-    return options.filter(o => o.label.toLowerCase().includes(q));
+    return options.filter(o => o.label.toLowerCase().includes(q) || (o.sublabel && o.sublabel.toLowerCase().includes(q)));
   }, [options, search]);
 
   const selectedLabel = options.find(o => o.id === value)?.label || '';
+
+  const dropdown = (
+    <div
+      ref={dropdownRef}
+      className="fixed z-[100] bg-white border border-slate-200 rounded-lg shadow-2xl max-h-[280px] flex flex-col"
+      style={{ top: pos.top, left: pos.left, width: pos.width }}
+    >
+      <div className="p-2 border-b border-slate-100 shrink-0">
+        <div className="relative">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-500"
+            placeholder="Поиск..."
+          />
+        </div>
+      </div>
+
+      <div className="overflow-y-auto flex-1">
+        {!required && (
+          <button
+            type="button"
+            onClick={() => { onChange(''); setOpen(false); }}
+            className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 text-slate-400 ${!value ? 'bg-teal-50 text-teal-600' : ''}`}
+          >
+            {placeholder}
+          </button>
+        )}
+
+        {filtered.map(opt => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => { onChange(opt.id); setOpen(false); }}
+            className={`w-full text-left hover:bg-slate-50 flex items-center gap-2 transition-colors ${
+              opt.indent ? 'pl-8 pr-3 py-1.5 text-slate-500' : 'px-3 py-2 text-slate-700'
+            } ${value === opt.id ? 'bg-teal-50 text-teal-700' : ''}`}
+          >
+            {value === opt.id && <Check size={13} className="text-teal-600 shrink-0" />}
+            <span className="min-w-0">
+              <span className={`text-sm block ${!opt.indent ? 'font-medium' : ''}`}>{opt.label}</span>
+              {opt.sublabel && <span className="text-xs text-slate-400 block">{opt.sublabel}</span>}
+            </span>
+          </button>
+        ))}
+
+        {filtered.length === 0 && (
+          <div className="px-3 py-4 text-center text-sm text-slate-400">Ничего не найдено</div>
+        )}
+      </div>
+
+      {onCreateNew && (
+        <button
+          type="button"
+          onClick={() => { setOpen(false); onCreateNew(); }}
+          className="w-full px-3 py-2.5 text-left text-sm text-teal-600 hover:bg-teal-50 border-t border-slate-100 flex items-center gap-2 font-medium shrink-0"
+        >
+          <Plus size={14} />
+          {createLabel || 'Создать новый'}
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div ref={ref} className="relative">
@@ -53,66 +138,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
         <ChevronDown size={14} className={`text-slate-400 shrink-0 ml-2 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-xl max-h-[280px] flex flex-col">
-          <div className="p-2 border-b border-slate-100 shrink-0">
-            <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-500"
-                placeholder="Поиск..."
-              />
-            </div>
-          </div>
-
-          <div className="overflow-y-auto flex-1">
-            {!required && (
-              <button
-                type="button"
-                onClick={() => { onChange(''); setOpen(false); }}
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 text-slate-400 ${!value ? 'bg-teal-50 text-teal-600' : ''}`}
-              >
-                {placeholder}
-              </button>
-            )}
-
-            {filtered.map(opt => {
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => { onChange(opt.id); setOpen(false); }}
-                  className={`w-full text-left text-sm hover:bg-slate-50 flex items-center gap-2 transition-colors ${
-                    opt.indent ? 'pl-8 pr-3 py-1.5 text-slate-500' : 'px-3 py-2 text-slate-700 font-medium'
-                  } ${value === opt.id ? 'bg-teal-50 text-teal-700' : ''}`}
-                >
-                  {value === opt.id && <Check size={13} className="text-teal-600 shrink-0" />}
-                  <span className="truncate">{opt.label}</span>
-                </button>
-              );
-            })}
-
-            {filtered.length === 0 && (
-              <div className="px-3 py-4 text-center text-sm text-slate-400">Ничего не найдено</div>
-            )}
-          </div>
-
-          {onCreateNew && (
-            <button
-              type="button"
-              onClick={() => { setOpen(false); onCreateNew(); }}
-              className="w-full px-3 py-2.5 text-left text-sm text-teal-600 hover:bg-teal-50 border-t border-slate-100 flex items-center gap-2 font-medium shrink-0"
-            >
-              <Plus size={14} />
-              {createLabel || 'Создать новый'}
-            </button>
-          )}
-        </div>
-      )}
+      {open && createPortal(dropdown, document.body)}
     </div>
   );
 };
@@ -207,7 +233,7 @@ interface TransactionFormProps {
 }
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initialData }) => {
-  const { categories, accounts, studios, contractors, addTransaction, updateTransaction, refreshData, deleteTransaction } = useFinance();
+  const { categories, accounts, studios, contractors, legalEntities, addTransaction, updateTransaction, refreshData, deleteTransaction } = useFinance();
   
   const [type, setType] = useState<TransactionType>('income');
   const [amount, setAmount] = useState('');
@@ -299,8 +325,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
     }));
   }, [contractors]);
 
-  const accountOptions = useMemo(() => accounts.map(a => ({ id: a.id, label: a.name })), [accounts]);
-  const toAccountOptions = useMemo(() => accounts.filter(a => a.id !== accountId).map(a => ({ id: a.id, label: a.name })), [accounts, accountId]);
+  const accountOptions = useMemo(() => accounts.map(a => {
+    const le = legalEntities.find(l => l.id === a.legalEntityId);
+    return { id: a.id, label: a.name, sublabel: le ? le.name : undefined };
+  }), [accounts, legalEntities]);
+  const toAccountOptions = useMemo(() => accounts.filter(a => a.id !== accountId).map(a => {
+    const le = legalEntities.find(l => l.id === a.legalEntityId);
+    return { id: a.id, label: a.name, sublabel: le ? le.name : undefined };
+  }), [accounts, accountId, legalEntities]);
   const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
 
   const handleContractorCreated = async (id: string) => {

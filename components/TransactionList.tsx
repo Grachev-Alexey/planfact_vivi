@@ -18,7 +18,7 @@ const toLocalDate = (d: Date): string => {
 };
 
 export const TransactionList: React.FC = () => {
-  const { transactions, categories, studios, accounts, contractors, deleteTransaction } = useFinance();
+  const { transactions, categories, studios, accounts, contractors, legalEntities, deleteTransaction } = useFinance();
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -55,7 +55,10 @@ export const TransactionList: React.FC = () => {
     return result;
   }, [categories]);
 
-  const accountOptions = useMemo(() => accounts.map(a => ({ id: a.id, label: a.name })), [accounts]);
+  const accountOptions = useMemo(() => accounts.map(a => {
+    const le = legalEntities.find(l => l.id === a.legalEntityId);
+    return { id: a.id, label: a.name, sublabel: le ? le.name : undefined };
+  }), [accounts, legalEntities]);
   const contractorOptions = useMemo(() => contractors.map(c => ({ id: c.id, label: c.name + (c.inn ? ` (${c.inn})` : '') })), [contractors]);
   const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
   const confirmedOptions = useMemo(() => [
@@ -476,6 +479,7 @@ export const TransactionList: React.FC = () => {
                     const category = categories.find(c => c.id === tx.categoryId);
                     const studio = studios.find(s => s.id === tx.studioId);
                     const contractor = contractors.find(c => c.id === tx.contractorId);
+                    const accountLE = account?.legalEntityId ? legalEntities.find(l => l.id === account.legalEntityId) : null;
                     const isSelected = selectedIds.has(tx.id);
                     
                     return (
@@ -499,6 +503,9 @@ export const TransactionList: React.FC = () => {
                           <div className="text-slate-800 text-[13px]">
                             {account?.name}
                           </div>
+                          {accountLE && (
+                            <div className="text-[11px] text-slate-400">{accountLE.name}</div>
+                          )}
                           {tx.type === 'transfer' && toAccount && (
                             <div className="text-slate-400 text-[12px]">{toAccount.name}</div>
                           )}
