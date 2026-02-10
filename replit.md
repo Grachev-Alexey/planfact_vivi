@@ -3,6 +3,9 @@
 ## Overview
 A finance management application (Russian language UI) built with React + Vite frontend and Express.js backend with PostgreSQL database.
 
+## User Preferences
+- **Database**: Always use the external PostgreSQL database specified in the `.env` file (`postgresql://postgres:cd5d56a8@213.226.124.2:5432/planfact_vivi`). Do not use the Replit internal database unless explicitly requested.
+
 ## Project Architecture
 
 ### Frontend
