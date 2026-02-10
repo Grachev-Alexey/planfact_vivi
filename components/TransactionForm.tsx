@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
@@ -23,22 +23,26 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  const calcPos = useCallback(() => {
-    if (!ref.current) return null;
+  useLayoutEffect(() => {
+    if (!open || !ref.current || !dropdownRef.current) return;
     const rect = ref.current.getBoundingClientRect();
+    const dd = dropdownRef.current;
     const spaceBelow = window.innerHeight - rect.bottom;
     const dropdownH = 300;
     const top = spaceBelow > dropdownH ? rect.bottom + 2 : rect.top - dropdownH - 2;
-    return { top: Math.max(4, top), left: rect.left, width: rect.width };
-  }, []);
+    dd.style.top = `${Math.max(4, top)}px`;
+    dd.style.left = `${rect.left}px`;
+    dd.style.width = `${rect.width}px`;
+    dd.style.visibility = 'visible';
+  });
 
-  const handleOpen = useCallback(() => {
-    if (open) { setOpen(false); setPos(null); return; }
-    const p = calcPos();
-    if (p) { setPos(p); setOpen(true); setTimeout(() => inputRef.current?.focus(), 10); }
-  }, [open, calcPos]);
+  const handleOpen = () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    setSearch('');
+    setTimeout(() => inputRef.current?.focus(), 10);
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -46,7 +50,6 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
       if (ref.current?.contains(target)) return;
       if (dropdownRef.current?.contains(target)) return;
       setOpen(false);
-      setPos(null);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -66,7 +69,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
     <div
       ref={dropdownRef}
       className="fixed z-[100] bg-white border border-slate-200 rounded-lg shadow-2xl max-h-[280px] flex flex-col"
-      style={{ top: pos?.top, left: pos?.left, width: pos?.width }}
+      style={{ visibility: 'hidden' }}
     >
       <div className="p-2 border-b border-slate-100 shrink-0">
         <div className="relative">
@@ -86,7 +89,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
         {!required && (
           <button
             type="button"
-            onClick={() => { onChange(''); setOpen(false); setPos(null); }}
+            onClick={() => { onChange(''); setOpen(false); }}
             className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 text-slate-400 ${!value ? 'bg-teal-50 text-teal-600' : ''}`}
           >
             {placeholder}
@@ -97,7 +100,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
           <button
             key={opt.id}
             type="button"
-            onClick={() => { onChange(opt.id); setOpen(false); setPos(null); }}
+            onClick={() => { onChange(opt.id); setOpen(false); }}
             className={`w-full text-left hover:bg-slate-50 flex items-center gap-2 transition-colors ${
               opt.indent ? 'pl-8 pr-3 py-1.5 text-slate-500' : 'px-3 py-2 text-slate-700'
             } ${value === opt.id ? 'bg-teal-50 text-teal-700' : ''}`}
@@ -118,7 +121,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
       {onCreateNew && (
         <button
           type="button"
-          onClick={() => { setOpen(false); setPos(null); onCreateNew(); }}
+          onClick={() => { setOpen(false); onCreateNew(); }}
           className="w-full px-3 py-2.5 text-left text-sm text-teal-600 hover:bg-teal-50 border-t border-slate-100 flex items-center gap-2 font-medium shrink-0"
         >
           <Plus size={14} />
@@ -132,7 +135,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => { handleOpen(); setSearch(''); }}
+        onClick={handleOpen}
         className={`w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all flex items-center justify-between ${value ? 'text-slate-900' : 'text-slate-400'}`}
       >
         <span className="truncate min-w-0">
@@ -142,7 +145,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
         <ChevronDown size={14} className={`text-slate-400 shrink-0 ml-2 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && pos && createPortal(dropdown, document.body)}
+      {open && createPortal(dropdown, document.body)}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 
@@ -26,7 +26,6 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
 
   const selectedDate = value ? new Date(value + 'T00:00:00') : null;
   const [viewYear, setViewYear] = useState(selectedDate?.getFullYear() || new Date().getFullYear());
@@ -40,20 +39,22 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
     }
   }, [value]);
 
-  const calcPosition = useCallback(() => {
-    if (!ref.current) return null;
+  useLayoutEffect(() => {
+    if (!open || !ref.current || !dropdownRef.current) return;
     const rect = ref.current.getBoundingClientRect();
+    const dd = dropdownRef.current;
     const spaceBelow = window.innerHeight - rect.bottom;
     const dropdownHeight = 320;
     const top = spaceBelow > dropdownHeight ? rect.bottom + 4 : rect.top - dropdownHeight - 4;
-    return { top: Math.max(4, top), left: Math.max(4, rect.left) };
-  }, []);
+    dd.style.top = `${Math.max(4, top)}px`;
+    dd.style.left = `${Math.max(4, rect.left)}px`;
+    dd.style.visibility = 'visible';
+  });
 
-  const handleOpen = useCallback(() => {
-    if (open) { setOpen(false); setDropdownPos(null); return; }
-    const pos = calcPosition();
-    if (pos) { setDropdownPos(pos); setOpen(true); }
-  }, [open, calcPosition]);
+  const handleOpen = () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -61,7 +62,6 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
       if (ref.current?.contains(target)) return;
       if (dropdownRef.current?.contains(target)) return;
       setOpen(false);
-      setDropdownPos(null);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -107,7 +107,6 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
     const dateStr = `${cell.year}-${String(cell.month + 1).padStart(2, '0')}-${String(cell.day).padStart(2, '0')}`;
     onChange(dateStr);
     setOpen(false);
-    setDropdownPos(null);
   };
 
   const handleToday = () => {
@@ -117,7 +116,6 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
     setViewYear(now.getFullYear());
     setViewMonth(now.getMonth());
     setOpen(false);
-    setDropdownPos(null);
   };
 
   const displayValue = selectedDate
@@ -132,7 +130,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
     <div
       ref={dropdownRef}
       className="fixed z-[100] bg-white border border-slate-200 rounded-xl shadow-2xl p-3 w-[280px]"
-      style={{ top: dropdownPos?.top, left: dropdownPos?.left }}
+      style={{ visibility: 'hidden' }}
     >
       <div className="flex items-center justify-between mb-2">
         <button type="button" onClick={prevMonth} className="p-1 hover:bg-slate-100 rounded text-slate-500">
@@ -198,7 +196,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
         <Calendar size={compact ? 12 : 15} className="text-slate-400 shrink-0" />
       </button>
 
-      {open && dropdownPos && createPortal(calendarDropdown, document.body)}
+      {open && createPortal(calendarDropdown, document.body)}
     </div>
   );
 };
