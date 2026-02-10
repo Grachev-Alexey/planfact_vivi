@@ -6,15 +6,15 @@ const { logAction } = require('../utils/logger.cjs');
 
 // Create Transaction
 router.post('/transactions', async (req, res) => {
-  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId } = req.body;
+  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate } = req.body;
   const currentUserId = req.headers['x-user-id'];
   
   try {
     const query = `
-      INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, description, to_account_id, contractor_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
+      INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, description, to_account_id, contractor_id, confirmed, accrual_date) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
     `;
-    const values = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null];
+    const values = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, confirmed || false, accrualDate || null];
 
     const result = await db.query(query, values);
     const newTx = result.rows[0];
@@ -47,7 +47,7 @@ router.post('/transactions', async (req, res) => {
 // Update Transaction
 router.put('/transactions/:id', async (req, res) => {
   const { id } = req.params;
-  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId } = req.body;
+  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate } = req.body;
   const currentUserId = req.headers['x-user-id'];
 
   try {
@@ -68,10 +68,10 @@ router.put('/transactions/:id', async (req, res) => {
 
     const query = `
       UPDATE transactions 
-      SET date=$1, amount=$2, type=$3, account_id=$4, category_id=$5, studio_id=$6, description=$7, to_account_id=$8, contractor_id=$9, updated_at=NOW()
-      WHERE id = $10 RETURNING *
+      SET date=$1, amount=$2, type=$3, account_id=$4, category_id=$5, studio_id=$6, description=$7, to_account_id=$8, contractor_id=$9, confirmed=$10, accrual_date=$11, updated_at=NOW()
+      WHERE id = $12 RETURNING *
     `;
-    const values = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, id];
+    const values = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, confirmed || false, accrualDate || null, id];
 
     const result = await db.query(query, values);
 

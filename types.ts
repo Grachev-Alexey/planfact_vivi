@@ -44,13 +44,15 @@ export interface Contractor {
 
 export interface Transaction {
   id: string;
-  date: string; // ISO Date
+  date: string;
   amount: number;
   type: TransactionType;
   accountId: string;
-  toAccountId?: string; // For transfers
+  toAccountId?: string;
   categoryId?: string;
   studioId?: string;
   description: string;
   contractorId?: string;
+  confirmed?: boolean;
+  accrualDate?: string;
 }

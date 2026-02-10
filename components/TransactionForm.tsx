@@ -210,6 +210,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
   const [studioId, setStudioId] = useState('');
   const [contractorId, setContractorId] = useState('');
   const [description, setDescription] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const [accrualDate, setAccrualDate] = useState('');
   const [showNewContractor, setShowNewContractor] = useState(false);
 
   useEffect(() => {
@@ -223,6 +225,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       setStudioId(initialData.studioId || '');
       setContractorId(initialData.contractorId || '');
       setDescription(initialData.description || '');
+      setConfirmed(initialData.confirmed || false);
+      setAccrualDate(initialData.accrualDate ? initialData.accrualDate.split('T')[0] : '');
     } else {
       if (accounts.length > 0 && !accountId) setAccountId(accounts[0].id);
       if (studios.length > 0 && !studioId) setStudioId(studios[0].id);
@@ -245,6 +249,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       studioId: studioId || undefined,
       contractorId: type === 'transfer' ? undefined : (contractorId || undefined),
       description,
+      confirmed,
+      accrualDate: accrualDate || undefined,
     };
 
     if (initialData) {
@@ -348,6 +354,40 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
             </div>
           </div>
         </div>
+
+        {type !== 'transfer' && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <div className="relative flex items-center">
+                <input
+                  type="checkbox"
+                  checked={confirmed}
+                  onChange={(e) => setConfirmed(e.target.checked)}
+                  className="peer h-5 w-5 cursor-pointer appearance-none rounded bg-white border border-slate-300 shadow-sm checked:bg-teal-600 checked:border-teal-600 transition-all"
+                />
+                <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white pointer-events-none opacity-0 peer-checked:opacity-100" viewBox="0 0 14 14" fill="none">
+                  <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <span className="text-sm font-medium text-slate-700">
+                {type === 'income' ? 'Подтвердить доход' : 'Подтвердить оплату'}
+              </span>
+            </label>
+
+            {type === 'expense' && (
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Дата начисления</label>
+                <input
+                  type="date"
+                  value={accrualDate}
+                  onChange={(e) => setAccrualDate(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                  style={{ colorScheme: 'light' }}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="block text-xs font-bold text-slate-500 mb-1.5">Счет</label>

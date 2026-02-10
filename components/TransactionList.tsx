@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Transaction } from '../types';
 import { formatCurrency, formatDate } from '../utils/format';
-import { Search, Download, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2 } from 'lucide-react';
+import { Search, Download, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
@@ -350,7 +350,8 @@ export const TransactionList: React.FC = () => {
                       {tx.description && <span className="text-[11px] text-slate-400 truncate">{tx.description}</span>}
                     </div>
                     <div className="text-xs text-slate-500 truncate">{studio?.name || ''}</div>
-                    <div className={`text-right text-xs font-bold tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
+                    <div className={`text-right text-xs font-bold tabular-nums flex items-center justify-end gap-1 ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
+                      {tx.confirmed && <CheckCircle2 size={12} className="text-teal-500 shrink-0" />}
                       {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}
                     </div>
                   </div>

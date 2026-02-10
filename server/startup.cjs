@@ -105,9 +105,22 @@ const initDB = async () => {
         studio_id INTEGER REFERENCES studios(id),
         contractor_id INTEGER REFERENCES contractors(id),
         description TEXT DEFAULT '',
+        confirmed BOOLEAN DEFAULT false,
+        accrual_date DATE,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
+    `);
+
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='confirmed') THEN
+          ALTER TABLE transactions ADD COLUMN confirmed BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='accrual_date') THEN
+          ALTER TABLE transactions ADD COLUMN accrual_date DATE;
+        END IF;
+      END $$;
     `);
 
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
