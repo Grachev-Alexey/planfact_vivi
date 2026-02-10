@@ -8,10 +8,8 @@ import { TransactionList } from './components/TransactionList';
 import { Directories } from './components/Directories';
 import { Settings } from './components/Settings';
 import { LoginPage } from './components/LoginPage';
-import { Button } from './components/ui/Button';
-import { Modal } from './components/ui/Modal';
-import { TransactionForm } from './components/TransactionForm';
-import { Plus, LogOut } from 'lucide-react';
+import { ReportsPage } from './components/ReportsPage';
+import { LogOut } from 'lucide-react';
 import { formatCurrency } from './utils/format';
 
 const TopBar: React.FC = () => {
@@ -61,14 +59,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }
   return children;
 };
 
-const ReportsPage = () => (
-   <div className="p-8">
-    <div className="bg-white p-12 rounded shadow-sm border border-slate-200 text-center">
-        <h3 className="text-xl font-bold text-slate-700">Отчеты</h3>
-        <p className="text-slate-500 mt-2">P&L (ПиУ), ДДС и другие финансовые отчеты.</p>
-    </div>
-  </div>
-);
 
 const AppRoutes = () => {
     const [sidebarExpanded, setSidebarExpanded] = useState(false);

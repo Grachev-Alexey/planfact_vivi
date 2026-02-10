@@ -174,13 +174,13 @@ export const TransactionList: React.FC = () => {
             <div className="text-xs font-medium text-slate-500 mb-2">Тип операции</div>
             <div className="space-y-1">
               {[
-                { key: 'income' as const, label: 'Поступление', color: 'text-emerald-600' },
-                { key: 'expense' as const, label: 'Выплата', color: 'text-rose-600' },
-                { key: 'transfer' as const, label: 'Перемещение', color: 'text-blue-600' },
+                { key: 'income' as const, label: 'Поступление' },
+                { key: 'expense' as const, label: 'Выплата' },
+                { key: 'transfer' as const, label: 'Перемещение' },
               ].map(item => (
                 <label key={item.key} className="flex items-center gap-2 cursor-pointer py-0.5 group">
-                  <input type="checkbox" checked={filterTypes[item.key]} onChange={e => setFilterTypes(p => ({...p, [item.key]: e.target.checked}))} className="rounded text-teal-600 focus:ring-teal-500 h-3.5 w-3.5" />
-                  <span className={`text-sm ${item.color}`}>{item.label}</span>
+                  <input type="checkbox" checked={filterTypes[item.key]} onChange={e => setFilterTypes(p => ({...p, [item.key]: e.target.checked}))} className="rounded accent-teal-600 h-3.5 w-3.5" />
+                  <span className="text-sm text-slate-700">{item.label}</span>
                 </label>
               ))}
             </div>
@@ -286,7 +286,7 @@ export const TransactionList: React.FC = () => {
               checked={allSelected}
               ref={el => { if (el) el.indeterminate = someSelected; }}
               onChange={toggleSelectAll}
-              className="rounded text-teal-600 focus:ring-teal-500 h-3.5 w-3.5 cursor-pointer"
+              className="rounded accent-teal-600 h-3.5 w-3.5 cursor-pointer"
             />
           </div>
           <div>Дата</div>
@@ -327,7 +327,7 @@ export const TransactionList: React.FC = () => {
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleSelect(tx.id)}
-                        className="rounded text-teal-600 focus:ring-teal-500 h-3.5 w-3.5 cursor-pointer"
+                        className="rounded accent-teal-600 h-3.5 w-3.5 cursor-pointer"
                       />
                     </div>
                     <div className="text-slate-500 text-xs">{formatDate(tx.date)}</div>

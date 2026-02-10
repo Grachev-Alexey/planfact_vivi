@@ -64,17 +64,21 @@ A finance management application (Russian language UI) built with React + Vite f
 - Full CRUD in Directories page under "Мои юрлица" tab
 
 ## Recent Changes
+- Reports page: Full implementation with 4 tabs (ПиУ, ДДС, По статьям, По студиям)
+  - P&L report with monthly breakdown by income/expense categories, expandable subcategories
+  - DDS (cash flow) report with per-account flow breakdown
+  - Category analysis with pie chart and percentage breakdown
+  - Studio analysis with cards showing top expenses per studio
+  - Date range filters (month/year), studio and account filters
+  - Excel export for P&L and DDS reports
+- Transaction selection: checkbox per row, select all, bulk delete with confirmation
+- Unified teal color scheme (removed purple checkboxes, removed colored filter labels)
+- Sidebar hover-to-expand with 300ms delay
+- Optimized animations (CSS keyframes instead of Tailwind animate-in)
 - Added "Мои юрлица" (Legal Entities) with fields: name, inn, kpp, address, description
 - Accounts now link to legal entities via legal_entity_id
-- Accounts table shows legal entity column; legal entities table shows linked accounts
-- Activity history: pagination (50/page), filtering by action/entity/user, text search
-- Detailed before/after change tracking for transaction edits in Russian
-- Login actions no longer logged in activity history
-- Added edit dialogs for all directory items (categories, contractors, accounts, studios, legal_entities)
-- Category types: Доходы, Расходы (only 2 types)
-- Implemented hierarchical categories with subcategories (parent/child tree view)
-- Removed "projects" entity entirely (DB, backend, frontend)
-- Activity history logs now display in Russian
-- Added 5-second polling for real-time data sync between users
-- Migrated to Replit environment
-- Configured Vite proxy for API calls (frontend -> backend)
+- Activity history: pagination, filtering, detailed before/after tracking in Russian
+- Hierarchical categories with subcategories (parent/child tree view)
+- Removed "projects" entity entirely
+- 5-second polling for real-time data sync
+- Vite proxy for API calls (frontend -> backend)
