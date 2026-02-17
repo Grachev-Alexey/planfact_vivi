@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Transaction } from '../types';
 import { formatCurrency, formatDate, formatDateShort } from '../utils/format';
-import { Search, Download, Upload, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Download, Upload, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
@@ -617,53 +617,96 @@ export const TransactionList: React.FC = () => {
           </table>
         </div>
 
-        <div className="bg-slate-50 border-t border-slate-200 px-6 py-2 text-[12px] text-slate-500 shrink-0">
-          {visibleSelectedCount > 0 ? (
-            <div className="flex items-center justify-between">
-              <div className="flex gap-4 flex-wrap min-w-0">
+        <div className="border-t border-slate-200 shrink-0">
+          {visibleSelectedCount > 0 && (
+            <div className="bg-teal-50/70 px-6 py-2 flex items-center justify-between text-[12px] border-b border-teal-100">
+              <div className="flex gap-4 flex-wrap min-w-0 text-slate-600">
                 <span>Выбрано: <b className="text-teal-700">{visibleSelectedCount}</b></span>
                 {selectedIncome > 0 && <span>поступления: <b className="text-emerald-600">{formatCurrency(selectedIncome)}</b></span>}
                 {selectedExpense > 0 && <span>выплаты: <b className="text-rose-600">{formatCurrency(selectedExpense)}</b></span>}
               </div>
               <div className="font-semibold text-slate-700">
-                Сумма: <span className={selectedTotal >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(selectedTotal)}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between">
-              <div className="flex gap-4 flex-wrap min-w-0">
-                <span><b className="text-slate-700">{filteredTransactions.length}</b> операций</span>
-                <span>поступления: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
-                <span>выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-default"
-                    >
-                      <ChevronLeft size={14} />
-                    </button>
-                    <span className="text-slate-600 font-medium min-w-[60px] text-center">
-                      {currentPage} / {totalPages}
-                    </span>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-default"
-                    >
-                      <ChevronRight size={14} />
-                    </button>
-                  </div>
-                )}
-                <div className="font-semibold text-slate-700">
-                  Итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span>
-                </div>
+                Итого: <span className={selectedTotal >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(selectedTotal)}</span>
               </div>
             </div>
           )}
+
+          <div className="bg-white px-6 py-2.5 flex items-center justify-between text-[12px] text-slate-500">
+            <div className="flex gap-4 flex-wrap min-w-0">
+              <span><b className="text-slate-700">{filteredTransactions.length}</b> операций</span>
+              <span>поступления: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
+              <span>выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
+              <span className="font-semibold">итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span></span>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-100 disabled:opacity-20 disabled:cursor-default transition-colors"
+                  title="Первая страница"
+                >
+                  <ChevronsLeft size={14} />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-100 disabled:opacity-20 disabled:cursor-default transition-colors"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+
+                {(() => {
+                  const pages: (number | '...')[] = [];
+                  if (totalPages <= 7) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (currentPage > 3) pages.push('...');
+                    const start = Math.max(2, currentPage - 1);
+                    const end = Math.min(totalPages - 1, currentPage + 1);
+                    for (let i = start; i <= end; i++) pages.push(i);
+                    if (currentPage < totalPages - 2) pages.push('...');
+                    pages.push(totalPages);
+                  }
+                  return pages.map((p, i) =>
+                    p === '...' ? (
+                      <span key={`dots-${i}`} className="w-7 h-7 flex items-center justify-center text-slate-400">···</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-medium transition-all ${
+                          currentPage === p
+                            ? 'bg-teal-600 text-white shadow-sm'
+                            : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    )
+                  );
+                })()}
+
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-100 disabled:opacity-20 disabled:cursor-default transition-colors"
+                >
+                  <ChevronRight size={14} />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-100 disabled:opacity-20 disabled:cursor-default transition-colors"
+                  title="Последняя страница"
+                >
+                  <ChevronsRight size={14} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
