@@ -3,7 +3,7 @@ import { useFinance } from '../context/FinanceContext';
 import { Transaction } from '../types';
 import type { Account, Category, Studio, Contractor, LegalEntity } from '../types';
 import { formatCurrency, formatDate, formatDateShort } from '../utils/format';
-import { Search, Download, Upload, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Search, Download, Upload, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
@@ -387,9 +387,14 @@ export const TransactionList: React.FC = () => {
     { label: 'Этот год', fn: () => { const y = new Date().getFullYear(); setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`); }},
   ];
 
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+
   return (
     <div className="flex h-[calc(100vh-56px)] overflow-hidden">
-      <div className="w-56 bg-white border-r border-slate-200 flex-col hidden lg:flex shrink-0">
+      {showMobileFilters && (
+        <div className="lg:hidden fixed inset-0 bg-black/40 z-30" onClick={() => setShowMobileFilters(false)} />
+      )}
+      <div className={`w-64 lg:w-56 bg-white border-r border-slate-200 flex-col shrink-0 fixed lg:static inset-y-0 left-0 z-30 mt-14 lg:mt-0 transition-transform duration-200 ${showMobileFilters ? 'translate-x-0 flex' : '-translate-x-full lg:translate-x-0 hidden lg:flex'}`}>
         <div className="px-4 py-3 border-b border-slate-100">
           <h2 className="font-bold text-xs text-slate-500 uppercase tracking-wider">Фильтры</h2>
         </div>
@@ -524,7 +529,7 @@ export const TransactionList: React.FC = () => {
 
       <div className="flex-1 flex flex-col bg-white min-w-0">
         {visibleSelectedCount > 0 ? (
-          <div className="px-6 py-3 border-b border-teal-200 bg-teal-50 flex items-center justify-between gap-3 shrink-0">
+          <div className="px-3 sm:px-6 py-3 border-b border-teal-200 bg-teal-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 shrink-0">
             <div className="flex items-center gap-3">
               <button onClick={() => setSelectedIds(new Set())} className="text-slate-500 hover:text-slate-700">
                 <X size={16} />
@@ -533,67 +538,73 @@ export const TransactionList: React.FC = () => {
                 Выбрано: <b>{visibleSelectedCount}</b>
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => handleBulkConfirm(true)}
                 disabled={isDeleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-medium disabled:opacity-50"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
               >
-                <CheckCircle2 size={13} /> Подтвердить
+                <CheckCircle2 size={13} /> <span className="hidden sm:inline">Подтвердить</span><span className="sm:hidden">OK</span>
               </button>
               <button
                 onClick={() => handleBulkConfirm(false)}
                 disabled={isDeleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-xs font-medium disabled:opacity-50"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
               >
-                Снять подтверждение
+                <span className="hidden sm:inline">Снять подтверждение</span><span className="sm:hidden">Снять</span>
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={isDeleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-medium disabled:opacity-50"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
               >
-                <Trash2 size={13} /> Удалить
+                <Trash2 size={13} />
               </button>
             </div>
           </div>
         ) : (
-          <div className="px-6 py-3 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-slate-800">Операции</h1>
+          <div className="px-3 sm:px-6 py-3 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-800">Операции</h1>
               <Button 
                 onClick={() => { setEditingTx(null); setIsModalOpen(true); }} 
-                className="bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-5 py-1.5 text-sm font-medium"
+                className="bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-3 sm:px-5 py-1.5 text-xs sm:text-sm font-medium"
               >
                 Создать
               </Button>
+              <button
+                onClick={() => setShowMobileFilters(!showMobileFilters)}
+                className={`lg:hidden ml-auto px-2.5 py-1.5 border rounded-lg text-xs flex items-center gap-1 ${hasActiveFilters ? 'border-teal-300 bg-teal-50 text-teal-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+              >
+                <Filter size={13} /> Фильтры
+              </button>
             </div>
             
-            <div className="flex items-center gap-3">
-              <div className="relative">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-initial">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                 <input 
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   type="text" 
-                  placeholder="Поиск по операциям" 
-                  className="w-52 pl-9 pr-8 py-2 bg-white text-slate-800 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-teal-500"
+                  placeholder="Поиск" 
+                  className="w-full sm:w-52 pl-9 pr-8 py-2 bg-white text-slate-800 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-teal-500"
                 />
                 {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={14}/></button>}
               </div>
               <button 
                 onClick={() => setIsImportOpen(true)}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 text-sm shrink-0"
+                className="px-2 sm:px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 text-xs sm:text-sm shrink-0"
                 title="Импорт из Excel"
               >
-                <Upload size={14} /> Импорт
+                <Upload size={14} /> <span className="hidden sm:inline">Импорт</span>
               </button>
               <button 
                 onClick={handleExport}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 text-sm shrink-0"
+                className="px-2 sm:px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 text-xs sm:text-sm shrink-0"
                 title="Экспорт в Excel"
               >
-                <Download size={14} /> .xls
+                <Download size={14} /> <span className="hidden sm:inline">.xls</span>
               </button>
             </div>
           </div>
@@ -652,7 +663,7 @@ export const TransactionList: React.FC = () => {
 
         <div className="border-t border-slate-200 shrink-0">
           {visibleSelectedCount > 0 && (
-            <div className="bg-teal-50/70 px-6 py-2 flex items-center justify-between text-[12px] border-b border-teal-100">
+            <div className="bg-teal-50/70 px-3 sm:px-6 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[11px] sm:text-[12px] border-b border-teal-100">
               <div className="flex gap-4 flex-wrap min-w-0 text-slate-600">
                 <span>Выбрано: <b className="text-teal-700">{visibleSelectedCount}</b></span>
                 {selectedIncome > 0 && <span>поступления: <b className="text-emerald-600">{formatCurrency(selectedIncome)}</b></span>}
@@ -664,7 +675,7 @@ export const TransactionList: React.FC = () => {
             </div>
           )}
 
-          <div className="bg-white px-6 py-2.5 flex items-center justify-between text-[12px] text-slate-500">
+          <div className="bg-white px-3 sm:px-6 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] sm:text-[12px] text-slate-500">
             <div className="flex gap-4 flex-wrap min-w-0">
               <span><b className="text-slate-700">{filteredTransactions.length}</b> операций</span>
               <span>поступления: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>

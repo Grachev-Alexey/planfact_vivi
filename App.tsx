@@ -18,20 +18,20 @@ const TopBar: React.FC = () => {
   const balance = getTotalBalance();
   
   return (
-    <div className="h-14 bg-white border-b border-slate-200 shadow-sm text-slate-800 flex items-center justify-between px-4 lg:px-6 fixed top-0 right-0 left-[72px] z-20">
-       <div className="flex items-center gap-4">
+    <div className="h-14 bg-white border-b border-slate-200 shadow-sm text-slate-800 flex items-center justify-between px-4 lg:px-6 fixed top-0 right-0 left-0 md:left-[72px] z-20">
+       <div className="flex items-center gap-4 pl-10 md:pl-0">
        </div>
-       <div className="flex items-center gap-5">
-          <div className="flex items-center gap-2">
-             <span className="text-xs text-slate-500 whitespace-nowrap">На счетах</span>
-             <span className={`text-sm font-bold whitespace-nowrap ${balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(balance)}</span>
+       <div className="flex items-center gap-3 sm:gap-5">
+          <div className="flex items-center gap-1 sm:gap-2">
+             <span className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap">На счетах</span>
+             <span className={`text-xs sm:text-sm font-bold whitespace-nowrap ${balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(balance)}</span>
           </div>
           <div className="h-6 w-px bg-slate-200"></div>
           <div className="flex items-center gap-2">
              <div className="w-7 h-7 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 font-bold text-xs">
                {user?.username?.[0]?.toUpperCase() || '?'}
              </div>
-             <span className="text-xs font-medium text-slate-600">{user?.username}</span>
+             <span className="text-xs font-medium text-slate-600 hidden sm:inline">{user?.username}</span>
              <button onClick={logout} className="text-slate-400 hover:text-rose-500 ml-1" title="Выйти">
                 <LogOut size={15} />
              </button>
@@ -46,7 +46,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
       <TopBar />
-      <main className="flex-1 ml-[72px] mt-14 p-0">
+      <main className="flex-1 ml-0 md:ml-[72px] mt-14 p-0">
         {children}
       </main>
     </div>

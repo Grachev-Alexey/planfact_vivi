@@ -1,9 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Receipt, PieChart, Settings, WalletCards } from 'lucide-react';
+import { LayoutDashboard, Receipt, PieChart, Settings, WalletCards, Menu, X } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   const navItems = [
     { icon: LayoutDashboard, label: 'Показатели', path: '/' },
     { icon: Receipt, label: 'Операции', path: '/transactions' },
@@ -12,46 +18,71 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="w-[72px] bg-[#1e2a38] text-slate-400 flex flex-col h-screen fixed left-0 top-0 z-30 shadow-xl">
-      <div className="h-14 flex items-center justify-center bg-[#172231] shrink-0">
-        <div className="rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold h-9 w-9 text-[10px]">
-          ПФ
+    <>
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden fixed top-3 left-3 z-50 p-2 rounded-lg bg-[#1e2a38] text-white shadow-lg"
+        aria-label="Открыть меню"
+      >
+        <Menu size={20} />
+      </button>
+
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 bg-black/40 z-40" onClick={() => setMobileOpen(false)} />
+      )}
+
+      <aside className={`
+        w-[72px] bg-[#1e2a38] text-slate-400 flex flex-col h-screen fixed left-0 top-0 z-50 shadow-xl
+        transition-transform duration-200
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0
+      `}>
+        <div className="h-14 flex items-center justify-center bg-[#172231] shrink-0 relative">
+          <div className="rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold h-9 w-9 text-[10px]">
+            ПФ
+          </div>
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="md:hidden absolute right-1 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white"
+          >
+            <X size={16} />
+          </button>
         </div>
-      </div>
 
-      <nav className="flex-1 pt-2 flex flex-col">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex flex-col items-center py-3 px-1 text-center border-l-[3px] ${
-                isActive
-                  ? 'bg-white/10 text-white border-teal-400'
-                  : 'border-transparent hover:bg-white/5 hover:text-slate-200'
-              }`}
-            >
-              <item.icon size={20} strokeWidth={1.5} />
-              <span className="text-[10px] mt-1 leading-tight font-medium">{item.label}</span>
-            </Link>
-          );
-        })}
+        <nav className="flex-1 pt-2 flex flex-col">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex flex-col items-center py-3 px-1 text-center border-l-[3px] ${
+                  isActive
+                    ? 'bg-white/10 text-white border-teal-400'
+                    : 'border-transparent hover:bg-white/5 hover:text-slate-200'
+                }`}
+              >
+                <item.icon size={20} strokeWidth={1.5} />
+                <span className="text-[10px] mt-1 leading-tight font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
 
-        <div className="flex-1" />
+          <div className="flex-1" />
 
-        <Link
-          to="/settings"
-          className={`flex flex-col items-center py-3 px-1 text-center border-l-[3px] mb-2 ${
-            location.pathname === '/settings'
-              ? 'bg-white/10 text-white border-teal-400'
-              : 'border-transparent hover:bg-white/5 hover:text-slate-200'
-          }`}
-        >
-          <Settings size={20} strokeWidth={1.5} />
-          <span className="text-[10px] mt-1 leading-tight font-medium">Настройки</span>
-        </Link>
-      </nav>
-    </aside>
+          <Link
+            to="/settings"
+            className={`flex flex-col items-center py-3 px-1 text-center border-l-[3px] mb-2 ${
+              location.pathname === '/settings'
+                ? 'bg-white/10 text-white border-teal-400'
+                : 'border-transparent hover:bg-white/5 hover:text-slate-200'
+            }`}
+          >
+            <Settings size={20} strokeWidth={1.5} />
+            <span className="text-[10px] mt-1 leading-tight font-medium">Настройки</span>
+          </Link>
+        </nav>
+      </aside>
+    </>
   );
 };

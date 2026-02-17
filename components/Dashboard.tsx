@@ -96,27 +96,27 @@ export const Dashboard: React.FC = () => {
   }, [monthlyData]);
 
   return (
-    <div className="p-6 space-y-6 fade-enter bg-slate-50 min-h-full">
-      <div className="flex items-center justify-between">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 fade-enter bg-slate-50 min-h-full">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Показатели</h1>
-          <div className="text-sm text-slate-400 mt-0.5">
+          <h1 className="text-lg sm:text-xl font-bold text-slate-800">Показатели</h1>
+          <div className="text-xs sm:text-sm text-slate-400 mt-0.5">
             {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
           <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-0.5">
             <button onClick={() => setYear(y => y - 1)} className="p-1.5 hover:bg-slate-50 rounded text-slate-500">
               <ChevronLeft size={16} />
             </button>
-            <span className="text-sm font-medium text-slate-700 px-2 min-w-[120px] text-center">
+            <span className="text-xs sm:text-sm font-medium text-slate-700 px-1 sm:px-2 min-w-[100px] sm:min-w-[120px] text-center">
               Янв '{String(year).slice(2)}—Дек '{String(year).slice(2)}
             </span>
             <button onClick={() => setYear(y => y + 1)} className="p-1.5 hover:bg-slate-50 rounded text-slate-500">
               <ChevronRight size={16} />
             </button>
           </div>
-          <div className="bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm">
+          <div className="bg-white border border-slate-200 rounded-lg px-3 sm:px-4 py-2 text-xs sm:text-sm">
             <span className="text-slate-500">На счетах </span>
             <span className={`font-bold ${totalBalance >= 0 ? 'text-teal-600' : 'text-rose-600'}`}>
               {formatNumber(totalBalance)} ₽
@@ -126,13 +126,13 @@ export const Dashboard: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="p-5 pb-0 flex items-center gap-6 border-b border-slate-100">
-          <h2 className="text-base font-bold text-slate-800">Прибыль, ₽</h2>
+        <div className="p-3 sm:p-5 pb-0 flex items-center gap-6 border-b border-slate-100">
+          <h2 className="text-sm sm:text-base font-bold text-slate-800">Прибыль, ₽</h2>
           <div className="flex-1" />
         </div>
 
         <div className="flex flex-col lg:flex-row">
-          <div className="p-5 lg:w-[260px] flex-shrink-0 space-y-4 border-r border-slate-100">
+          <div className="p-3 sm:p-5 lg:w-[260px] flex-shrink-0 space-y-3 sm:space-y-4 border-b lg:border-b-0 lg:border-r border-slate-100">
             <MetricRow label="Доходы" value={totals.income} color="text-slate-800" />
             <MetricRow label="Расходы" value={totals.expense} color="text-slate-800" />
             <MetricRow label="Чистая прибыль" value={totals.profit} color={totals.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'} />
@@ -144,7 +144,7 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-1 p-4 min-h-[300px]">
+          <div className="flex-1 p-2 sm:p-4 min-h-[250px] sm:min-h-[300px]">
             <ResponsiveContainer width="100%" height={280}>
               <ComposedChart data={profitChartData} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -185,12 +185,12 @@ export const Dashboard: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="p-5 pb-0 border-b border-slate-100">
-          <h2 className="text-base font-bold text-slate-800">Денежный поток, ₽</h2>
+        <div className="p-3 sm:p-5 pb-0 border-b border-slate-100">
+          <h2 className="text-sm sm:text-base font-bold text-slate-800">Денежный поток, ₽</h2>
         </div>
 
         <div className="flex flex-col lg:flex-row">
-          <div className="p-5 lg:w-[260px] flex-shrink-0 space-y-4 border-r border-slate-100">
+          <div className="p-3 sm:p-5 lg:w-[260px] flex-shrink-0 space-y-3 sm:space-y-4 border-b lg:border-b-0 lg:border-r border-slate-100">
             <MetricRow label="Поступления" value={totals.inflows} color="text-slate-800" />
             <MetricRow label="Выплаты" value={totals.outflows} color="text-slate-800" />
             <div className="pt-2 border-t border-slate-100">
@@ -201,7 +201,7 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-1 p-4 min-h-[260px]">
+          <div className="flex-1 p-2 sm:p-4 min-h-[220px] sm:min-h-[260px]">
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={cashFlowData} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -235,8 +235,8 @@ export const Dashboard: React.FC = () => {
 
 const MetricRow: React.FC<{ label: string; value: number; color?: string }> = ({ label, value, color = 'text-slate-800' }) => (
   <div>
-    <div className="text-sm text-slate-400 mb-0.5">{label}</div>
-    <div className={`text-2xl font-bold tracking-tight ${color}`}>
+    <div className="text-xs sm:text-sm text-slate-400 mb-0.5">{label}</div>
+    <div className={`text-xl sm:text-2xl font-bold tracking-tight ${color}`}>
       {formatNumber(value)}
     </div>
   </div>
@@ -257,9 +257,9 @@ const StudioBreakdown: React.FC<{ yearTx: any[]; studios: any[] }> = ({ yearTx, 
   const maxVal = Math.max(...studioData.map(s => Math.max(s.income, s.expense, Math.abs(s.profit))), 1);
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-      <h2 className="text-base font-bold text-slate-800 mb-4">Прибыль по студиям</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 sm:p-5">
+      <h2 className="text-sm sm:text-base font-bold text-slate-800 mb-3 sm:mb-4">Прибыль по студиям</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {studioData.map(s => (
           <div key={s.name} className="border border-slate-100 rounded-lg p-4">
             <div className="text-sm font-medium text-slate-600 mb-3">{s.name}</div>

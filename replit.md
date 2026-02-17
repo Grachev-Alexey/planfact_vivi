@@ -87,3 +87,15 @@ A finance management application (Russian language UI) built with React + Vite f
 - Hierarchical categories with subcategories (parent/child tree view)
 - XLSX import: upload file, download template, preview with validation, bulk import
 - Import supports all transaction types including transfers (На счет column)
+- Added favicon (public/favicon.png) with apple-touch-icon support
+- Full mobile responsiveness across all pages:
+  - Sidebar: hamburger menu on mobile, slide-in drawer with overlay, auto-close on navigation
+  - TopBar: adapts to mobile width, hides username on small screens
+  - Layout: removes sidebar margin on mobile
+  - TransactionList: mobile filter drawer toggle, stacking header, compact bulk actions
+  - Dashboard: stacking metrics/charts vertically on mobile, responsive text/padding
+  - Settings: horizontally scrollable tables on mobile
+  - Reports: scrollable tabs, responsive date selectors
+  - Modal: responsive padding and title sizing
+- Performance: memoized TransactionRow component, lookup Maps instead of .find() for O(1) access
+- Optimistic updates: transactions appear/update/delete instantly in UI

@@ -159,33 +159,34 @@ export const Settings: React.FC = () => {
 
   return (
     <div className="flex h-[calc(100vh-56px)] bg-slate-50 flex-col">
-       <div className="px-8 pt-6 pb-0 flex items-center justify-between">
-           <div className="flex gap-8">
+       <div className="px-3 sm:px-8 pt-4 sm:pt-6 pb-0 flex items-center justify-between">
+           <div className="flex gap-4 sm:gap-8">
                <button
                 onClick={() => setActiveTab('users')}
-                className={`pb-4 text-xl font-bold transition-colors border-b-2 px-1 ${activeTab === 'users' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+                className={`pb-3 sm:pb-4 text-base sm:text-xl font-bold transition-colors border-b-2 px-1 ${activeTab === 'users' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
                >
                    Пользователи
                </button>
                <button
                 onClick={() => setActiveTab('logs')}
-                className={`pb-4 text-xl font-bold transition-colors border-b-2 px-1 ${activeTab === 'logs' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+                className={`pb-3 sm:pb-4 text-base sm:text-xl font-bold transition-colors border-b-2 px-1 ${activeTab === 'logs' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
                >
-                   История действий
+                   История
                </button>
            </div>
        </div>
 
-       <div className="flex-1 p-8 overflow-y-auto">
+       <div className="flex-1 p-3 sm:p-8 overflow-y-auto">
          {activeTab === 'users' ? (
            <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden">
-             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 className="font-bold text-slate-700">Список пользователей</h3>
+             <div className="p-3 sm:p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="font-bold text-sm sm:text-base text-slate-700">Список пользователей</h3>
                 <Button onClick={() => setIsAddUserOpen(true)} className="bg-teal-600 text-white text-xs px-3 py-1.5 gap-2">
                     <Plus size={14} /> Добавить
                 </Button>
              </div>
-             <table className="w-full text-left">
+             <div className="overflow-x-auto">
+             <table className="w-full text-left min-w-[500px]">
                <thead className="bg-white text-xs text-slate-400 uppercase font-semibold border-b border-slate-100">
                  <tr>
                    <th className="px-6 py-3">Пользователь</th>
@@ -220,6 +221,7 @@ export const Settings: React.FC = () => {
                  ))}
                </tbody>
              </table>
+             </div>
            </div>
          ) : (
            <div>
@@ -260,14 +262,15 @@ export const Settings: React.FC = () => {
              </div>
 
              <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden">
-               <table className="w-full text-left">
+               <div className="overflow-x-auto">
+               <table className="w-full text-left min-w-[600px]">
                  <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-semibold border-b border-slate-200">
                    <tr>
-                     <th className="px-6 py-3 w-48">Время</th>
-                     <th className="px-6 py-3 w-40">Пользователь</th>
-                     <th className="px-6 py-3 w-32">Действие</th>
-                     <th className="px-6 py-3 w-32">Объект</th>
-                     <th className="px-6 py-3">Детали</th>
+                     <th className="px-3 sm:px-6 py-3 w-48">Время</th>
+                     <th className="px-3 sm:px-6 py-3 w-40">Пользователь</th>
+                     <th className="px-3 sm:px-6 py-3 w-32">Действие</th>
+                     <th className="px-3 sm:px-6 py-3 w-32">Объект</th>
+                     <th className="px-3 sm:px-6 py-3">Детали</th>
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100 text-sm">
@@ -297,6 +300,7 @@ export const Settings: React.FC = () => {
                    ))}
                  </tbody>
                </table>
+               </div>
              </div>
 
              {totalPages > 1 && (
