@@ -294,7 +294,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
     }
   }, [initialData, accounts, studios]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors: string[] = [];
     if (!date) validationErrors.push('Укажите дату операции');
@@ -308,6 +310,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       return;
     }
     setErrors([]);
+    setSaving(true);
 
     const payload = {
       date,
@@ -323,12 +326,17 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       accrualDate: accrualDate || undefined,
     };
 
-    if (initialData) {
-      updateTransaction(initialData.id, payload);
-    } else {
-      addTransaction(payload);
+    try {
+      if (initialData) {
+        await updateTransaction(initialData.id, payload);
+      } else {
+        await addTransaction(payload);
+      }
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setSaving(false);
     }
-    onClose();
   };
 
   const handleDelete = async () => {
@@ -541,8 +549,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-teal-600 hover:bg-teal-50 rounded-lg font-medium transition-colors">
               Отменить
             </button>
-            <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg text-sm font-medium shadow-sm">
-              {initialData ? 'Сохранить' : 'Создать'}
+            <Button type="submit" disabled={saving} className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg text-sm font-medium shadow-sm disabled:opacity-60">
+              {saving ? 'Сохраняю...' : initialData ? 'Сохранить' : 'Создать'}
             </Button>
           </div>
         </div>
