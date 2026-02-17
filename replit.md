@@ -64,24 +64,26 @@ A finance management application (Russian language UI) built with React + Vite f
 - Full CRUD in Directories page under "Мои юрлица" tab
 
 ## Recent Changes
+- Number inputs: hidden spinners (CSS), disabled mouse wheel changing values (global listener)
+- Dropdown positioning: double requestAnimationFrame for correct initial placement
+- FilterSelect: multi-select with checkboxes, supports selecting multiple studios/accounts/etc.
+- TransactionForm: Russian validation error messages on submit
+- TransactionForm: long text overflow fixed with truncation in select buttons
+- Bulk actions: confirm/unconfirm/delete for selected transactions
+- Selected transactions summary: footer shows count, income, expense, net total of selected
+- Polling interval: 10 seconds
+- Pagination: 50 transactions per page with auto-clamping
 - Sidebar: PlanFact-style compact 72px fixed width, vertical icon+label layout, no hover animation, Settings pinned to bottom, teal active indicator
 - Reports page: 4 tabs (ПиУ, ДДС, По статьям, По студиям)
-  - P&L report: neutral white/slate palette (no colored section headers), monthly breakdown by income/expense categories, expandable subcategories, em-dash for zero values, negative values in red
-  - DDS report: studio-based columns (not months), rows show categories under Operational Flow with expandable subcategories
+  - P&L report: neutral white/slate palette, monthly breakdown, expandable subcategories
+  - DDS report: studio-based columns, categories under Operational Flow
   - Category analysis with pie chart and percentage breakdown
   - Studio analysis with cards showing top expenses per studio
-  - Date range filters (month/year), studio and account filters
   - Excel export for P&L and DDS reports
-- Transaction selection: checkbox per row, select all, bulk delete with confirmation
-- Unified teal color scheme (removed purple checkboxes, removed colored filter labels)
-- Optimized animations (CSS keyframes instead of Tailwind animate-in)
+- Unified teal color scheme
 - Added "Мои юрлица" (Legal Entities) with fields: name, inn, kpp, address, description
 - Accounts now link to legal entities via legal_entity_id
 - Activity history: pagination, filtering, detailed before/after tracking in Russian
 - Hierarchical categories with subcategories (parent/child tree view)
-- Removed "projects" entity entirely
-- 5-second polling for real-time data sync
-- Vite proxy for API calls (frontend -> backend)
-- XLSX import: upload file, download template, preview with validation, bulk import with server-side checks
+- XLSX import: upload file, download template, preview with validation, bulk import
 - Import supports all transaction types including transfers (На счет column)
-- Dropdown positioning uses actual rendered height for accurate placement

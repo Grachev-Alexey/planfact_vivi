@@ -55,15 +55,18 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
 
   useEffect(() => {
     if (!open || !ref.current || !dropdownRef.current) return;
-    positionCalendar(ref.current, dropdownRef.current);
-    const update = () => {
-      if (ref.current && dropdownRef.current) {
-        positionCalendar(ref.current, dropdownRef.current);
-      }
-    };
+    const trigger = ref.current;
+    const dd = dropdownRef.current;
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        positionCalendar(trigger, dd);
+      });
+    });
+    const update = () => positionCalendar(trigger, dd);
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };

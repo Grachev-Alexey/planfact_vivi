@@ -43,15 +43,18 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
 
   useEffect(() => {
     if (!open || !ref.current || !dropdownRef.current) return;
-    positionDropdown(ref.current, dropdownRef.current);
-    const update = () => {
-      if (ref.current && dropdownRef.current) {
-        positionDropdown(ref.current, dropdownRef.current);
-      }
-    };
+    const trigger = ref.current;
+    const dd = dropdownRef.current;
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        positionDropdown(trigger, dd);
+      });
+    });
+    const update = () => positionDropdown(trigger, dd);
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
@@ -83,9 +86,9 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
       <button
         type="button"
         onClick={handleOpen}
-        className={`w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all flex items-center justify-between ${value ? 'text-slate-900' : 'text-slate-400'}`}
+        className={`w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all flex items-center justify-between overflow-hidden ${value ? 'text-slate-900' : 'text-slate-400'}`}
       >
-        <span className="truncate min-w-0">
+        <span className="truncate min-w-0 block">
           {selectedLabel || placeholder}
           {selectedSublabel && <span className="text-xs text-slate-400 ml-1.5">{selectedSublabel}</span>}
         </span>
@@ -266,6 +269,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
   const [confirmed, setConfirmed] = useState(false);
   const [accrualDate, setAccrualDate] = useState('');
   const [showNewContractor, setShowNewContractor] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -292,9 +296,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || !accountId || !date) return;
-    if (type !== 'transfer' && !categoryId) return;
-    if (type === 'transfer' && !toAccountId) return;
+    const validationErrors: string[] = [];
+    if (!date) validationErrors.push('Укажите дату операции');
+    if (!accountId) validationErrors.push('Выберите счёт');
+    if (!amount || parseFloat(amount) <= 0) validationErrors.push('Укажите сумму больше нуля');
+    if (type !== 'transfer' && !categoryId) validationErrors.push('Выберите статью');
+    if (type === 'transfer' && !toAccountId) validationErrors.push('Выберите счёт назначения для перемещения');
+    if (type === 'transfer' && toAccountId === accountId) validationErrors.push('Счёт списания и зачисления не могут совпадать');
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    setErrors([]);
 
     const payload = {
       date,
@@ -441,6 +454,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              onWheel={(e) => (e.target as HTMLInputElement).blur()}
               className="w-full px-3 py-2.5 pr-16 bg-white text-slate-900 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
               placeholder="0"
               required
@@ -499,6 +513,17 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
             placeholder="Комментарий..."
           />
         </FormRow>
+
+        {errors.length > 0 && (
+          <div className="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3">
+            {errors.map((err, i) => (
+              <div key={i} className="text-sm text-rose-600 flex items-start gap-2">
+                <span className="text-rose-400 mt-0.5 shrink-0">•</span>
+                <span>{err}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="pt-4 flex items-center justify-between border-t border-slate-100">
           <div>

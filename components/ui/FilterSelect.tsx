@@ -10,8 +10,8 @@ interface FilterOption {
 }
 
 interface FilterSelectProps {
-  value: string;
-  onChange: (val: string) => void;
+  value: string[];
+  onChange: (val: string[]) => void;
   placeholder: string;
   options: FilterOption[];
   searchable?: boolean;
@@ -43,15 +43,18 @@ export const FilterSelect: React.FC<FilterSelectProps> = ({ value, onChange, pla
 
   useEffect(() => {
     if (!open || !ref.current || !dropdownRef.current) return;
-    positionDropdown(ref.current, dropdownRef.current);
-    const update = () => {
-      if (ref.current && dropdownRef.current) {
-        positionDropdown(ref.current, dropdownRef.current);
-      }
-    };
+    const trigger = ref.current;
+    const dd = dropdownRef.current;
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        positionDropdown(trigger, dd);
+      });
+    });
+    const update = () => positionDropdown(trigger, dd);
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
@@ -74,7 +77,20 @@ export const FilterSelect: React.FC<FilterSelectProps> = ({ value, onChange, pla
     return options.filter(o => o.label.toLowerCase().includes(q) || (o.sublabel && o.sublabel.toLowerCase().includes(q)));
   }, [options, search]);
 
-  const selectedLabel = options.find(o => o.id === value)?.label || '';
+  const toggleOption = (id: string) => {
+    if (value.includes(id)) {
+      onChange(value.filter(v => v !== id));
+    } else {
+      onChange([...value, id]);
+    }
+  };
+
+  const selectedLabels = value.map(v => options.find(o => o.id === v)?.label).filter(Boolean);
+  const hasValue = value.length > 0;
+
+  const displayText = hasValue
+    ? (value.length === 1 ? selectedLabels[0] : `${selectedLabels[0]} +${value.length - 1}`)
+    : placeholder;
 
   return (
     <div ref={ref} className="relative">
@@ -82,16 +98,16 @@ export const FilterSelect: React.FC<FilterSelectProps> = ({ value, onChange, pla
         type="button"
         onClick={handleOpen}
         className={`w-full px-2.5 py-1.5 border rounded-lg text-xs text-left flex items-center justify-between gap-1 transition-colors ${
-          value
+          hasValue
             ? 'bg-teal-50 border-teal-300 text-teal-700'
             : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
         }`}
       >
-        <span className="truncate">{value ? selectedLabel : placeholder}</span>
-        {value ? (
+        <span className="truncate">{displayText}</span>
+        {hasValue ? (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onChange(''); }}
+            onClick={(e) => { e.stopPropagation(); onChange([]); }}
             className="shrink-0 text-teal-400 hover:text-teal-600"
           >
             <X size={11} />
@@ -124,31 +140,38 @@ export const FilterSelect: React.FC<FilterSelectProps> = ({ value, onChange, pla
           )}
 
           <div className="overflow-y-auto flex-1">
-            <button
-              type="button"
-              onClick={() => { onChange(''); setOpen(false); }}
-              className={`w-full px-2.5 py-1.5 text-left text-xs hover:bg-slate-50 transition-colors ${!value ? 'bg-teal-50 text-teal-600 font-medium' : 'text-slate-400'}`}
-            >
-              {placeholder}
-            </button>
-
-            {filtered.map(opt => (
+            {hasValue && (
               <button
-                key={opt.id}
                 type="button"
-                onClick={() => { onChange(opt.id); setOpen(false); }}
-                className={`w-full text-left hover:bg-slate-50 flex items-center gap-1.5 transition-colors py-1.5 pr-2.5 ${
-                  value === opt.id ? 'bg-teal-50 text-teal-700' : 'text-slate-700'
-                }`}
-                style={{ paddingLeft: `${10 + (opt.indent || 0) * 12}px` }}
+                onClick={() => { onChange([]); setOpen(false); }}
+                className="w-full px-2.5 py-1.5 text-left text-xs hover:bg-slate-50 transition-colors text-slate-400"
               >
-                {value === opt.id && <Check size={10} className="text-teal-600 shrink-0" />}
-                <span className="min-w-0">
-                  <span className={`text-xs block ${value === opt.id ? 'font-medium' : ''} ${(opt.indent || 0) > 0 ? 'text-slate-500' : ''}`}>{opt.label}</span>
-                  {opt.sublabel && <span className="text-[10px] text-slate-400 block">{opt.sublabel}</span>}
-                </span>
+                Сбросить выбор
               </button>
-            ))}
+            )}
+
+            {filtered.map(opt => {
+              const isSelected = value.includes(opt.id);
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => toggleOption(opt.id)}
+                  className={`w-full text-left hover:bg-slate-50 flex items-center gap-1.5 transition-colors py-1.5 pr-2.5 ${
+                    isSelected ? 'bg-teal-50 text-teal-700' : 'text-slate-700'
+                  }`}
+                  style={{ paddingLeft: `${10 + (opt.indent || 0) * 12}px` }}
+                >
+                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-teal-600 border-teal-600' : 'border-slate-300'}`}>
+                    {isSelected && <Check size={9} className="text-white" />}
+                  </div>
+                  <span className="min-w-0">
+                    <span className={`text-xs block ${isSelected ? 'font-medium' : ''} ${(opt.indent || 0) > 0 ? 'text-slate-500' : ''}`}>{opt.label}</span>
+                    {opt.sublabel && <span className="text-[10px] text-slate-400 block">{opt.sublabel}</span>}
+                  </span>
+                </button>
+              );
+            })}
 
             {filtered.length === 0 && (
               <div className="px-2.5 py-3 text-center text-xs text-slate-400">Ничего не найдено</div>

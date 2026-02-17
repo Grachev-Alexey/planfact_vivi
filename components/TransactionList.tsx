@@ -19,7 +19,7 @@ const toLocalDate = (d: Date): string => {
 };
 
 export const TransactionList: React.FC = () => {
-  const { transactions, categories, studios, accounts, contractors, legalEntities, deleteTransaction } = useFinance();
+  const { transactions, categories, studios, accounts, contractors, legalEntities, deleteTransaction, updateTransaction } = useFinance();
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -35,11 +35,11 @@ export const TransactionList: React.FC = () => {
     expense: true,
     transfer: true
   });
-  const [filterAccountId, setFilterAccountId] = useState('');
-  const [filterContractorId, setFilterContractorId] = useState('');
-  const [filterCategoryId, setFilterCategoryId] = useState('');
-  const [filterStudioId, setFilterStudioId] = useState('');
-  const [filterConfirmed, setFilterConfirmed] = useState<'' | 'yes' | 'no'>('');
+  const [filterAccountIds, setFilterAccountIds] = useState<string[]>([]);
+  const [filterContractorIds, setFilterContractorIds] = useState<string[]>([]);
+  const [filterCategoryIds, setFilterCategoryIds] = useState<string[]>([]);
+  const [filterStudioIds, setFilterStudioIds] = useState<string[]>([]);
+  const [filterConfirmed, setFilterConfirmed] = useState<string[]>([]);
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -86,11 +86,12 @@ export const TransactionList: React.FC = () => {
                           (t.type === 'expense' && filterTypes.expense) ||
                           (t.type === 'transfer' && filterTypes.transfer);
 
-      const matchesAccount = !filterAccountId || String(t.accountId) === filterAccountId;
-      const matchesContractor = !filterContractorId || String(t.contractorId) === filterContractorId;
-      const matchesCategory = !filterCategoryId || String(t.categoryId) === filterCategoryId;
-      const matchesStudio = !filterStudioId || String(t.studioId) === filterStudioId;
-      const matchesConfirmed = !filterConfirmed || (filterConfirmed === 'yes' ? t.confirmed : !t.confirmed);
+      const matchesAccount = filterAccountIds.length === 0 || filterAccountIds.includes(String(t.accountId));
+      const matchesContractor = filterContractorIds.length === 0 || filterContractorIds.includes(String(t.contractorId));
+      const matchesCategory = filterCategoryIds.length === 0 || filterCategoryIds.includes(String(t.categoryId));
+      const matchesStudio = filterStudioIds.length === 0 || filterStudioIds.includes(String(t.studioId));
+      const matchesConfirmed = filterConfirmed.length === 0 || filterConfirmed.length === 2 ||
+        (filterConfirmed.includes('yes') && t.confirmed) || (filterConfirmed.includes('no') && !t.confirmed);
 
       const txDate = t.date.length > 10 ? t.date.slice(0, 10) : t.date;
       const matchesDateFrom = !filterDateFrom || txDate >= filterDateFrom;
@@ -101,7 +102,7 @@ export const TransactionList: React.FC = () => {
       
       return matchesSearch && matchesType && matchesAccount && matchesContractor && matchesCategory && matchesStudio && matchesConfirmed && matchesDateFrom && matchesDateTo && matchesAmountFrom && matchesAmountTo;
     });
-  }, [transactions, search, filterTypes, filterAccountId, filterContractorId, filterCategoryId, filterStudioId, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, contractors, categories, accounts]);
+  }, [transactions, search, filterTypes, filterAccountIds, filterContractorIds, filterCategoryIds, filterStudioIds, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, contractors, categories, accounts]);
 
   const sortedTransactions = useMemo(() => {
     return [...filteredTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -111,7 +112,7 @@ export const TransactionList: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterTypes, filterAccountId, filterContractorId, filterCategoryId, filterStudioId, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, search]);
+  }, [filterTypes, filterAccountIds, filterContractorIds, filterCategoryIds, filterStudioIds, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, search]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -170,14 +171,14 @@ export const TransactionList: React.FC = () => {
     XLSX.writeFile(wb, "vivi_transactions.xlsx");
   };
 
-  const hasActiveFilters = filterAccountId || filterContractorId || filterCategoryId || filterStudioId || filterConfirmed || filterDateFrom || filterDateTo || filterAmountFrom || filterAmountTo || !filterTypes.income || !filterTypes.expense || !filterTypes.transfer;
+  const hasActiveFilters = filterAccountIds.length > 0 || filterContractorIds.length > 0 || filterCategoryIds.length > 0 || filterStudioIds.length > 0 || filterConfirmed.length > 0 || filterDateFrom || filterDateTo || filterAmountFrom || filterAmountTo || !filterTypes.income || !filterTypes.expense || !filterTypes.transfer;
 
   const clearFilters = () => {
-    setFilterAccountId('');
-    setFilterContractorId('');
-    setFilterCategoryId('');
-    setFilterStudioId('');
-    setFilterConfirmed('');
+    setFilterAccountIds([]);
+    setFilterContractorIds([]);
+    setFilterCategoryIds([]);
+    setFilterStudioIds([]);
+    setFilterConfirmed([]);
     setFilterDateFrom('');
     setFilterDateTo('');
     setFilterAmountFrom('');
@@ -233,9 +234,31 @@ export const TransactionList: React.FC = () => {
     setIsDeleting(false);
   };
 
+  const handleBulkConfirm = async (confirmed: boolean) => {
+    setIsDeleting(true);
+    const ids = [...selectedIds];
+    for (const id of ids) {
+      try {
+        await updateTransaction(id, { confirmed });
+      } catch (err) {
+        console.error('Error updating transaction:', id, err);
+      }
+    }
+    setSelectedIds(new Set());
+    setIsDeleting(false);
+  };
+
   const visibleSelectedCount = [...selectedIds].filter(id => filteredIds.has(id)).length;
   const allSelected = filteredTransactions.length > 0 && visibleSelectedCount === filteredTransactions.length;
   const someSelected = visibleSelectedCount > 0 && visibleSelectedCount < filteredTransactions.length;
+
+  const selectedTransactions = useMemo(() => {
+    return transactions.filter(t => selectedIds.has(t.id));
+  }, [transactions, selectedIds]);
+
+  const selectedIncome = selectedTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const selectedExpense = selectedTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const selectedTotal = selectedIncome - selectedExpense;
 
   const datePresets = [
     { label: 'Просроченные', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); setFilterDateFrom(''); setFilterDateTo(toLocalDate(d)); }},
@@ -342,6 +365,7 @@ export const TransactionList: React.FC = () => {
                 type="number"
                 value={filterAmountFrom}
                 onChange={e => setFilterAmountFrom(e.target.value)}
+                onWheel={e => (e.target as HTMLInputElement).blur()}
                 className="flex-1 w-0 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
                 placeholder="от"
                 step="0.01"
@@ -351,6 +375,7 @@ export const TransactionList: React.FC = () => {
                 type="number"
                 value={filterAmountTo}
                 onChange={e => setFilterAmountTo(e.target.value)}
+                onWheel={e => (e.target as HTMLInputElement).blur()}
                 className="flex-1 w-0 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white"
                 placeholder="до"
                 step="0.01"
@@ -376,27 +401,27 @@ export const TransactionList: React.FC = () => {
 
           <div>
             <div className="text-[11px] font-medium text-slate-500 mb-1">Счет</div>
-            <FilterSelect value={filterAccountId} onChange={setFilterAccountId} placeholder="Все счета" options={accountOptions} />
+            <FilterSelect value={filterAccountIds} onChange={setFilterAccountIds} placeholder="Все счета" options={accountOptions} />
           </div>
 
           <div>
             <div className="text-[11px] font-medium text-slate-500 mb-1">Контрагент</div>
-            <FilterSelect value={filterContractorId} onChange={setFilterContractorId} placeholder="Все" options={contractorOptions} />
+            <FilterSelect value={filterContractorIds} onChange={setFilterContractorIds} placeholder="Все" options={contractorOptions} />
           </div>
 
           <div>
             <div className="text-[11px] font-medium text-slate-500 mb-1">Статья</div>
-            <FilterSelect value={filterCategoryId} onChange={setFilterCategoryId} placeholder="Все статьи" options={categoryTreeOptions} />
+            <FilterSelect value={filterCategoryIds} onChange={setFilterCategoryIds} placeholder="Все статьи" options={categoryTreeOptions} />
           </div>
 
           <div>
             <div className="text-[11px] font-medium text-slate-500 mb-1">Студия</div>
-            <FilterSelect value={filterStudioId} onChange={setFilterStudioId} placeholder="Все студии" options={studioOptions} />
+            <FilterSelect value={filterStudioIds} onChange={setFilterStudioIds} placeholder="Все студии" options={studioOptions} />
           </div>
 
           <div>
             <div className="text-[11px] font-medium text-slate-500 mb-1">Статус</div>
-            <FilterSelect value={filterConfirmed} onChange={(v) => setFilterConfirmed(v as '' | 'yes' | 'no')} placeholder="Все" options={confirmedOptions} searchable={false} />
+            <FilterSelect value={filterConfirmed} onChange={setFilterConfirmed} placeholder="Все" options={confirmedOptions} searchable={false} />
           </div>
 
           {hasActiveFilters && (
@@ -418,12 +443,29 @@ export const TransactionList: React.FC = () => {
                 Выбрано: <b>{visibleSelectedCount}</b>
               </span>
             </div>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-medium"
-            >
-              <Trash2 size={13} /> Удалить
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleBulkConfirm(true)}
+                disabled={isDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-medium disabled:opacity-50"
+              >
+                <CheckCircle2 size={13} /> Подтвердить
+              </button>
+              <button
+                onClick={() => handleBulkConfirm(false)}
+                disabled={isDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-xs font-medium disabled:opacity-50"
+              >
+                Снять подтверждение
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-medium disabled:opacity-50"
+              >
+                <Trash2 size={13} /> Удалить
+              </button>
+            </div>
           </div>
         ) : (
           <div className="px-6 py-3 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0">
@@ -575,38 +617,53 @@ export const TransactionList: React.FC = () => {
           </table>
         </div>
 
-        <div className="h-10 bg-slate-50 border-t border-slate-200 flex items-center px-6 text-[12px] text-slate-500 justify-between shrink-0">
-          <div className="flex gap-4 flex-wrap min-w-0">
-            <span><b className="text-slate-700">{filteredTransactions.length}</b> операций</span>
-            <span>поступление: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
-            <span>выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-default"
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                <span className="text-slate-600 font-medium min-w-[60px] text-center">
-                  {currentPage} / {totalPages}
-                </span>
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-default"
-                >
-                  <ChevronRight size={14} />
-                </button>
+        <div className="bg-slate-50 border-t border-slate-200 px-6 py-2 text-[12px] text-slate-500 shrink-0">
+          {visibleSelectedCount > 0 ? (
+            <div className="flex items-center justify-between">
+              <div className="flex gap-4 flex-wrap min-w-0">
+                <span>Выбрано: <b className="text-teal-700">{visibleSelectedCount}</b></span>
+                {selectedIncome > 0 && <span>поступления: <b className="text-emerald-600">{formatCurrency(selectedIncome)}</b></span>}
+                {selectedExpense > 0 && <span>выплаты: <b className="text-rose-600">{formatCurrency(selectedExpense)}</b></span>}
               </div>
-            )}
-            <div className="font-semibold text-slate-700">
-              Итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span>
+              <div className="font-semibold text-slate-700">
+                Сумма: <span className={selectedTotal >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(selectedTotal)}</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex gap-4 flex-wrap min-w-0">
+                <span><b className="text-slate-700">{filteredTransactions.length}</b> операций</span>
+                <span>поступления: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
+                <span>выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-default"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+                    <span className="text-slate-600 font-medium min-w-[60px] text-center">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-default"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
+                <div className="font-semibold text-slate-700">
+                  Итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
