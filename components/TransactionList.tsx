@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Transaction } from '../types';
 import { formatCurrency, formatDate, formatDateShort } from '../utils/format';
-import { Search, Download, Upload, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar } from 'lucide-react';
+import { Search, Download, Upload, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
@@ -27,6 +27,8 @@ export const TransactionList: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
 
   const [filterTypes, setFilterTypes] = useState({
     income: true,
@@ -84,13 +86,13 @@ export const TransactionList: React.FC = () => {
                           (t.type === 'expense' && filterTypes.expense) ||
                           (t.type === 'transfer' && filterTypes.transfer);
 
-      const matchesAccount = !filterAccountId || t.accountId === filterAccountId;
-      const matchesContractor = !filterContractorId || t.contractorId === filterContractorId;
-      const matchesCategory = !filterCategoryId || t.categoryId === filterCategoryId;
-      const matchesStudio = !filterStudioId || t.studioId === filterStudioId;
+      const matchesAccount = !filterAccountId || String(t.accountId) === filterAccountId;
+      const matchesContractor = !filterContractorId || String(t.contractorId) === filterContractorId;
+      const matchesCategory = !filterCategoryId || String(t.categoryId) === filterCategoryId;
+      const matchesStudio = !filterStudioId || String(t.studioId) === filterStudioId;
       const matchesConfirmed = !filterConfirmed || (filterConfirmed === 'yes' ? t.confirmed : !t.confirmed);
 
-      const txDate = t.date.split('T')[0];
+      const txDate = t.date.length > 10 ? t.date.slice(0, 10) : t.date;
       const matchesDateFrom = !filterDateFrom || txDate >= filterDateFrom;
       const matchesDateTo = !filterDateTo || txDate <= filterDateTo;
 
@@ -101,11 +103,29 @@ export const TransactionList: React.FC = () => {
     });
   }, [transactions, search, filterTypes, filterAccountId, filterContractorId, filterCategoryId, filterStudioId, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, contractors, categories, accounts]);
 
+  const sortedTransactions = useMemo(() => {
+    return [...filteredTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [filteredTransactions]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedTransactions.length / pageSize));
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterTypes, filterAccountId, filterContractorId, filterCategoryId, filterStudioId, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, search]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages, currentPage]);
+
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return sortedTransactions.slice(start, start + pageSize);
+  }, [sortedTransactions, currentPage, pageSize]);
+
   const groupedTransactions = useMemo(() => {
     const groups: { [key: string]: typeof transactions } = {};
-    const sorted = [...filteredTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
-    sorted.forEach(tx => {
+    paginatedTransactions.forEach(tx => {
       const date = new Date(tx.date);
       const today = new Date();
       const yesterday = new Date();
@@ -121,7 +141,7 @@ export const TransactionList: React.FC = () => {
     });
     
     return Object.entries(groups).map(([title, items]) => ({ title, items }));
-  }, [filteredTransactions]);
+  }, [paginatedTransactions]);
 
   const totalIncome = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
   const totalExpense = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
@@ -561,8 +581,31 @@ export const TransactionList: React.FC = () => {
             <span>поступление: <b className="text-emerald-600">{formatCurrency(totalIncome)}</b></span>
             <span>выплаты: <b className="text-rose-600">{formatCurrency(totalExpense)}</b></span>
           </div>
-          <div className="font-semibold text-slate-700 shrink-0">
-            Итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span>
+          <div className="flex items-center gap-3 shrink-0">
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-default"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="text-slate-600 font-medium min-w-[60px] text-center">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-default"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
+            <div className="font-semibold text-slate-700">
+              Итого: <span className={netResult >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(netResult)}</span>
+            </div>
           </div>
         </div>
       </div>

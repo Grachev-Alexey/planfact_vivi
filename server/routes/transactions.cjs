@@ -3,6 +3,22 @@ const router = express.Router();
 const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
 const { logAction } = require('../utils/logger.cjs');
+const crypto = require('crypto');
+
+let _hasExternalId = null;
+async function hasExternalIdColumn() {
+  if (_hasExternalId !== null) return _hasExternalId;
+  const res = await db.query(`SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='external_id'`);
+  _hasExternalId = res.rows.length > 0;
+  return _hasExternalId;
+}
+
+function buildInsertQuery(extraCols, extraVals, baseCols, baseVals) {
+  const cols = [...baseCols, ...extraCols];
+  const vals = [...baseVals, ...extraVals];
+  const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+  return { sql: `INSERT INTO transactions (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`, vals };
+}
 
 router.post('/transactions/bulk-import', async (req, res) => {
   const { rows } = req.body;
@@ -53,12 +69,16 @@ router.post('/transactions/bulk-import', async (req, res) => {
         continue;
       }
 
-      const query = `
-        INSERT INTO transactions (date, amount, type, account_id, to_account_id, category_id, studio_id, description, contractor_id, confirmed, accrual_date)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
-      `;
-      const values = [date, parsedAmount, type, accountId, toAccountId || null, categoryId || null, studioId || null, description || '', contractorId || null, confirmed || false, accrualDate || null];
-      await db.query(query, values);
+      const bCols = ['date', 'amount', 'type', 'account_id', 'to_account_id', 'category_id', 'studio_id', 'description', 'contractor_id', 'confirmed', 'accrual_date'];
+      const bVals = [date, parsedAmount, type, accountId, toAccountId || null, categoryId || null, studioId || null, description || '', contractorId || null, confirmed || false, accrualDate || null];
+      const eCols = [];
+      const eVals = [];
+      if (await hasExternalIdColumn()) {
+        eCols.push('external_id');
+        eVals.push(crypto.randomUUID());
+      }
+      const { sql: bQuery, vals: bValues } = buildInsertQuery(eCols, eVals, bCols, bVals);
+      await db.query(bQuery, bValues);
       results.imported++;
     } catch (err) {
       results.errors.push({ row: i + 1, error: err.message });
@@ -79,11 +99,16 @@ router.post('/transactions', async (req, res) => {
   const currentUserId = req.headers['x-user-id'];
   
   try {
-    const query = `
-      INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, description, to_account_id, contractor_id, confirmed, accrual_date) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
-    `;
-    const values = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, confirmed || false, accrualDate || null];
+    const baseCols = ['date', 'amount', 'type', 'account_id', 'category_id', 'studio_id', 'description', 'to_account_id', 'contractor_id', 'confirmed', 'accrual_date'];
+    const baseVals = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, confirmed || false, accrualDate || null];
+
+    const extraCols = [];
+    const extraVals = [];
+    if (await hasExternalIdColumn()) {
+      extraCols.push('external_id');
+      extraVals.push(crypto.randomUUID());
+    }
+    const { sql: query, vals: values } = buildInsertQuery(extraCols, extraVals, baseCols, baseVals);
 
     const result = await db.query(query, values);
     const newTx = result.rows[0];

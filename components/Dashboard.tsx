@@ -15,7 +15,11 @@ const formatCompact = (v: number): string => {
 };
 
 const formatNumber = (v: number): string => {
-  return new Intl.NumberFormat('ru-RU').format(Math.round(v));
+  const hasDecimals = v % 1 !== 0;
+  return new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: hasDecimals ? 2 : 0,
+  }).format(v);
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {

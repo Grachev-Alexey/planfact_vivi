@@ -12,7 +12,11 @@ const COLORS = ['#0d9488', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899'
 
 const fmtNum = (val: number) => {
   if (val === 0) return '\u2014';
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(val);
+  const hasDecimals = val % 1 !== 0;
+  return new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: hasDecimals ? 2 : 0,
+  }).format(val);
 };
 
 export const ReportsPage: React.FC = () => {
@@ -33,8 +37,8 @@ export const ReportsPage: React.FC = () => {
     return transactions.filter(t => {
       const d = new Date(t.date);
       if (d < start || d > end) return false;
-      if (filterAccountId && t.accountId !== filterAccountId) return false;
-      if (filterStudioId && t.studioId !== filterStudioId) return false;
+      if (filterAccountId && String(t.accountId) !== filterAccountId) return false;
+      if (filterStudioId && String(t.studioId) !== filterStudioId) return false;
       return true;
     });
   }, [transactions, startMonth, startYear, endMonth, endYear, filterAccountId, filterStudioId]);

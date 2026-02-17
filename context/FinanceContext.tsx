@@ -29,7 +29,7 @@ interface FinanceContextType {
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 const API_URL = '/api';
-const POLL_INTERVAL = 5000;
+const POLL_INTERVAL = 10000;
 
 export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -48,22 +48,53 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   }), [user]);
 
   const applyData = useCallback((data: any) => {
+    const str = (v: any) => v != null ? String(v) : undefined;
+
     const mapTransaction = (t: any): Transaction => ({
       ...t,
-      amount: Number(t.amount)
+      id: String(t.id),
+      amount: Number(t.amount),
+      accountId: str(t.accountId),
+      toAccountId: str(t.toAccountId),
+      categoryId: str(t.categoryId),
+      studioId: str(t.studioId),
+      contractorId: str(t.contractorId),
     });
     
     const mapAccount = (a: any): Account => ({
       ...a,
-      balance: Number(a.balance)
+      id: String(a.id),
+      balance: Number(a.balance),
+      legalEntityId: str(a.legalEntityId),
+    });
+
+    const mapCategory = (c: any): Category => ({
+      ...c,
+      id: String(c.id),
+      parentId: str(c.parentId),
+    });
+
+    const mapStudio = (s: any): Studio => ({
+      ...s,
+      id: String(s.id),
+    });
+
+    const mapContractor = (c: any): Contractor => ({
+      ...c,
+      id: String(c.id),
+    });
+
+    const mapLE = (l: any): LegalEntity => ({
+      ...l,
+      id: String(l.id),
     });
 
     setTransactions(data.transactions.map(mapTransaction));
     setAccounts(data.accounts.map(mapAccount));
-    setCategories(data.categories);
-    setStudios(data.studios);
-    setContractors(data.contractors);
-    setLegalEntities(data.legalEntities || []);
+    setCategories(data.categories.map(mapCategory));
+    setStudios(data.studios.map(mapStudio));
+    setContractors(data.contractors.map(mapContractor));
+    setLegalEntities((data.legalEntities || []).map(mapLE));
   }, []);
 
   const fetchData = useCallback(async (silent = false) => {

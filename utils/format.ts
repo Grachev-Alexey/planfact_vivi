@@ -1,8 +1,10 @@
 export const formatCurrency = (amount: number, currency = 'RUB'): string => {
+  const hasDecimals = amount % 1 !== 0;
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
     currency: currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: hasDecimals ? 2 : 0,
   }).format(amount);
 };
 

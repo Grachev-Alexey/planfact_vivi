@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 interface User {
   id: number;
@@ -15,19 +15,18 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
+const getStoredUser = (): User | null => {
+  try {
     const stored = localStorage.getItem('vivi_user');
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch (e) {
-        localStorage.removeItem('vivi_user');
-      }
-    }
-  }, []);
+    if (stored) return JSON.parse(stored);
+  } catch (e) {
+    localStorage.removeItem('vivi_user');
+  }
+  return null;
+};
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(getStoredUser);
 
   const login = (userData: User) => {
     setUser(userData);
