@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Transaction } from '../types';
+import type { Account, Category, Studio, Contractor, LegalEntity } from '../types';
 import { formatCurrency, formatDate, formatDateShort } from '../utils/format';
 import { Search, Download, Upload, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { Button } from './ui/Button';
@@ -18,6 +19,86 @@ const toLocalDate = (d: Date): string => {
   return `${y}-${m}-${day}`;
 };
 
+type LookupMaps = {
+  accounts: Map<string, Account>;
+  categories: Map<string, Category>;
+  studios: Map<string, Studio>;
+  contractors: Map<string, Contractor>;
+  legalEntities: Map<string, LegalEntity>;
+};
+
+const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
+  tx: Transaction;
+  isSelected: boolean;
+  maps: LookupMaps;
+  onToggle: (id: string) => void;
+  onEdit: (tx: Transaction) => void;
+}) => {
+  const account = maps.accounts.get(tx.accountId);
+  const toAccount = tx.toAccountId ? maps.accounts.get(tx.toAccountId) : undefined;
+  const category = tx.categoryId ? maps.categories.get(tx.categoryId) : undefined;
+  const studio = tx.studioId ? maps.studios.get(tx.studioId) : undefined;
+  const contractor = tx.contractorId ? maps.contractors.get(tx.contractorId) : undefined;
+  const accountLE = account?.legalEntityId ? maps.legalEntities.get(account.legalEntityId) : undefined;
+
+  return (
+    <tr
+      onClick={() => onEdit(tx)}
+      className={`border-b border-slate-100 cursor-pointer ${isSelected ? 'bg-teal-50/40' : 'hover:bg-slate-50/60'}`}
+    >
+      <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggle(tx.id)}
+          className="rounded accent-teal-600 h-3.5 w-3.5 cursor-pointer"
+        />
+      </td>
+      <td className="px-3 py-3 text-slate-500 text-[13px] whitespace-nowrap align-top">
+        {formatDateShort(tx.date)}
+      </td>
+      <td className="px-3 py-3 align-top">
+        <div className="text-slate-800 text-[13px]">
+          {account?.name}
+        </div>
+        {accountLE && (
+          <div className="text-[11px] text-slate-400">{accountLE.name}</div>
+        )}
+        {tx.type === 'transfer' && toAccount && (
+          <div className="text-slate-400 text-[12px]">{toAccount.name}</div>
+        )}
+      </td>
+      <td className="px-1 py-3 text-center align-top">
+        {tx.type === 'income' && <ArrowLeft size={14} className="text-emerald-500 inline-block" />}
+        {tx.type === 'expense' && <ArrowRight size={14} className="text-rose-500 inline-block" />}
+        {tx.type === 'transfer' && <ArrowRightLeft size={14} className="text-blue-500 inline-block" />}
+      </td>
+      <td className="px-3 py-3 text-slate-700 text-[13px] align-top">
+        {contractor?.name || ''}
+      </td>
+      <td className="px-3 py-3 align-top">
+        <div className="text-slate-800 text-[13px] font-medium">
+          {tx.type === 'transfer' ? (
+            <span className="text-slate-500 font-normal">[Перемещение]</span>
+          ) : category?.name || ''}
+        </div>
+        {tx.description && (
+          <div className="text-[12px] text-slate-400 mt-0.5 leading-snug">{tx.description}</div>
+        )}
+      </td>
+      <td className="px-3 py-3 text-slate-600 text-[13px] align-top">
+        {studio?.name || ''}
+      </td>
+      <td className={`px-4 py-3 text-right align-top whitespace-nowrap text-[13px] font-semibold tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
+        <div className="flex items-center justify-end gap-1">
+          {tx.confirmed && <CheckCircle2 size={13} className="text-teal-500 shrink-0" />}
+          <span>{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}</span>
+        </div>
+      </td>
+    </tr>
+  );
+});
+
 export const TransactionList: React.FC = () => {
   const { transactions, categories, studios, accounts, contractors, legalEntities, deleteTransaction, updateTransaction } = useFinance();
   const [search, setSearch] = useState('');
@@ -29,6 +110,14 @@ export const TransactionList: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
+
+  const lookupMaps = useMemo<LookupMaps>(() => ({
+    accounts: new Map(accounts.map(a => [a.id, a])),
+    categories: new Map(categories.map(c => [c.id, c])),
+    studios: new Map(studios.map(s => [s.id, s])),
+    contractors: new Map(contractors.map(c => [c.id, c])),
+    legalEntities: new Map(legalEntities.map(l => [l.id, l])),
+  }), [accounts, categories, studios, contractors, legalEntities]);
 
   const [filterTypes, setFilterTypes] = useState({
     income: true,
@@ -71,16 +160,17 @@ export const TransactionList: React.FC = () => {
   ], []);
 
   const filteredTransactions = useMemo(() => {
+    const searchLower = search.toLowerCase();
     return transactions.filter(t => {
-      const contractor = contractors.find(c => c.id === t.contractorId)?.name || '';
-      const category = categories.find(c => c.id === t.categoryId)?.name || '';
-      const account = accounts.find(a => a.id === t.accountId)?.name || '';
+      const contractor = lookupMaps.contractors.get(t.contractorId)?.name || '';
+      const category = lookupMaps.categories.get(t.categoryId)?.name || '';
+      const account = lookupMaps.accounts.get(t.accountId)?.name || '';
       
       const matchesSearch = !search || 
-        t.description.toLowerCase().includes(search.toLowerCase()) || 
-        contractor.toLowerCase().includes(search.toLowerCase()) ||
-        category.toLowerCase().includes(search.toLowerCase()) ||
-        account.toLowerCase().includes(search.toLowerCase());
+        t.description.toLowerCase().includes(searchLower) || 
+        contractor.toLowerCase().includes(searchLower) ||
+        category.toLowerCase().includes(searchLower) ||
+        account.toLowerCase().includes(searchLower);
       
       const matchesType = (t.type === 'income' && filterTypes.income) ||
                           (t.type === 'expense' && filterTypes.expense) ||
@@ -102,7 +192,7 @@ export const TransactionList: React.FC = () => {
       
       return matchesSearch && matchesType && matchesAccount && matchesContractor && matchesCategory && matchesStudio && matchesConfirmed && matchesDateFrom && matchesDateTo && matchesAmountFrom && matchesAmountTo;
     });
-  }, [transactions, search, filterTypes, filterAccountIds, filterContractorIds, filterCategoryIds, filterStudioIds, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, contractors, categories, accounts]);
+  }, [transactions, search, filterTypes, filterAccountIds, filterContractorIds, filterCategoryIds, filterStudioIds, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, lookupMaps]);
 
   const sortedTransactions = useMemo(() => {
     return [...filteredTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -151,11 +241,11 @@ export const TransactionList: React.FC = () => {
 
   const handleExport = () => {
     const data = filteredTransactions.map(tx => {
-      const account = accounts.find(a => a.id === tx.accountId)?.name || '';
-      const toAccount = accounts.find(a => a.id === tx.toAccountId)?.name || '';
-      const category = categories.find(c => c.id === tx.categoryId)?.name || '';
-      const studio = studios.find(s => s.id === tx.studioId)?.name || '';
-      const contractor = contractors.find(c => c.id === tx.contractorId)?.name || '';
+      const account = lookupMaps.accounts.get(tx.accountId)?.name || '';
+      const toAccount = tx.toAccountId ? lookupMaps.accounts.get(tx.toAccountId)?.name || '' : '';
+      const category = lookupMaps.categories.get(tx.categoryId)?.name || '';
+      const studio = lookupMaps.studios.get(tx.studioId)?.name || '';
+      const contractor = lookupMaps.contractors.get(tx.contractorId)?.name || '';
       let typeStr = 'Доход';
       if (tx.type === 'expense') typeStr = 'Расход';
       if (tx.type === 'transfer') typeStr = 'Перевод';
@@ -196,14 +286,14 @@ export const TransactionList: React.FC = () => {
     });
   }, [filteredIds]);
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredTransactions.length) {
@@ -544,73 +634,16 @@ export const TransactionList: React.FC = () => {
                       {group.title}
                     </td>
                   </tr>
-                  {group.items.map(tx => {
-                    const account = accounts.find(a => a.id === tx.accountId);
-                    const toAccount = accounts.find(a => a.id === tx.toAccountId);
-                    const category = categories.find(c => c.id === tx.categoryId);
-                    const studio = studios.find(s => s.id === tx.studioId);
-                    const contractor = contractors.find(c => c.id === tx.contractorId);
-                    const accountLE = account?.legalEntityId ? legalEntities.find(l => l.id === account.legalEntityId) : null;
-                    const isSelected = selectedIds.has(tx.id);
-                    
-                    return (
-                      <tr 
-                        key={tx.id} 
-                        onClick={() => setEditingTx(tx)}
-                        className={`border-b border-slate-100 cursor-pointer ${isSelected ? 'bg-teal-50/40' : 'hover:bg-slate-50/60'}`}
-                      >
-                        <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelect(tx.id)}
-                            className="rounded accent-teal-600 h-3.5 w-3.5 cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-3 py-3 text-slate-500 text-[13px] whitespace-nowrap align-top">
-                          {formatDateShort(tx.date)}
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <div className="text-slate-800 text-[13px]">
-                            {account?.name}
-                          </div>
-                          {accountLE && (
-                            <div className="text-[11px] text-slate-400">{accountLE.name}</div>
-                          )}
-                          {tx.type === 'transfer' && toAccount && (
-                            <div className="text-slate-400 text-[12px]">{toAccount.name}</div>
-                          )}
-                        </td>
-                        <td className="px-1 py-3 text-center align-top">
-                          {tx.type === 'income' && <ArrowLeft size={14} className="text-emerald-500 inline-block" />}
-                          {tx.type === 'expense' && <ArrowRight size={14} className="text-rose-500 inline-block" />}
-                          {tx.type === 'transfer' && <ArrowRightLeft size={14} className="text-blue-500 inline-block" />}
-                        </td>
-                        <td className="px-3 py-3 text-slate-700 text-[13px] align-top">
-                          {contractor?.name || ''}
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <div className="text-slate-800 text-[13px] font-medium">
-                            {tx.type === 'transfer' ? (
-                              <span className="text-slate-500 font-normal">[Перемещение]</span>
-                            ) : category?.name || ''}
-                          </div>
-                          {tx.description && (
-                            <div className="text-[12px] text-slate-400 mt-0.5 leading-snug">{tx.description}</div>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 text-slate-600 text-[13px] align-top">
-                          {studio?.name || ''}
-                        </td>
-                        <td className={`px-4 py-3 text-right align-top whitespace-nowrap text-[13px] font-semibold tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
-                          <div className="flex items-center justify-end gap-1">
-                            {tx.confirmed && <CheckCircle2 size={13} className="text-teal-500 shrink-0" />}
-                            <span>{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {group.items.map(tx => (
+                    <TransactionRow
+                      key={tx.id}
+                      tx={tx}
+                      isSelected={selectedIds.has(tx.id)}
+                      maps={lookupMaps}
+                      onToggle={toggleSelect}
+                      onEdit={setEditingTx}
+                    />
+                  ))}
                 </React.Fragment>
               ))}
             </tbody>
