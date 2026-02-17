@@ -245,7 +245,7 @@ const NewContractorModal: React.FC<NewContractorModalProps> = ({ onClose, onCrea
 const FormRow: React.FC<{ label: string; children: React.ReactNode; className?: string }> = ({ label, children, className = '' }) => (
   <div className={`grid grid-cols-[140px_1fr] items-start gap-3 ${className}`}>
     <label className="text-sm font-medium text-slate-600 pt-2.5 text-right">{label}</label>
-    <div>{children}</div>
+    <div className="min-w-0">{children}</div>
   </div>
 );
 
