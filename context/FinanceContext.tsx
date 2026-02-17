@@ -133,40 +133,80 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, [user, fetchData]);
 
   const addTransaction = async (txData: Partial<Transaction>) => {
+    const tempId = `_temp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const optimistic: Transaction = {
+      id: tempId,
+      date: txData.date || new Date().toISOString().split('T')[0],
+      amount: Number(txData.amount) || 0,
+      type: txData.type || 'expense',
+      accountId: String(txData.accountId || ''),
+      toAccountId: txData.toAccountId ? String(txData.toAccountId) : undefined,
+      categoryId: txData.categoryId ? String(txData.categoryId) : undefined,
+      studioId: txData.studioId ? String(txData.studioId) : undefined,
+      contractorId: txData.contractorId ? String(txData.contractorId) : undefined,
+      description: txData.description || '',
+      confirmed: txData.confirmed || false,
+      accrualDate: txData.accrualDate,
+    };
+    setTransactions(prev => [optimistic, ...prev]);
+
     try {
-      const { id, ...payload } = txData; 
+      const { id, ...payload } = txData;
       const res = await fetch(`${API_URL}/transactions`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(payload)
       });
-      if (res.ok) fetchData(true);
+      if (res.ok) {
+        fetchData(true);
+      } else {
+        setTransactions(prev => prev.filter(t => t.id !== tempId));
+      }
     } catch (error) {
+      setTransactions(prev => prev.filter(t => t.id !== tempId));
       console.error("Error adding transaction", error);
     }
   };
 
   const updateTransaction = async (id: string, txData: Partial<Transaction>) => {
+    const prev = transactions.find(t => t.id === id);
+    if (prev) {
+      setTransactions(list => list.map(t => t.id === id ? { ...t, ...txData, amount: txData.amount != null ? Number(txData.amount) : t.amount } : t));
+    }
+
     try {
       const res = await fetch(`${API_URL}/transactions/${id}`, {
         method: 'PUT',
         headers: getHeaders(),
         body: JSON.stringify(txData)
       });
-      if (res.ok) fetchData(true);
+      if (res.ok) {
+        fetchData(true);
+      } else if (prev) {
+        setTransactions(list => list.map(t => t.id === id ? prev : t));
+      }
     } catch (error) {
+      if (prev) setTransactions(list => list.map(t => t.id === id ? prev : t));
       console.error("Error updating transaction", error);
     }
   };
 
   const deleteTransaction = async (id: string) => {
+    const prev = transactions.find(t => t.id === id);
+    setTransactions(list => list.filter(t => t.id !== id));
+
     try {
-      const res = await fetch(`${API_URL}/transactions/${id}`, { 
+      const res = await fetch(`${API_URL}/transactions/${id}`, {
         method: 'DELETE',
         headers: getHeaders()
       });
-      if (res.ok) fetchData(true);
+      if (res.ok) {
+        fetchData(true);
+      } else if (prev) {
+        setTransactions(list => [...list, prev]);
+      }
     } catch (error) {
+      if (prev) setTransactions(list => [...list, prev]);
       console.error("Error deleting transaction", error);
     }
   };
