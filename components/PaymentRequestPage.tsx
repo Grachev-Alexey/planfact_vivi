@@ -294,6 +294,8 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const [filterStudios, setFilterStudios] = useState<string[]>([]);
   const [filterContractors, setFilterContractors] = useState<string[]>([]);
   const [filterAccounts, setFilterAccounts] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -391,8 +393,21 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
       result = result.filter(r => r.accountId && filterAccounts.includes(String(r.accountId)));
     }
 
+    if (dateFrom) {
+      result = result.filter(r => {
+        const d = r.createdAt ? r.createdAt.slice(0, 10) : '';
+        return d >= dateFrom;
+      });
+    }
+    if (dateTo) {
+      result = result.filter(r => {
+        const d = r.createdAt ? r.createdAt.slice(0, 10) : '';
+        return d <= dateTo;
+      });
+    }
+
     return result;
-  }, [requests, searchQuery, filterCategories, filterStudios, filterContractors, filterAccounts]);
+  }, [requests, searchQuery, filterCategories, filterStudios, filterContractors, filterAccounts, dateFrom, dateTo]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / REQUESTS_PER_PAGE));
   const clampedPage = Math.min(currentPage, totalPages);
@@ -404,9 +419,9 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterCategories, filterStudios, filterContractors, filterAccounts, statusFilter]);
+  }, [searchQuery, filterCategories, filterStudios, filterContractors, filterAccounts, dateFrom, dateTo, statusFilter]);
 
-  const activeFilterCount = [filterCategories, filterStudios, filterContractors, filterAccounts].filter(f => f.length > 0).length;
+  const activeFilterCount = [filterCategories, filterStudios, filterContractors, filterAccounts].filter(f => f.length > 0).length + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
 
   const handleContractorCreated = (id: string) => {
     setContractorId(id);
@@ -495,14 +510,15 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
     }
   };
 
-  const handleReject = async (id: number) => {
+  const handleDelete = async (id: number) => {
+    if (!confirm('Удалить этот запрос на выплату?')) return;
     try {
       await fetch(`/api/payment-requests/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id?.toString() || '' },
-        body: JSON.stringify({ status: 'rejected' })
+        method: 'DELETE',
+        headers: { 'x-user-id': user?.id?.toString() || '' },
       });
       fetchRequests();
+      refreshData();
     } catch (err) {
       console.error(err);
     }
@@ -649,9 +665,27 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                 options={filterAccountOptions}
               />
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 shrink-0">Дата:</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-500"
+                placeholder="от"
+              />
+              <span className="text-xs text-slate-400">—</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-500"
+                placeholder="до"
+              />
+            </div>
             {activeFilterCount > 0 && (
               <button
-                onClick={() => { setFilterCategories([]); setFilterStudios([]); setFilterContractors([]); setFilterAccounts([]); }}
+                onClick={() => { setFilterCategories([]); setFilterStudios([]); setFilterContractors([]); setFilterAccounts([]); setDateFrom(''); setDateTo(''); }}
                 className="text-xs text-teal-600 hover:text-teal-700 font-medium"
               >
                 Сбросить все фильтры
@@ -790,10 +824,10 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                             <CheckCircle2 size={14} /> Оплатить
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleReject(req.id); }}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(req.id); }}
                             className="bg-white border border-slate-200 text-rose-600 text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-rose-50 active:scale-95 transition-all"
                           >
-                            <XCircle size={14} /> Отклонить
+                            <X size={14} /> Удалить
                           </button>
                         </div>
                       )}
