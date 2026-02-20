@@ -340,12 +340,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
 
   const categoryOptions = useMemo(() => {
     const filtered = categories.filter(c => c.type === type);
+    const hasChildren = (catId: string) => filtered.some(c => c.parentId === catId);
     const result: { id: string; label: string; indent?: boolean }[] = [];
 
     const addChildren = (parentId: string | null, depth: number) => {
       const items = filtered.filter(c => depth === 0 ? !c.parentId : c.parentId === parentId);
       items.forEach(item => {
-        result.push({ id: item.id, label: (depth > 0 ? '\u00A0\u00A0'.repeat(depth) : '') + item.name, indent: depth > 0 });
+        if (!hasChildren(item.id)) {
+          result.push({ id: item.id, label: (depth > 0 ? '\u00A0\u00A0'.repeat(depth) : '') + item.name, indent: depth > 0 });
+        }
         addChildren(item.id, depth + 1);
       });
     };
