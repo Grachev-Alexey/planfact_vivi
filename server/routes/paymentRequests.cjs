@@ -70,10 +70,11 @@ router.post('/payment-requests', async (req, res) => {
     const txAccountId = pr.account_id;
 
     if (txAccountId) {
+      const externalId = `pr-${pr.id}`;
       const txResult = await db.query(
-        `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, contractor_id, description, confirmed, accrual_date)
-         VALUES ($1, $2, 'expense', $3, $4, $5, $6, $7, false, $8) RETURNING *`,
-        [txDate, pr.amount, txAccountId, pr.category_id || null, pr.studio_id || null, pr.contractor_id || null, pr.description || '', txAccrualDate]
+        `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, contractor_id, description, confirmed, accrual_date, external_id)
+         VALUES ($1, $2, 'expense', $3, $4, $5, $6, $7, false, $8, $9) RETURNING *`,
+        [txDate, pr.amount, txAccountId, pr.category_id || null, pr.studio_id || null, pr.contractor_id || null, pr.description || '', txAccrualDate, externalId]
       );
 
       if (userId) {
