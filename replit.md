@@ -55,11 +55,13 @@ A finance management application (Russian language UI) built with React + Vite f
 - requester: can only create payment requests and view their own request history
 
 ### Payment Requests
-- Table: payment_requests (user_id, amount, category_id, studio_id, contractor_id, description, status, paid_at)
+- Table: payment_requests (user_id, amount, category_id, studio_id, contractor_id, description, status, payment_date, accrual_date, account_id, paid_at)
 - Status values: pending, paid, rejected
 - Webhook: POST to https://vivi-stats.store/webhook/planfact on create/paid/rejected
 - Requester users see a standalone page with form and history (no sidebar)
 - Admins see payment requests via sidebar "Выплаты" button
+- When admin marks request as "paid", selects account and an expense transaction is automatically created in transactions table
+- Form fields: amount, category (searchable), studio (searchable), contractor (searchable + create new), payment_date, accrual_date, description
 
 ### Default Login
 - Username: grachev, Password: cd5d56a8
