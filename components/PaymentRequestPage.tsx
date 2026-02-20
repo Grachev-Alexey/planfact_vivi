@@ -48,7 +48,7 @@ interface SearchableSelectProps {
   value: string;
   onChange: (val: string) => void;
   placeholder: string;
-  options: { id: string; label: string; sublabel?: string; indent?: boolean }[];
+  options: { id: string; label: string; sublabel?: string; indent?: boolean; disabled?: boolean }[];
   required?: boolean;
   onCreateNew?: () => void;
   createLabel?: string;
@@ -159,7 +159,14 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
               </button>
             )}
 
-            {filtered.map(opt => (
+            {filtered.map(opt => opt.disabled ? (
+              <div
+                key={opt.id}
+                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide cursor-default select-none"
+              >
+                {opt.label}
+              </div>
+            ) : (
               <button
                 key={opt.id}
                 type="button"
@@ -328,13 +335,17 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const categoryOptions = useMemo(() => {
     const filtered = categories.filter(c => c.type === 'expense');
     const hasChildren = (catId: string) => filtered.some(c => c.parentId === catId);
-    const result: { id: string; label: string; indent?: boolean }[] = [];
+    const result: { id: string; label: string; indent?: boolean; disabled?: boolean }[] = [];
     const addChildren = (parentId: string | null, depth: number) => {
       const items = filtered.filter(c => depth === 0 ? !c.parentId : c.parentId === parentId);
       items.forEach(item => {
-        if (!hasChildren(item.id)) {
-          result.push({ id: item.id, label: '\u00A0\u00A0'.repeat(depth) + item.name, indent: depth > 0 });
-        }
+        const isParent = hasChildren(item.id);
+        result.push({
+          id: item.id,
+          label: '\u00A0\u00A0'.repeat(depth) + item.name,
+          indent: depth > 0 && !isParent,
+          disabled: isParent,
+        });
         addChildren(item.id, depth + 1);
       });
     };
