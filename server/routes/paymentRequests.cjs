@@ -229,6 +229,8 @@ router.put('/payment-requests/:id', async (req, res) => {
 
 router.delete('/payment-requests/:id', async (req, res) => {
   try {
+    const externalId = `pr-${req.params.id}`;
+    await db.query('DELETE FROM transactions WHERE external_id = $1', [externalId]);
     await db.query('DELETE FROM payment_requests WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
