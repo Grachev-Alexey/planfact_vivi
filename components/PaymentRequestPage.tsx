@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronRight, Search, Check, X } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import { Category } from '../types';
 
@@ -30,9 +31,240 @@ interface PaymentRequestPageProps {
   onClose?: () => void;
 }
 
+interface SearchableSelectProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder: string;
+  options: { id: string; label: string; sublabel?: string; indent?: boolean }[];
+  required?: boolean;
+  onCreateNew?: () => void;
+  createLabel?: string;
+}
+
+function positionDropdown(triggerEl: HTMLElement, ddEl: HTMLDivElement) {
+  const rect = triggerEl.getBoundingClientRect();
+  const ddHeight = ddEl.offsetHeight || 280;
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const top = spaceBelow > ddHeight + 4 ? rect.bottom + 2 : rect.top - ddHeight - 2;
+  ddEl.style.top = `${Math.max(4, top)}px`;
+  ddEl.style.left = `${rect.left}px`;
+  ddEl.style.width = `${rect.width}px`;
+}
+
+const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, placeholder, options, required, onCreateNew, createLabel }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpen = () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    setSearch('');
+    setTimeout(() => inputRef.current?.focus(), 10);
+  };
+
+  useEffect(() => {
+    if (!open || !ref.current || !dropdownRef.current) return;
+    const trigger = ref.current;
+    const dd = dropdownRef.current;
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        positionDropdown(trigger, dd);
+      });
+    });
+    const update = () => positionDropdown(trigger, dd);
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (ref.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return options;
+    const q = search.toLowerCase();
+    return options.filter(o => o.label.toLowerCase().includes(q) || (o.sublabel && o.sublabel.toLowerCase().includes(q)));
+  }, [options, search]);
+
+  const selectedOpt = options.find(o => o.id === value);
+  const selectedLabel = selectedOpt?.label || '';
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={handleOpen}
+        className={`w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all flex items-center justify-between overflow-hidden ${value ? 'text-slate-900' : 'text-slate-400'}`}
+      >
+        <span className="truncate min-w-0 block">{selectedLabel || placeholder}</span>
+        <ChevronDown size={14} className={`text-slate-400 shrink-0 ml-2 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[100] bg-white border border-slate-200 rounded-lg shadow-2xl max-h-[280px] flex flex-col"
+          style={{ top: -9999, left: -9999 }}
+        >
+          <div className="p-2 border-b border-slate-100 shrink-0">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-500"
+                placeholder="Поиск..."
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto flex-1">
+            {!required && (
+              <button
+                type="button"
+                onClick={() => { onChange(''); setOpen(false); }}
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 text-slate-400 ${!value ? 'bg-teal-50 text-teal-600' : ''}`}
+              >
+                {placeholder}
+              </button>
+            )}
+
+            {filtered.map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => { onChange(opt.id); setOpen(false); }}
+                className={`w-full text-left hover:bg-slate-50 flex items-center gap-2 transition-colors ${
+                  opt.indent ? 'pl-8 pr-3 py-1.5 text-slate-500' : 'px-3 py-2 text-slate-700'
+                } ${value === opt.id ? 'bg-teal-50 text-teal-700' : ''}`}
+              >
+                {value === opt.id && <Check size={13} className="text-teal-600 shrink-0" />}
+                <span className="min-w-0">
+                  <span className={`text-sm block ${!opt.indent ? 'font-medium' : ''}`}>{opt.label}</span>
+                  {opt.sublabel && <span className="text-xs text-slate-400 block">{opt.sublabel}</span>}
+                </span>
+              </button>
+            ))}
+
+            {filtered.length === 0 && (
+              <div className="px-3 py-4 text-center text-sm text-slate-400">Ничего не найдено</div>
+            )}
+          </div>
+
+          {onCreateNew && (
+            <button
+              type="button"
+              onClick={() => { setOpen(false); onCreateNew(); }}
+              className="w-full px-3 py-2.5 text-left text-sm text-teal-600 hover:bg-teal-50 border-t border-slate-100 flex items-center gap-2 font-medium shrink-0"
+            >
+              <Plus size={14} />
+              {createLabel || 'Создать новый'}
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};
+
+interface NewContractorModalProps {
+  onClose: () => void;
+  onCreated: (id: string) => void;
+}
+
+const NewContractorModal: React.FC<NewContractorModalProps> = ({ onClose, onCreated }) => {
+  const { user } = useAuth();
+  const [name, setName] = useState('');
+  const [inn, setInn] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/contractors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id?.toString() || '' },
+        body: JSON.stringify({ name: name.trim(), inn: inn.trim() || undefined }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        onCreated(data.id);
+      }
+    } catch (e) {
+      console.error('Error creating contractor', e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-slate-800">Новый контрагент</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Название *</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              placeholder="ООО Компания"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">ИНН</label>
+            <input
+              type="text"
+              value={inn}
+              onChange={e => setInn(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              placeholder="1234567890"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-5">
+          <button type="button" onClick={onClose} className="flex-1 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Отмена</button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!name.trim() || saving}
+            className="flex-1 px-3 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
+          >
+            {saving ? 'Сохраняю...' : 'Создать'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin = false, isModal = false }) => {
   const { user, logout } = useAuth();
-  const { categories, studios, contractors } = useFinance();
+  const { categories, studios, contractors, refreshData } = useFinance();
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -44,6 +276,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [showNewContractor, setShowNewContractor] = useState(false);
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -65,12 +298,12 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const categoryOptions = useMemo(() => {
     const filtered = categories.filter(c => c.type === 'expense');
     const hasChildren = (catId: string) => filtered.some(c => c.parentId === catId);
-    const result: { id: string; label: string }[] = [];
+    const result: { id: string; label: string; indent?: boolean }[] = [];
     const addChildren = (parentId: string | null, depth: number) => {
       const items = filtered.filter(c => depth === 0 ? !c.parentId : c.parentId === parentId);
       items.forEach(item => {
         if (!hasChildren(item.id)) {
-          result.push({ id: item.id, label: '\u00A0\u00A0'.repeat(depth) + item.name });
+          result.push({ id: item.id, label: '\u00A0\u00A0'.repeat(depth) + item.name, indent: depth > 0 });
         }
         addChildren(item.id, depth + 1);
       });
@@ -78,6 +311,20 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
     addChildren(null, 0);
     return result;
   }, [categories]);
+
+  const studioOptions = useMemo(() => {
+    return studios.map(s => ({ id: s.id, label: s.name }));
+  }, [studios]);
+
+  const contractorOptions = useMemo(() => {
+    return contractors.map(c => ({ id: c.id, label: c.name, sublabel: c.inn || undefined }));
+  }, [contractors]);
+
+  const handleContractorCreated = (id: string) => {
+    setContractorId(id);
+    setShowNewContractor(false);
+    refreshData();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,7 +439,6 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
             { value: '', label: 'Все' },
             { value: 'pending', label: 'Ожидающие' },
             { value: 'paid', label: 'Оплаченные' },
-            { value: 'rejected', label: 'Отклонённые' },
           ].map(f => (
             <button
               key={f.value}
@@ -334,36 +580,32 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Статья расхода</label>
-            <select
+            <SearchableSelect
               value={categoryId}
-              onChange={e => setCategoryId(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:border-teal-500"
-            >
-              <option value="">— Не указана —</option>
-              {categoryOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-            </select>
+              onChange={setCategoryId}
+              placeholder="— Не указана —"
+              options={categoryOptions}
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Студия</label>
-            <select
+            <SearchableSelect
               value={studioId}
-              onChange={e => setStudioId(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:border-teal-500"
-            >
-              <option value="">— Не указана —</option>
-              {studios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+              onChange={setStudioId}
+              placeholder="— Не указана —"
+              options={studioOptions}
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Контрагент</label>
-            <select
+            <SearchableSelect
               value={contractorId}
-              onChange={e => setContractorId(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:border-teal-500"
-            >
-              <option value="">— Не указан —</option>
-              {contractors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+              onChange={setContractorId}
+              placeholder="— Не указан —"
+              options={contractorOptions}
+              onCreateNew={() => setShowNewContractor(true)}
+              createLabel="Создать контрагента"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Описание</label>
@@ -384,6 +626,13 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           </div>
         </form>
       </Modal>
+
+      {showNewContractor && (
+        <NewContractorModal
+          onClose={() => setShowNewContractor(false)}
+          onCreated={handleContractorCreated}
+        />
+      )}
     </div>
   );
 
