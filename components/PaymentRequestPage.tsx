@@ -7,6 +7,7 @@ import { Modal } from './ui/Modal';
 import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronRight, Search, Check, X, Calendar, DollarSign, MessageSquare, Filter, ChevronLeft } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import { FilterSelect } from './ui/FilterSelect';
+import { DateRangePicker } from './ui/DateRangePicker';
 import { Category } from '../types';
 
 const REQUESTS_PER_PAGE = 30;
@@ -665,22 +666,13 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                 options={filterAccountOptions}
               />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 shrink-0">Дата оплаты:</span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={e => setDateFrom(e.target.value)}
-                className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-500"
-                placeholder="от"
-              />
-              <span className="text-xs text-slate-400">—</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={e => setDateTo(e.target.value)}
-                className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-500"
-                placeholder="до"
+            <div className="w-full sm:w-48">
+              <DateRangePicker
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onChangeFrom={setDateFrom}
+                onChangeTo={setDateTo}
+                label="Дата оплаты"
               />
             </div>
             {activeFilterCount > 0 && (
