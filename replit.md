@@ -53,8 +53,10 @@ A finance management application (Russian language UI) built with React + Vite f
 
 ### Categories
 - 2 types: income, expense (CategoryType in types.ts)
-- Hierarchical: parent categories with subcategories (parent_id in DB)
-- Tree view with collapsible parents in Directories page
+- Hierarchical: unlimited nesting depth (parent_id in DB), e.g. root → child → grandchild
+- Recursive tree view with collapsible nodes at any depth in Directories page
+- Add/edit forms show full category tree with indentation in parent dropdown
+- Edit form prevents circular references (excludes self and all descendants from parent options)
 
 ### Legal Entities
 - Table: legal_entities (name, inn, kpp, address, description)

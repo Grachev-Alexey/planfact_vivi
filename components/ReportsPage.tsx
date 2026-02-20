@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { Category } from '../types';
 import { formatCurrency } from '../utils/format';
 import { Download, ChevronDown, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -134,22 +135,20 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
   const incomeCategories = categories.filter(c => c.type === 'income' && !c.parentId);
   const expenseCategories = categories.filter(c => c.type === 'expense' && !c.parentId);
 
-  const getAmount = (catId: string, month: number, year: number) => {
+  const getAllDescendantIds = (catId: string): string[] => {
     const children = categories.filter(c => c.parentId === catId);
-    const ids = [catId, ...children.map(c => c.id)];
+    return children.flatMap(c => [c.id, ...getAllDescendantIds(c.id)]);
+  };
+
+  const getAmount = (catId: string, month: number, year: number) => {
+    const ids = [catId, ...getAllDescendantIds(catId)];
     return tx.filter(t => ids.includes(t.categoryId || '') && new Date(t.date).getMonth() === month && new Date(t.date).getFullYear() === year)
       .reduce((s, t) => s + t.amount, 0);
   };
 
   const getCatTotal = (catId: string) => {
-    const children = categories.filter(c => c.parentId === catId);
-    const ids = [catId, ...children.map(c => c.id)];
+    const ids = [catId, ...getAllDescendantIds(catId)];
     return tx.filter(t => ids.includes(t.categoryId || '')).reduce((s, t) => s + t.amount, 0);
-  };
-
-  const getChildAmount = (catId: string, month: number, year: number) => {
-    return tx.filter(t => t.categoryId === catId && new Date(t.date).getMonth() === month && new Date(t.date).getFullYear() === year)
-      .reduce((s, t) => s + t.amount, 0);
   };
 
   const totalIncome = (m: number, y: number) => tx.filter(t => t.type === 'income' && new Date(t.date).getMonth() === m && new Date(t.date).getFullYear() === y).reduce((s, t) => s + t.amount, 0);
@@ -167,14 +166,17 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
 
   const handleExport = () => {
     const rows: any[] = [];
+    const exportPnlTree = (cats: typeof categories, depth: number) => {
+      cats.forEach(cat => {
+        rows.push({ 'Статья': '  '.repeat(depth) + cat.name, ...Object.fromEntries(months.map(m => [m.label, getAmount(cat.id, m.month, m.year)])), 'Итого': getCatTotal(cat.id) });
+        const children = categories.filter(c => c.parentId === cat.id);
+        if (children.length > 0) exportPnlTree(children, depth + 1);
+      });
+    };
     rows.push({ 'Статья': 'ДОХОДЫ', ...Object.fromEntries(months.map(m => [m.label, ''])), 'Итого': grandTotalIncome });
-    incomeCategories.forEach(cat => {
-      rows.push({ 'Статья': cat.name, ...Object.fromEntries(months.map(m => [m.label, getAmount(cat.id, m.month, m.year)])), 'Итого': getCatTotal(cat.id) });
-    });
+    exportPnlTree(incomeCategories, 1);
     rows.push({ 'Статья': 'РАСХОДЫ', ...Object.fromEntries(months.map(m => [m.label, ''])), 'Итого': grandTotalExpense });
-    expenseCategories.forEach(cat => {
-      rows.push({ 'Статья': cat.name, ...Object.fromEntries(months.map(m => [m.label, getAmount(cat.id, m.month, m.year)])), 'Итого': getCatTotal(cat.id) });
-    });
+    exportPnlTree(expenseCategories, 1);
     rows.push({ 'Статья': 'ПРИБЫЛЬ', ...Object.fromEntries(months.map(m => [m.label, totalIncome(m.month, m.year) - totalExpense(m.month, m.year)])), 'Итого': grandTotalIncome - grandTotalExpense });
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -182,16 +184,18 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
     XLSX.writeFile(wb, 'vivi_pnl.xlsx');
   };
 
-  const renderCategoryRow = (cat: typeof categories[0]) => {
+  const renderCategoryRow = (cat: typeof categories[0], depth: number = 0): React.ReactNode => {
     const children = categories.filter(c => c.parentId === cat.id);
     const hasChildren = children.length > 0;
     const isExpanded = expandedCats.has(cat.id);
+    const pl = 12 + depth * 20;
+    const isRoot = depth === 0;
 
     return (
       <React.Fragment key={cat.id}>
-        <tr className="hover:bg-slate-50/50 group border-b border-slate-100">
-          <td className="py-1.5 px-3 text-xs text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50/50">
-            <div className="flex items-center gap-1">
+        <tr className={`hover:bg-slate-50/50 group ${isRoot ? 'border-b border-slate-100' : 'border-b border-slate-50'}`}>
+          <td className="py-1.5 px-3 sticky left-0 bg-white group-hover:bg-slate-50/50" style={{ paddingLeft: pl }}>
+            <div className={`flex items-center gap-1 ${isRoot ? 'text-xs text-slate-700' : 'text-[11px] text-slate-500'}`}>
               {hasChildren ? (
                 <button onClick={() => toggleExpand(cat.id)} className="p-0.5 text-slate-400 hover:text-slate-600">
                   {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -202,22 +206,11 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
           </td>
           {months.map(m => {
             const val = getAmount(cat.id, m.month, m.year);
-            return <td key={m.label} className="py-1.5 px-2 text-xs text-right tabular-nums text-slate-600">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
+            return <td key={m.label} className={`py-1.5 px-2 text-right tabular-nums ${isRoot ? 'text-xs text-slate-600' : 'text-[11px] text-slate-400'}`}>{val > 0 ? fmtNum(val) : '\u2014'}</td>;
           })}
-          <td className="py-1.5 px-3 text-xs text-right font-medium tabular-nums text-slate-700">{getCatTotal(cat.id) > 0 ? fmtNum(getCatTotal(cat.id)) : '\u2014'}</td>
+          <td className={`py-1.5 px-3 text-right tabular-nums ${isRoot ? 'text-xs font-medium text-slate-700' : 'text-[11px] text-slate-500'}`}>{getCatTotal(cat.id) > 0 ? fmtNum(getCatTotal(cat.id)) : '\u2014'}</td>
         </tr>
-        {hasChildren && isExpanded && children.map(child => (
-          <tr key={child.id} className="hover:bg-slate-50/50 border-b border-slate-50">
-            <td className="py-1 px-3 pl-10 text-[11px] text-slate-500 sticky left-0 bg-white">{child.name}</td>
-            {months.map(m => {
-              const val = getChildAmount(child.id, m.month, m.year);
-              return <td key={m.label} className="py-1 px-2 text-[11px] text-right tabular-nums text-slate-400">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
-            })}
-            <td className="py-1 px-3 text-[11px] text-right tabular-nums text-slate-500">
-              {tx.filter(t => t.categoryId === child.id).reduce((s, t) => s + t.amount, 0) > 0 ? fmtNum(tx.filter(t => t.categoryId === child.id).reduce((s, t) => s + t.amount, 0)) : '\u2014'}
-            </td>
-          </tr>
-        ))}
+        {hasChildren && isExpanded && children.map(child => renderCategoryRow(child, depth + 1))}
       </React.Fragment>
     );
   };
@@ -326,18 +319,18 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
     const header = { 'Статьи учета': '', ...Object.fromEntries(activeStudios.map(s => [s.name, ''])) };
     
     rows.push({ ...header, 'Статьи учета': 'Операционный поток' });
+    const exportCatTree = (cats: Category[], depth: number) => {
+      cats.forEach(cat => {
+        const ids = [cat.id, ...getAllDescendantIds(cat.id)];
+        rows.push({ ...header, 'Статьи учета': '  '.repeat(depth + 1) + cat.name, ...Object.fromEntries(activeStudios.map(s => [s.name, getAmount(ids, s.id)])) });
+        const children = categories.filter(c => c.parentId === cat.id);
+        if (children.length > 0) exportCatTree(children, depth + 1);
+      });
+    };
     rows.push({ ...header, 'Статьи учета': 'Поступления', ...Object.fromEntries(activeStudios.map(s => [s.name, getTypeTotal('income', s.id)])) });
-    incomeCategories.forEach(cat => {
-      const children = categories.filter(c => c.parentId === cat.id);
-      const ids = [cat.id, ...children.map(c => c.id)];
-      rows.push({ ...header, 'Статьи учета': '  ' + cat.name, ...Object.fromEntries(activeStudios.map(s => [s.name, getAmount(ids, s.id)])) });
-    });
+    exportCatTree(incomeCategories, 0);
     rows.push({ ...header, 'Статьи учета': 'Выплаты', ...Object.fromEntries(activeStudios.map(s => [s.name, getTypeTotal('expense', s.id)])) });
-    expenseCategories.forEach(cat => {
-      const children = categories.filter(c => c.parentId === cat.id);
-      const ids = [cat.id, ...children.map(c => c.id)];
-      rows.push({ ...header, 'Статьи учета': '  ' + cat.name, ...Object.fromEntries(activeStudios.map(s => [s.name, getAmount(ids, s.id)])) });
-    });
+    exportCatTree(expenseCategories, 0);
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -345,45 +338,45 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
     XLSX.writeFile(wb, 'vivi_dds.xlsx');
   };
 
-  const renderCategoryRows = (parentCats: typeof categories, type: 'income' | 'expense') => {
-    return parentCats.map(cat => {
-      const children = categories.filter(c => c.parentId === cat.id);
-      const hasChildren = children.length > 0;
-      const ids = [cat.id, ...children.map(c => c.id)];
-      const isExpanded = expandedSections.has(cat.id);
+  const getAllDescendantIds = (catId: string): string[] => {
+    const children = categories.filter(c => c.parentId === catId);
+    return children.flatMap(c => [c.id, ...getAllDescendantIds(c.id)]);
+  };
 
-      return (
-        <React.Fragment key={cat.id}>
-          <tr className="border-b border-slate-100 hover:bg-slate-50/50 group">
-            <td className="py-1.5 px-3 text-xs text-slate-600 sticky left-0 bg-white group-hover:bg-slate-50/50 pl-8">
-              <div className="flex items-center gap-1">
-                {hasChildren ? (
-                  <button onClick={() => toggleSection(cat.id)} className="p-0.5 text-slate-400 hover:text-slate-600">
-                    {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                  </button>
-                ) : <span className="w-3.5" />}
-                {cat.name}
-              </div>
-            </td>
-            {activeStudios.map(s => {
-              const val = getAmount(ids, s.id);
-              return <td key={s.id} className="py-1.5 px-2 text-xs text-right tabular-nums text-slate-600">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
-            })}
-            <td className="py-1.5 px-3 text-xs text-right font-medium tabular-nums text-slate-700">{getAmount(ids) > 0 ? fmtNum(getAmount(ids)) : '\u2014'}</td>
-          </tr>
-          {hasChildren && isExpanded && children.map(child => (
-            <tr key={child.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-              <td className="py-1 px-3 pl-14 text-[11px] text-slate-500 sticky left-0 bg-white">{child.name}</td>
-              {activeStudios.map(s => {
-                const val = getAmount([child.id], s.id);
-                return <td key={s.id} className="py-1 px-2 text-[11px] text-right tabular-nums text-slate-400">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
-              })}
-              <td className="py-1 px-3 text-[11px] text-right tabular-nums text-slate-500">{getAmount([child.id]) > 0 ? fmtNum(getAmount([child.id])) : '\u2014'}</td>
-            </tr>
-          ))}
-        </React.Fragment>
-      );
-    });
+  const renderCategoryRow = (cat: typeof categories[0], depth: number = 0): React.ReactNode => {
+    const children = categories.filter(c => c.parentId === cat.id);
+    const hasChildren = children.length > 0;
+    const ids = [cat.id, ...getAllDescendantIds(cat.id)];
+    const isExpanded = expandedSections.has(cat.id);
+    const pl = 32 + depth * 20;
+    const isRoot = depth === 0;
+
+    return (
+      <React.Fragment key={cat.id}>
+        <tr className={`hover:bg-slate-50/50 group ${isRoot ? 'border-b border-slate-100' : 'border-b border-slate-50'}`}>
+          <td className="py-1.5 px-3 sticky left-0 bg-white group-hover:bg-slate-50/50" style={{ paddingLeft: pl }}>
+            <div className={`flex items-center gap-1 ${isRoot ? 'text-xs text-slate-600' : 'text-[11px] text-slate-500'}`}>
+              {hasChildren ? (
+                <button onClick={() => toggleSection(cat.id)} className="p-0.5 text-slate-400 hover:text-slate-600">
+                  {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                </button>
+              ) : <span className="w-3.5" />}
+              {cat.name}
+            </div>
+          </td>
+          {activeStudios.map(s => {
+            const val = getAmount(ids, s.id);
+            return <td key={s.id} className={`py-1.5 px-2 text-right tabular-nums ${isRoot ? 'text-xs text-slate-600' : 'text-[11px] text-slate-400'}`}>{val > 0 ? fmtNum(val) : '\u2014'}</td>;
+          })}
+          <td className={`py-1.5 px-3 text-right tabular-nums ${isRoot ? 'text-xs font-medium text-slate-700' : 'text-[11px] text-slate-500'}`}>{getAmount(ids) > 0 ? fmtNum(getAmount(ids)) : '\u2014'}</td>
+        </tr>
+        {hasChildren && isExpanded && children.map(child => renderCategoryRow(child, depth + 1))}
+      </React.Fragment>
+    );
+  };
+
+  const renderCategoryRows = (parentCats: typeof categories) => {
+    return parentCats.map(cat => renderCategoryRow(cat, 0));
   };
 
   const opFlowTotal = (studioId?: string) => getTypeTotal('income', studioId) - getTypeTotal('expense', studioId);
@@ -430,7 +423,7 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
               <td className="py-1.5 px-3 text-xs text-right font-semibold tabular-nums text-slate-700">{fmtNum(getTypeTotal('income'))}</td>
             </tr>
 
-            {expandedSections.has('income') && renderCategoryRows(incomeCategories, 'income')}
+            {expandedSections.has('income') && renderCategoryRows(incomeCategories)}
 
             <tr className="border-b border-slate-200">
               <td className="py-1.5 px-3 text-xs font-semibold text-slate-700 sticky left-0 bg-white pl-4 cursor-pointer" onClick={() => toggleSection('expense')}>
@@ -446,7 +439,7 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
               <td className="py-1.5 px-3 text-xs text-right font-semibold tabular-nums text-slate-700">{fmtNum(getTypeTotal('expense'))}</td>
             </tr>
 
-            {expandedSections.has('expense') && renderCategoryRows(expenseCategories, 'expense')}
+            {expandedSections.has('expense') && renderCategoryRows(expenseCategories)}
           </tbody>
         </table>
       </div>
@@ -467,15 +460,22 @@ const CategoriesReport: React.FC<CategoriesReportProps> = ({ tx, categories }) =
   const [viewType, setViewType] = useState<'expense' | 'income'>('expense');
 
   const categoryData = useMemo(() => {
+    const getAllDescIds = (catId: string): string[] => {
+      const ch = categories.filter(c => c.parentId === catId);
+      return ch.flatMap(c => [c.id, ...getAllDescIds(c.id)]);
+    };
     const parentCats = categories.filter(c => c.type === viewType && !c.parentId);
     return parentCats.map(cat => {
-      const children = categories.filter(c => c.parentId === cat.id);
-      const ids = [cat.id, ...children.map(c => c.id)];
+      const ids = [cat.id, ...getAllDescIds(cat.id)];
       const total = tx.filter(t => t.type === viewType && ids.includes(t.categoryId || '')).reduce((s, t) => s + t.amount, 0);
-      const childData = children.map(child => ({
-        name: child.name,
-        amount: tx.filter(t => t.categoryId === child.id).reduce((s, t) => s + t.amount, 0),
-      })).filter(c => c.amount > 0).sort((a, b) => b.amount - a.amount);
+      const directChildren = categories.filter(c => c.parentId === cat.id);
+      const childData = directChildren.map(child => {
+        const childIds = [child.id, ...getAllDescIds(child.id)];
+        return {
+          name: child.name,
+          amount: tx.filter(t => childIds.includes(t.categoryId || '')).reduce((s, t) => s + t.amount, 0),
+        };
+      }).filter(c => c.amount > 0).sort((a, b) => b.amount - a.amount);
       return { name: cat.name, id: cat.id, total, children: childData };
     }).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
   }, [tx, categories, viewType]);

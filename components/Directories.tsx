@@ -232,7 +232,21 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
 
   const renderAddForm = () => {
     if (activeTab === 'categories') {
-      const parentOptions = categories.filter(c => c.type === categoryType && !c.parentId);
+      const buildParentOptions = (cats: Category[], excludeId?: string): { id: string; label: string }[] => {
+        const result: { id: string; label: string }[] = [];
+        const addChildren = (parentId: string | null, depth: number) => {
+          const items = cats.filter(c => depth === 0 ? !c.parentId : c.parentId === parentId);
+          items.forEach(item => {
+            if (item.id !== excludeId) {
+              result.push({ id: item.id, label: '\u00A0\u00A0'.repeat(depth) + item.name });
+              addChildren(item.id, depth + 1);
+            }
+          });
+        };
+        addChildren(null, 0);
+        return result;
+      };
+      const parentOptions = buildParentOptions(categories.filter(c => c.type === categoryType));
       return (
         <form onSubmit={handleAdd} className="flex flex-col md:flex-row gap-4 items-end max-w-4xl flex-wrap">
           <div className="w-full md:flex-1 space-y-1">
@@ -249,7 +263,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
             <label className="text-sm font-medium text-slate-700">Родительская статья</label>
             <select value={newParentId} onChange={e => setNewParentId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900">
               <option value="">— Нет (корневая) —</option>
-              {parentOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {parentOptions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
             </select>
           </div>
           <div className="flex w-full md:w-auto gap-2">
@@ -405,7 +419,26 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
                   <label className="text-sm font-medium text-slate-700">Родительская статья</label>
                   <select value={editParentId} onChange={e => setEditParentId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900">
                     <option value="">— Нет (корневая) —</option>
-                    {categories.filter(c => c.type === item.type && !c.parentId && c.id !== item.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {(() => {
+                      const isDescendant = (catId: string, ancestorId: string): boolean => {
+                        const cat = categories.find(c => c.id === catId);
+                        if (!cat || !cat.parentId) return false;
+                        if (cat.parentId === ancestorId) return true;
+                        return isDescendant(cat.parentId, ancestorId);
+                      };
+                      const opts: { id: string; label: string }[] = [];
+                      const addChildren = (parentId: string | null, depth: number) => {
+                        const items = categories.filter(c => c.type === item.type && (depth === 0 ? !c.parentId : c.parentId === parentId));
+                        items.forEach(c => {
+                          if (c.id !== item.id && !isDescendant(c.id, item.id)) {
+                            opts.push({ id: c.id, label: '\u00A0\u00A0'.repeat(depth) + c.name });
+                            addChildren(c.id, depth + 1);
+                          }
+                        });
+                      };
+                      addChildren(null, 0);
+                      return opts.map(p => <option key={p.id} value={p.id}>{p.label}</option>);
+                    })()}
                   </select>
                 </div>
               </>
@@ -492,7 +525,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
 
   const renderCategoriesContent = () => {
     const filteredCats = categories.filter(c => c.type === categoryType);
-    const parents = filteredCats.filter(c => !c.parentId);
+    const roots = filteredCats.filter(c => !c.parentId);
     const childrenMap = new Map<string, Category[]>();
     filteredCats.filter(c => c.parentId).forEach(c => {
       const arr = childrenMap.get(c.parentId!) || [];
@@ -500,7 +533,38 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       childrenMap.set(c.parentId!, arr);
     });
 
-    const orphans = filteredCats.filter(c => c.parentId && !filteredCats.find(p => p.id === c.parentId && !p.parentId));
+    const countAllDescendants = (catId: string): number => {
+      const children = childrenMap.get(catId) || [];
+      return children.length + children.reduce((sum, ch) => sum + countAllDescendants(ch.id), 0);
+    };
+
+    const renderCategoryNode = (cat: Category, depth: number): React.ReactNode => {
+      const children = childrenMap.get(cat.id) || [];
+      const isExpanded = expandedParents.has(cat.id);
+      const hasChildren = children.length > 0;
+      const totalDescendants = countAllDescendants(cat.id);
+      const paddingLeft = 16 + depth * 28;
+
+      return (
+        <div key={cat.id}>
+          <div className="flex items-center justify-between pr-4 py-2.5 hover:bg-slate-50 group border-t border-slate-50 first:border-t-0" style={{ paddingLeft }}>
+            <div className="flex items-center gap-2">
+              {hasChildren ? (
+                <button onClick={() => toggleParent(cat.id)} className="text-slate-400 hover:text-slate-600 p-0.5">
+                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </button>
+              ) : (
+                <span className="w-5" />
+              )}
+              <span className={`text-sm ${depth === 0 ? 'font-medium text-slate-700' : 'text-slate-600'}`}>{cat.name}</span>
+              {hasChildren && <span className="text-xs text-slate-400 ml-1">({totalDescendants})</span>}
+            </div>
+            <ItemMenu onEdit={() => openEditModal('categories', cat)} onDelete={() => deleteItem('categories', cat.id)} />
+          </div>
+          {isExpanded && children.map(child => renderCategoryNode(child, depth + 1))}
+        </div>
+      );
+    };
 
     return (
       <div>
@@ -513,40 +577,11 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
         </div>
 
         <div className="bg-white rounded border border-slate-200 shadow-sm">
-          {parents.length === 0 && orphans.length === 0 ? (
+          {roots.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-sm">Список пуст</div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {parents.map(parent => {
-                const children = childrenMap.get(parent.id) || [];
-                const isExpanded = expandedParents.has(parent.id);
-                const hasChildren = children.length > 0;
-
-                return (
-                  <div key={parent.id}>
-                    <div className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 group">
-                      <div className="flex items-center gap-2">
-                        {hasChildren ? (
-                          <button onClick={() => toggleParent(parent.id)} className="text-slate-400 hover:text-slate-600 p-0.5">
-                            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                          </button>
-                        ) : (
-                          <span className="w-5" />
-                        )}
-                        <span className="text-sm font-medium text-slate-700">{parent.name}</span>
-                        {hasChildren && <span className="text-xs text-slate-400 ml-1">({children.length})</span>}
-                      </div>
-                      <ItemMenu onEdit={() => openEditModal('categories', parent)} onDelete={() => deleteItem('categories', parent.id)} />
-                    </div>
-                    {isExpanded && children.map(child => (
-                      <div key={child.id} className="flex items-center justify-between pl-12 pr-4 py-2.5 hover:bg-slate-50 group border-t border-slate-50">
-                        <span className="text-sm text-slate-600">{child.name}</span>
-                        <ItemMenu onEdit={() => openEditModal('categories', child)} onDelete={() => deleteItem('categories', child.id)} />
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
+              {roots.map(root => renderCategoryNode(root, 0))}
             </div>
           )}
         </div>
