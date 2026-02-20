@@ -123,15 +123,6 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
   const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
   const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
 
-  const today = new Date();
-  const presets = [
-    { label: 'Сегодня', fn: () => { onChange(fmt(today)); setOpen(false); } },
-    { label: 'Вчера', fn: () => { const d = new Date(today); d.setDate(d.getDate() - 1); onChange(fmt(d)); setOpen(false); } },
-    { label: 'Завтра', fn: () => { const d = new Date(today); d.setDate(d.getDate() + 1); onChange(fmt(d)); setOpen(false); } },
-    { label: '+7 дней', fn: () => { const d = new Date(today); d.setDate(d.getDate() + 7); onChange(fmt(d)); setOpen(false); } },
-    { label: 'Конец месяца', fn: () => { onChange(fmt(new Date(today.getFullYear(), today.getMonth() + 1, 0))); setOpen(false); } },
-  ];
-
   const displayValue = value ? formatDisplay(value) : '';
 
   const btnClass = compact
@@ -164,19 +155,6 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
           className="fixed z-[100] bg-white border border-slate-200 rounded-xl shadow-2xl w-[300px] sm:w-[320px]"
           style={{ top: -9999, left: -9999 }}
         >
-          <div className="flex gap-1.5 p-2.5 border-b border-slate-100 flex-wrap">
-            {presets.map(p => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={p.fn}
-                className="px-2 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 hover:bg-teal-50 hover:text-teal-700 transition-colors"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
           <div className="p-3">
             <div className="flex items-center justify-between mb-3">
               <button type="button" onClick={prevMonth} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500">
