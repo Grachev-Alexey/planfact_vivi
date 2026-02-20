@@ -8,6 +8,7 @@ import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronR
 import { formatCurrency, formatDate } from '../utils/format';
 import { FilterSelect } from './ui/FilterSelect';
 import { DateRangePicker } from './ui/DateRangePicker';
+import { DatePicker } from './ui/DatePicker';
 import { Category } from '../types';
 
 const REQUESTS_PER_PAGE = 30;
@@ -935,20 +936,18 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Дата оплаты</label>
-              <input
-                type="date"
+              <DatePicker
                 value={paymentDate}
-                onChange={e => setPaymentDate(e.target.value)}
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                onChange={setPaymentDate}
+                placeholder="Выберите дату"
               />
             </div>
             <div>
               <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Дата начисления</label>
-              <input
-                type="date"
+              <DatePicker
                 value={accrualDate}
-                onChange={e => setAccrualDate(e.target.value)}
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                onChange={setAccrualDate}
+                placeholder="Выберите дату"
               />
             </div>
           </div>
@@ -1013,11 +1012,11 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">Факт. дата *</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={payDate}
-                    onChange={e => setPayDate(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    onChange={setPayDate}
+                    placeholder="Выберите дату"
+                    required
                   />
                 </div>
               </div>

@@ -1,18 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-
-const MONTH_NAMES = [
-  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
-];
-
-const MONTH_NAMES_GENITIVE = [
-  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
-];
-
-const DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
 
 interface DatePickerProps {
   value: string;
@@ -22,193 +10,216 @@ interface DatePickerProps {
   compact?: boolean;
 }
 
-function positionCalendar(triggerEl: HTMLElement, ddEl: HTMLDivElement) {
-  const rect = triggerEl.getBoundingClientRect();
-  const ddHeight = ddEl.offsetHeight || 320;
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const top = spaceBelow > ddHeight + 4 ? rect.bottom + 4 : rect.top - ddHeight - 4;
-  ddEl.style.top = `${Math.max(4, top)}px`;
-  ddEl.style.left = `${Math.max(4, rect.left)}px`;
+const MONTHS_RU = [
+  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+];
+const MONTHS_RU_GEN = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+];
+const DAYS_RU = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+function fmt(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 'дд.мм.гггг', required, compact = false }) => {
+function formatDisplay(s: string): string {
+  if (!s) return '';
+  const d = new Date(s + 'T00:00:00');
+  return `${d.getDate()} ${MONTHS_RU_GEN[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 'Выберите дату', required, compact = false }) => {
   const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => {
+    if (value) return new Date(value + 'T00:00:00');
+    return new Date();
+  });
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const selectedDate = value ? new Date(value + 'T00:00:00') : null;
-  const [viewYear, setViewYear] = useState(selectedDate?.getFullYear() || new Date().getFullYear());
-  const [viewMonth, setViewMonth] = useState(selectedDate?.getMonth() || new Date().getMonth());
-
   useEffect(() => {
     if (value) {
-      const d = new Date(value + 'T00:00:00');
-      setViewYear(d.getFullYear());
-      setViewMonth(d.getMonth());
+      setViewDate(new Date(value + 'T00:00:00'));
     }
   }, [value]);
 
-  const handleOpen = () => {
-    if (open) { setOpen(false); return; }
-    setOpen(true);
-  };
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current?.contains(e.target as Node)) return;
+      if (dropdownRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
 
   useEffect(() => {
     if (!open || !ref.current || !dropdownRef.current) return;
     const trigger = ref.current;
     const dd = dropdownRef.current;
-    const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        positionCalendar(trigger, dd);
-      });
-    });
-    const update = () => positionCalendar(trigger, dd);
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
+    const position = () => {
+      const rect = trigger.getBoundingClientRect();
+      const ddH = dd.offsetHeight || 360;
+      const ddW = dd.offsetWidth || 300;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top = spaceBelow > ddH + 4 ? rect.bottom + 4 : rect.top - ddH - 4;
+      let left = rect.left;
+      if (left + ddW > window.innerWidth - 8) left = window.innerWidth - ddW - 8;
+      if (left < 8) left = 8;
+      dd.style.top = `${Math.max(4, top)}px`;
+      dd.style.left = `${left}px`;
+    };
+    const raf = requestAnimationFrame(() => requestAnimationFrame(position));
+    window.addEventListener('resize', position);
+    window.addEventListener('scroll', position, true);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', position);
+      window.removeEventListener('scroll', position, true);
     };
   }, [open]);
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (ref.current?.contains(target)) return;
-      if (dropdownRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
 
-  const prevMonth = () => {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
-    else setViewMonth(m => m - 1);
+  const calendarDays = useMemo(() => {
+    const first = new Date(year, month, 1);
+    let startDay = first.getDay() - 1;
+    if (startDay < 0) startDay = 6;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrev = new Date(year, month, 0).getDate();
+
+    const days: { date: string; day: number; currentMonth: boolean }[] = [];
+    for (let i = startDay - 1; i >= 0; i--) {
+      const d = daysInPrev - i;
+      const dt = new Date(year, month - 1, d);
+      days.push({ date: fmt(dt), day: d, currentMonth: false });
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dt = new Date(year, month, d);
+      days.push({ date: fmt(dt), day: d, currentMonth: true });
+    }
+    const remaining = 42 - days.length;
+    for (let d = 1; d <= remaining; d++) {
+      const dt = new Date(year, month + 1, d);
+      days.push({ date: fmt(dt), day: d, currentMonth: false });
+    }
+    return days;
+  }, [year, month]);
+
+  const todayStr = fmt(new Date());
+
+  const handleDayClick = (date: string) => {
+    onChange(date);
+    setOpen(false);
   };
 
-  const nextMonth = () => {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
-    else setViewMonth(m => m + 1);
-  };
-
-  const firstDayOfMonth = new Date(viewYear, viewMonth, 1);
-  let startDay = firstDayOfMonth.getDay() - 1;
-  if (startDay < 0) startDay = 6;
-
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
-
-  const cells: { day: number; month: number; year: number; isCurrentMonth: boolean }[] = [];
-  for (let i = startDay - 1; i >= 0; i--) {
-    const pm = viewMonth === 0 ? 11 : viewMonth - 1;
-    const py = viewMonth === 0 ? viewYear - 1 : viewYear;
-    cells.push({ day: daysInPrevMonth - i, month: pm, year: py, isCurrentMonth: false });
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
-    cells.push({ day: d, month: viewMonth, year: viewYear, isCurrentMonth: true });
-  }
-  const remaining = 42 - cells.length;
-  for (let d = 1; d <= remaining; d++) {
-    const nm = viewMonth === 11 ? 0 : viewMonth + 1;
-    const ny = viewMonth === 11 ? viewYear + 1 : viewYear;
-    cells.push({ day: d, month: nm, year: ny, isCurrentMonth: false });
-  }
+  const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
 
   const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const presets = [
+    { label: 'Сегодня', fn: () => { onChange(fmt(today)); setOpen(false); } },
+    { label: 'Вчера', fn: () => { const d = new Date(today); d.setDate(d.getDate() - 1); onChange(fmt(d)); setOpen(false); } },
+    { label: 'Завтра', fn: () => { const d = new Date(today); d.setDate(d.getDate() + 1); onChange(fmt(d)); setOpen(false); } },
+    { label: '+7 дней', fn: () => { const d = new Date(today); d.setDate(d.getDate() + 7); onChange(fmt(d)); setOpen(false); } },
+    { label: 'Конец месяца', fn: () => { onChange(fmt(new Date(today.getFullYear(), today.getMonth() + 1, 0))); setOpen(false); } },
+  ];
 
-  const handleSelect = (cell: typeof cells[0]) => {
-    const dateStr = `${cell.year}-${String(cell.month + 1).padStart(2, '0')}-${String(cell.day).padStart(2, '0')}`;
-    onChange(dateStr);
-    setOpen(false);
-  };
-
-  const handleToday = () => {
-    const now = new Date();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    onChange(dateStr);
-    setViewYear(now.getFullYear());
-    setViewMonth(now.getMonth());
-    setOpen(false);
-  };
-
-  const displayValue = selectedDate
-    ? `${selectedDate.getDate()} ${MONTH_NAMES_GENITIVE[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`
-    : '';
+  const displayValue = value ? formatDisplay(value) : '';
 
   const btnClass = compact
     ? `w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-[11px] bg-slate-50 text-left focus:outline-none focus:border-teal-500 focus:bg-white transition-all flex items-center justify-between gap-1.5 ${displayValue ? 'text-slate-800' : 'text-slate-400'}`
-    : `w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all flex items-center justify-between gap-2 ${displayValue ? 'text-slate-900' : 'text-slate-400'}`;
+    : `w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all flex items-center gap-2 ${displayValue ? 'text-slate-900' : 'text-slate-400'}`;
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={handleOpen} className={btnClass}>
-        <span className="truncate">{displayValue || placeholder}</span>
-        <Calendar size={compact ? 12 : 15} className="text-slate-400 shrink-0" />
+      <button
+        type="button"
+        onClick={() => { setOpen(!open); if (!open && value) setViewDate(new Date(value + 'T00:00:00')); }}
+        className={btnClass}
+      >
+        <Calendar size={compact ? 12 : 14} className="text-slate-400 shrink-0" />
+        <span className="truncate flex-1">{displayValue || placeholder}</span>
+        {value && !required ? (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onChange(''); }}
+            className="shrink-0 text-slate-400 hover:text-slate-600"
+          >
+            <X size={compact ? 11 : 14} />
+          </button>
+        ) : null}
       </button>
 
       {open && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed z-[100] bg-white border border-slate-200 rounded-xl shadow-2xl p-3 w-[280px]"
+          className="fixed z-[100] bg-white border border-slate-200 rounded-xl shadow-2xl w-[300px] sm:w-[320px]"
           style={{ top: -9999, left: -9999 }}
         >
-          <div className="flex items-center justify-between mb-2">
-            <button type="button" onClick={prevMonth} className="p-1 hover:bg-slate-100 rounded text-slate-500">
-              <ChevronLeft size={16} />
-            </button>
-            <span className="text-sm font-semibold text-slate-800">
-              {MONTH_NAMES[viewMonth]} {viewYear}
-            </span>
-            <button type="button" onClick={nextMonth} className="p-1 hover:bg-slate-100 rounded text-slate-500">
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 mb-1">
-            {DAY_NAMES.map(d => (
-              <div key={d} className="text-center text-[10px] font-semibold text-slate-400 py-1">{d}</div>
+          <div className="flex gap-1.5 p-2.5 border-b border-slate-100 flex-wrap">
+            {presets.map(p => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={p.fn}
+                className="px-2 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 hover:bg-teal-50 hover:text-teal-700 transition-colors"
+              >
+                {p.label}
+              </button>
             ))}
           </div>
 
-          <div className="grid grid-cols-7">
-            {cells.map((cell, i) => {
-              const cellStr = `${cell.year}-${String(cell.month + 1).padStart(2, '0')}-${String(cell.day).padStart(2, '0')}`;
-              const isSelected = cellStr === value;
-              const isToday = cellStr === todayStr;
-              const isSat = (i % 7) === 5;
-              const isSun = (i % 7) === 6;
+          <div className="p-3">
+            <div className="flex items-center justify-between mb-3">
+              <button type="button" onClick={prevMonth} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-sm font-semibold text-slate-700">
+                {MONTHS_RU[month]} {year}
+              </span>
+              <button type="button" onClick={nextMonth} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500">
+                <ChevronRight size={16} />
+              </button>
+            </div>
 
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => handleSelect(cell)}
-                  className={`h-8 w-8 mx-auto flex items-center justify-center text-xs rounded-lg transition-all ${
-                    isSelected
-                      ? 'bg-teal-600 text-white font-bold'
-                      : isToday
-                        ? 'bg-teal-50 text-teal-700 font-semibold ring-1 ring-teal-300'
-                        : cell.isCurrentMonth
-                          ? (isSat || isSun ? 'text-rose-400 hover:bg-slate-100' : 'text-slate-700 hover:bg-slate-100')
-                          : 'text-slate-300'
-                  }`}
-                >
-                  {cell.day}
-                </button>
-              );
-            })}
+            <div className="grid grid-cols-7 gap-0 mb-1">
+              {DAYS_RU.map(d => (
+                <div key={d} className="text-center text-[10px] font-medium text-slate-400 py-1">{d}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-0">
+              {calendarDays.map((day, i) => {
+                const selected = day.date === value;
+                const isToday = day.date === todayStr;
+                const isSat = (i % 7) === 5;
+                const isSun = (i % 7) === 6;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleDayClick(day.date)}
+                    className={`
+                      relative h-8 text-xs font-medium rounded-lg transition-all
+                      ${!day.currentMonth ? 'text-slate-300' : (isSat || isSun) ? 'text-rose-400 hover:bg-slate-100' : 'text-slate-700 hover:bg-slate-100'}
+                      ${selected ? 'bg-teal-600 text-white shadow-sm hover:bg-teal-700' : ''}
+                      ${isToday && !selected ? 'ring-1 ring-teal-300 bg-teal-50 text-teal-700 font-semibold' : ''}
+                    `}
+                  >
+                    {day.day}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-
-          <button
-            type="button"
-            onClick={handleToday}
-            className="w-full mt-2 py-1.5 text-xs text-teal-600 hover:bg-teal-50 rounded-lg font-medium"
-          >
-            Сегодня
-          </button>
         </div>,
         document.body
       )}
