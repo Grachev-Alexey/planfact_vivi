@@ -126,6 +126,22 @@ const initDB = async () => {
 
 
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS payment_requests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        amount NUMERIC(15,2) NOT NULL,
+        category_id INTEGER REFERENCES categories(id),
+        studio_id INTEGER REFERENCES studios(id),
+        contractor_id INTEGER REFERENCES contractors(id),
+        description TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        paid_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
       await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['grachev', 'cd5d56a8', 'admin']);

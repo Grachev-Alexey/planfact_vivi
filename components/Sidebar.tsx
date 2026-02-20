@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Receipt, PieChart, Settings, WalletCards, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Receipt, PieChart, Settings, WalletCards, Menu, X, Send } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
@@ -15,6 +15,11 @@ export const Sidebar: React.FC = () => {
     { icon: Receipt, label: 'Операции', path: '/transactions' },
     { icon: PieChart, label: 'Отчёты', path: '/reports' },
     { icon: WalletCards, label: 'Справочники', path: '/directories' },
+  ];
+
+  const bottomItems = [
+    { icon: Send, label: 'Выплаты', path: '/payment-requests' },
+    { icon: Settings, label: 'Настройки', path: '/settings' },
   ];
 
   return (
@@ -70,17 +75,23 @@ export const Sidebar: React.FC = () => {
 
           <div className="flex-1" />
 
-          <Link
-            to="/settings"
-            className={`flex flex-col items-center py-3 px-1 text-center border-l-[3px] mb-2 ${
-              location.pathname === '/settings'
-                ? 'bg-white/10 text-white border-teal-400'
-                : 'border-transparent hover:bg-white/5 hover:text-slate-200'
-            }`}
-          >
-            <Settings size={20} strokeWidth={1.5} />
-            <span className="text-[10px] mt-1 leading-tight font-medium">Настройки</span>
-          </Link>
+          {bottomItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex flex-col items-center py-3 px-1 text-center border-l-[3px] ${
+                  isActive
+                    ? 'bg-white/10 text-white border-teal-400'
+                    : 'border-transparent hover:bg-white/5 hover:text-slate-200'
+                } ${item.path === '/settings' ? 'mb-2' : ''}`}
+              >
+                <item.icon size={20} strokeWidth={1.5} />
+                <span className="text-[10px] mt-1 leading-tight font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
       </aside>
     </>

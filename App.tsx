@@ -9,6 +9,7 @@ import { Directories } from './components/Directories';
 import { Settings } from './components/Settings';
 import { LoginPage } from './components/LoginPage';
 import { ReportsPage } from './components/ReportsPage';
+import { PaymentRequestPage } from './components/PaymentRequestPage';
 import { LogOut } from 'lucide-react';
 import { formatCurrency } from './utils/format';
 
@@ -59,21 +60,42 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }
   return children;
 };
 
+const AdminRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role === 'requester') return <Navigate to="/payment-requests" replace />;
+  return children;
+};
+
 const AppRoutes = () => {
+    const { user } = useAuth();
+    const isRequester = user?.role === 'requester';
+
     const withLayout = (child: React.ReactNode) => (
       <Layout>
         {child}
       </Layout>
     );
 
+    if (isRequester) {
+      return (
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/payment-requests" element={<ProtectedRoute><PaymentRequestPage /></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/payment-requests" replace />} />
+        </Routes>
+      );
+    }
+
     return (
         <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/transactions" element={<ProtectedRoute>{withLayout(<TransactionList />)}</ProtectedRoute>} />
-            <Route path="/directories" element={<ProtectedRoute>{withLayout(<Directories initialTab="categories" />)}</ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute>{withLayout(<ReportsPage />)}</ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute>{withLayout(<Settings />)}</ProtectedRoute>} />
-            <Route path="/" element={<ProtectedRoute>{withLayout(<Dashboard />)}</ProtectedRoute>} />
+            <Route path="/transactions" element={<AdminRoute>{withLayout(<TransactionList />)}</AdminRoute>} />
+            <Route path="/directories" element={<AdminRoute>{withLayout(<Directories initialTab="categories" />)}</AdminRoute>} />
+            <Route path="/reports" element={<AdminRoute>{withLayout(<ReportsPage />)}</AdminRoute>} />
+            <Route path="/settings" element={<AdminRoute>{withLayout(<Settings />)}</AdminRoute>} />
+            <Route path="/payment-requests" element={<AdminRoute>{withLayout(<PaymentRequestPage isAdmin />)}</AdminRoute>} />
+            <Route path="/" element={<AdminRoute>{withLayout(<Dashboard />)}</AdminRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     )

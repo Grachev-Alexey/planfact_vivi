@@ -39,14 +39,27 @@ A finance management application (Russian language UI) built with React + Vite f
 - `server/utils/logger.cjs` - Activity logging with Russian translations
 
 ### Database Tables
-- users, activity_logs, accounts, categories, studios, contractors, transactions, legal_entities
+- users, activity_logs, accounts, categories, studios, contractors, transactions, legal_entities, payment_requests
 
 ### API
 - All frontend API calls use `/api` prefix, proxied by Vite to backend on port 3001
 - Auth: POST /api/login, GET/POST/DELETE /api/users
 - Transactions: POST/PUT/DELETE /api/transactions
 - Dictionaries: POST/PUT/DELETE for categories, contractors, accounts, studios, legal_entities
+- Payment Requests: GET/POST/PUT/DELETE /api/payment-requests
 - Init data: GET /api/init
+
+### User Roles
+- admin: full access to all features
+- user: full access to all features
+- requester: can only create payment requests and view their own request history
+
+### Payment Requests
+- Table: payment_requests (user_id, amount, category_id, studio_id, contractor_id, description, status, paid_at)
+- Status values: pending, paid, rejected
+- Webhook: POST to https://vivi-stats.store/webhook/planfact on create/paid/rejected
+- Requester users see a standalone page with form and history (no sidebar)
+- Admins see payment requests via sidebar "Выплаты" button
 
 ### Default Login
 - Username: grachev, Password: cd5d56a8
