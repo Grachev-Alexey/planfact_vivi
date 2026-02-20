@@ -21,6 +21,10 @@ interface PaymentRequest {
   contractorName: string | null;
   description: string;
   status: string;
+  paymentDate: string | null;
+  accrualDate: string | null;
+  accountId: number | null;
+  accountName: string | null;
   paidAt: string | null;
   createdAt: string;
 }
@@ -264,7 +268,7 @@ const NewContractorModal: React.FC<NewContractorModalProps> = ({ onClose, onCrea
 
 export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin = false, isModal = false }) => {
   const { user, logout } = useAuth();
-  const { categories, studios, contractors, refreshData } = useFinance();
+  const { categories, studios, contractors, accounts, refreshData } = useFinance();
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -273,10 +277,14 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const [studioId, setStudioId] = useState('');
   const [contractorId, setContractorId] = useState('');
   const [description, setDescription] = useState('');
+  const [paymentDate, setPaymentDate] = useState('');
+  const [accrualDate, setAccrualDate] = useState('');
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showNewContractor, setShowNewContractor] = useState(false);
+  const [payAccountId, setPayAccountId] = useState<string>('');
+  const [showPayModal, setShowPayModal] = useState<number | null>(null);
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -346,7 +354,9 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           categoryId: categoryId || null,
           studioId: studioId || null,
           contractorId: contractorId || null,
-          description
+          description,
+          paymentDate: paymentDate || null,
+          accrualDate: accrualDate || null
         })
       });
 
@@ -357,6 +367,8 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
         setStudioId('');
         setContractorId('');
         setDescription('');
+        setPaymentDate('');
+        setAccrualDate('');
         fetchRequests();
       }
     } catch (err) {
@@ -366,17 +378,29 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
     }
   };
 
-  const handleStatusChange = async (id: number, status: string) => {
+  const accountOptions = useMemo(() => {
+    return accounts.filter(a => !a.isArchived).map(a => ({ id: a.id, label: a.name }));
+  }, [accounts]);
+
+  const handleStatusChange = async (id: number, status: string, accountId?: string) => {
     try {
       await fetch(`/api/payment-requests/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id?.toString() || '' },
+        body: JSON.stringify({ status, accountId: accountId || null })
       });
+      setShowPayModal(null);
+      setPayAccountId('');
       fetchRequests();
+      if (status === 'paid') refreshData();
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handlePayClick = (id: number) => {
+    setPayAccountId('');
+    setShowPayModal(id);
   };
 
   const getStatusBadge = (status: string) => {
@@ -526,9 +550,27 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                             <p className="font-medium text-slate-700">{req.description}</p>
                           </div>
                         )}
-                        {req.paidAt && (
+                        {req.paymentDate && (
                           <div>
                             <span className="text-slate-400">Дата оплаты</span>
+                            <p className="font-medium text-slate-700">{formatDate(req.paymentDate)}</p>
+                          </div>
+                        )}
+                        {req.accrualDate && (
+                          <div>
+                            <span className="text-slate-400">Дата начисления</span>
+                            <p className="font-medium text-slate-700">{formatDate(req.accrualDate)}</p>
+                          </div>
+                        )}
+                        {req.accountName && (
+                          <div>
+                            <span className="text-slate-400">Счёт оплаты</span>
+                            <p className="font-medium text-slate-700">{req.accountName}</p>
+                          </div>
+                        )}
+                        {req.paidAt && (
+                          <div>
+                            <span className="text-slate-400">Факт. оплата</span>
                             <p className="font-medium text-emerald-600">{formatDate(req.paidAt)}</p>
                           </div>
                         )}
@@ -540,7 +582,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                       {isAdmin && req.status === 'pending' && (
                         <div className="flex gap-2 pt-2 border-t border-slate-200">
                           <Button
-                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleStatusChange(req.id, 'paid'); }}
+                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); handlePayClick(req.id); }}
                             className="bg-emerald-600 text-white text-xs flex items-center gap-1"
                           >
                             <CheckCircle2 size={14} /> Оплатить
@@ -607,6 +649,26 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
               createLabel="Создать контрагента"
             />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Дата оплаты</label>
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={e => setPaymentDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-teal-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Дата начисления</label>
+              <input
+                type="date"
+                value={accrualDate}
+                onChange={e => setAccrualDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-teal-500"
+              />
+            </div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Описание</label>
             <textarea
@@ -632,6 +694,39 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           onClose={() => setShowNewContractor(false)}
           onCreated={handleContractorCreated}
         />
+      )}
+
+      {showPayModal !== null && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30" onClick={() => setShowPayModal(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-800">Оплата запроса</h3>
+              <button onClick={() => setShowPayModal(null)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">Выберите счёт, с которого будет произведена оплата. Операция расхода будет создана автоматически.</p>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-slate-500 mb-1">Счёт оплаты *</label>
+              <SearchableSelect
+                value={payAccountId}
+                onChange={setPayAccountId}
+                placeholder="— Выберите счёт —"
+                options={accountOptions}
+                required
+              />
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowPayModal(null)} className="flex-1 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Отмена</button>
+              <button
+                type="button"
+                onClick={() => handleStatusChange(showPayModal, 'paid', payAccountId)}
+                disabled={!payAccountId}
+                className="flex-1 px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                <CheckCircle2 size={14} /> Оплатить
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -136,10 +136,27 @@ const initDB = async () => {
         contractor_id INTEGER REFERENCES contractors(id),
         description TEXT DEFAULT '',
         status TEXT DEFAULT 'pending',
+        payment_date DATE,
+        accrual_date DATE,
+        account_id INTEGER REFERENCES accounts(id),
         paid_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
+    `);
+
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='payment_date') THEN
+          ALTER TABLE payment_requests ADD COLUMN payment_date DATE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='accrual_date') THEN
+          ALTER TABLE payment_requests ADD COLUMN accrual_date DATE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='account_id') THEN
+          ALTER TABLE payment_requests ADD COLUMN account_id INTEGER REFERENCES accounts(id);
+        END IF;
+      END $$;
     `);
 
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");

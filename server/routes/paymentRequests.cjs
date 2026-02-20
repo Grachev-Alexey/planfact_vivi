@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
+const { logAction } = require('../utils/logger.cjs');
 
 router.get('/payment-requests', async (req, res) => {
   try {
@@ -25,12 +26,14 @@ router.get('/payment-requests', async (req, res) => {
       SELECT pr.*, u.username,
         c.name as category_name, c.type as category_type,
         s.name as studio_name,
-        co.name as contractor_name
+        co.name as contractor_name,
+        a.name as account_name
       FROM payment_requests pr
       LEFT JOIN users u ON pr.user_id = u.id
       LEFT JOIN categories c ON pr.category_id = c.id
       LEFT JOIN studios s ON pr.studio_id = s.id
       LEFT JOIN contractors co ON pr.contractor_id = co.id
+      LEFT JOIN accounts a ON pr.account_id = a.id
       ${whereClause}
       ORDER BY pr.created_at DESC
     `, params);
@@ -44,12 +47,12 @@ router.get('/payment-requests', async (req, res) => {
 
 router.post('/payment-requests', async (req, res) => {
   try {
-    const { userId, amount, categoryId, studioId, contractorId, description } = req.body;
+    const { userId, amount, categoryId, studioId, contractorId, description, paymentDate, accrualDate } = req.body;
 
     const result = await db.query(
-      `INSERT INTO payment_requests (user_id, amount, category_id, studio_id, contractor_id, description)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [userId, amount, categoryId || null, studioId || null, contractorId || null, description || '']
+      `INSERT INTO payment_requests (user_id, amount, category_id, studio_id, contractor_id, description, payment_date, accrual_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [userId, amount, categoryId || null, studioId || null, contractorId || null, description || '', paymentDate || null, accrualDate || null]
     );
 
     const request = toCamelCase(result.rows[0]);
@@ -69,6 +72,8 @@ router.post('/payment-requests', async (req, res) => {
       studio: studioRes.rows[0]?.name || null,
       contractor: contrRes.rows[0]?.name || null,
       description: description || '',
+      paymentDate: paymentDate || null,
+      accrualDate: accrualDate || null,
       createdAt: request.createdAt
     };
 
@@ -87,19 +92,51 @@ router.post('/payment-requests', async (req, res) => {
 
 router.put('/payment-requests/:id', async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, accountId } = req.body;
     const paidAt = status === 'paid' ? 'NOW()' : 'NULL';
 
-    const result = await db.query(
-      `UPDATE payment_requests SET status = $1, paid_at = ${paidAt}, updated_at = NOW() WHERE id = $2 RETURNING *`,
-      [status, req.params.id]
-    );
+    let updateQuery;
+    let updateParams;
+
+    if (status === 'paid' && accountId) {
+      updateQuery = `UPDATE payment_requests SET status = $1, account_id = $2, paid_at = ${paidAt}, updated_at = NOW() WHERE id = $3 RETURNING *`;
+      updateParams = [status, accountId, req.params.id];
+    } else {
+      updateQuery = `UPDATE payment_requests SET status = $1, paid_at = ${paidAt}, updated_at = NOW() WHERE id = $2 RETURNING *`;
+      updateParams = [status, req.params.id];
+    }
+
+    const result = await db.query(updateQuery, updateParams);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
     const request = toCamelCase(result.rows[0]);
+
+    if (status === 'paid') {
+      const pr = result.rows[0];
+      const txDate = pr.payment_date || new Date().toISOString().split('T')[0];
+      const txAccrualDate = pr.accrual_date || null;
+      const txAccountId = accountId || pr.account_id;
+
+      if (txAccountId) {
+        const txResult = await db.query(
+          `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, contractor_id, description, confirmed, accrual_date)
+           VALUES ($1, $2, 'expense', $3, $4, $5, $6, $7, true, $8) RETURNING *`,
+          [txDate, pr.amount, txAccountId, pr.category_id || null, pr.studio_id || null, pr.contractor_id || null, pr.description || '', txAccrualDate]
+        );
+
+        const adminUserId = req.headers['x-user-id'];
+        if (adminUserId) {
+          await logAction(adminUserId, 'create', 'transaction', txResult.rows[0].id, {
+            amount: parseFloat(pr.amount),
+            type: 'expense',
+            description: `Выплата по запросу #${pr.id}: ${pr.description || ''}`.trim()
+          });
+        }
+      }
+    }
 
     if (status === 'paid' || status === 'rejected') {
       const fullRes = await db.query(`
