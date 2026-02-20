@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronRight, Search, Check, X } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronRight, Search, Check, X, Calendar, DollarSign, MessageSquare } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import { Category } from '../types';
 
@@ -19,12 +19,16 @@ interface PaymentRequest {
   studioName: string | null;
   contractorId: number | null;
   contractorName: string | null;
+  accountId: number | null;
+  accountName: string | null;
   description: string;
   status: string;
   paymentDate: string | null;
   accrualDate: string | null;
-  accountId: number | null;
-  accountName: string | null;
+  telegramMessageId: string | null;
+  paidAmount: number | null;
+  paidDate: string | null;
+  paidComment: string | null;
   paidAt: string | null;
   createdAt: string;
 }
@@ -221,8 +225,8 @@ const NewContractorModal: React.FC<NewContractorModalProps> = ({ onClose, onCrea
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold text-slate-800">Новый контрагент</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
@@ -276,6 +280,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const [categoryId, setCategoryId] = useState('');
   const [studioId, setStudioId] = useState('');
   const [contractorId, setContractorId] = useState('');
+  const [accountId, setAccountId] = useState('');
   const [description, setDescription] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
   const [accrualDate, setAccrualDate] = useState('');
@@ -283,8 +288,11 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showNewContractor, setShowNewContractor] = useState(false);
-  const [payAccountId, setPayAccountId] = useState<string>('');
   const [showPayModal, setShowPayModal] = useState<number | null>(null);
+  const [payAccountId, setPayAccountId] = useState<string>('');
+  const [payAmount, setPayAmount] = useState('');
+  const [payDate, setPayDate] = useState('');
+  const [payComment, setPayComment] = useState('');
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -320,13 +328,9 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
     return result;
   }, [categories]);
 
-  const studioOptions = useMemo(() => {
-    return studios.map(s => ({ id: s.id, label: s.name }));
-  }, [studios]);
-
-  const contractorOptions = useMemo(() => {
-    return contractors.map(c => ({ id: c.id, label: c.name, sublabel: c.inn || undefined }));
-  }, [contractors]);
+  const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
+  const contractorOptions = useMemo(() => contractors.map(c => ({ id: c.id, label: c.name, sublabel: c.inn || undefined })), [contractors]);
+  const accountOptions = useMemo(() => accounts.filter(a => !a.isArchived).map(a => ({ id: a.id, label: a.name })), [accounts]);
 
   const handleContractorCreated = (id: string) => {
     setContractorId(id);
@@ -342,6 +346,10 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
       setError('Укажите сумму');
       return;
     }
+    if (!accountId) {
+      setError('Выберите счёт');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -354,6 +362,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           categoryId: categoryId || null,
           studioId: studioId || null,
           contractorId: contractorId || null,
+          accountId: accountId || null,
           description,
           paymentDate: paymentDate || null,
           accrualDate: accrualDate || null
@@ -366,10 +375,12 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
         setCategoryId('');
         setStudioId('');
         setContractorId('');
+        setAccountId('');
         setDescription('');
         setPaymentDate('');
         setAccrualDate('');
         fetchRequests();
+        refreshData();
       }
     } catch (err) {
       setError('Ошибка при отправке запроса');
@@ -378,41 +389,59 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
     }
   };
 
-  const accountOptions = useMemo(() => {
-    return accounts.filter(a => !a.isArchived).map(a => ({ id: a.id, label: a.name }));
-  }, [accounts]);
+  const handlePayClick = (req: PaymentRequest) => {
+    setPayAccountId(req.accountId?.toString() || '');
+    setPayAmount(String(req.amount));
+    setPayDate(new Date().toISOString().split('T')[0]);
+    setPayComment('');
+    setShowPayModal(req.id);
+  };
 
-  const handleStatusChange = async (id: number, status: string, accountId?: string) => {
+  const handlePayConfirm = async () => {
+    if (!showPayModal || !payAccountId) return;
     try {
-      await fetch(`/api/payment-requests/${id}`, {
+      await fetch(`/api/payment-requests/${showPayModal}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id?.toString() || '' },
-        body: JSON.stringify({ status, accountId: accountId || null })
+        body: JSON.stringify({
+          status: 'paid',
+          accountId: payAccountId,
+          paidAmount: parseFloat(payAmount) || 0,
+          paidDate: payDate || null,
+          paidComment: payComment || ''
+        })
       });
       setShowPayModal(null);
-      setPayAccountId('');
       fetchRequests();
-      if (status === 'paid') refreshData();
+      refreshData();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handlePayClick = (id: number) => {
-    setPayAccountId('');
-    setShowPayModal(id);
+  const handleReject = async (id: number) => {
+    try {
+      await fetch(`/api/payment-requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id?.toString() || '' },
+        body: JSON.stringify({ status: 'rejected' })
+      });
+      fetchRequests();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700"><Clock size={12} /> Ожидает</span>;
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700"><Clock size={11} /> Ожидает</span>;
       case 'paid':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700"><CheckCircle2 size={12} /> Оплачено</span>;
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700"><CheckCircle2 size={11} /> Оплачено</span>;
       case 'rejected':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700"><XCircle size={12} /> Отклонено</span>;
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-700"><XCircle size={11} /> Отклонено</span>;
       default:
-        return <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">{status}</span>;
+        return <span className="px-2 py-0.5 rounded-full text-[11px] bg-slate-100 text-slate-600">{status}</span>;
     }
   };
 
@@ -422,13 +451,13 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const content = (
     <div className={isModal ? '' : 'min-h-screen bg-slate-50'}>
       {!isModal && !isAdmin && (
-        <div className="bg-white border-b border-slate-200 shadow-sm">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold h-9 w-9 text-[10px]">ПФ</div>
-              <span className="font-semibold text-slate-800">ПланФакт ViVi</span>
+        <div className="bg-white border-b border-slate-200 shadow-sm safe-area-top">
+          <div className="max-w-4xl mx-auto px-3 sm:px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold h-8 w-8 sm:h-9 sm:w-9 text-[10px]">ПФ</div>
+              <span className="font-semibold text-slate-800 text-sm sm:text-base">ПланФакт ViVi</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-7 h-7 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 font-bold text-xs">
                 {user?.username?.[0]?.toUpperCase() || '?'}
               </div>
@@ -441,24 +470,27 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
         </div>
       )}
 
-      <div className={isModal ? '' : 'max-w-4xl mx-auto px-4 sm:px-6 py-6'}>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className={`${isModal ? 'text-lg' : 'text-xl sm:text-2xl'} font-bold text-slate-800`}>
-              {isAdmin ? 'Запросы на выплату' : 'Мои запросы на выплату'}
+      <div className={isModal ? '' : 'max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6'}>
+        <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
+          <div className="min-w-0">
+            <h1 className={`${isModal ? 'text-lg' : 'text-lg sm:text-2xl'} font-bold text-slate-800`}>
+              {isAdmin ? 'Запросы на выплату' : 'Мои запросы'}
             </h1>
             {pendingCount > 0 && (
-              <p className="text-sm text-slate-500 mt-1">
-                {pendingCount} {pendingCount === 1 ? 'запрос' : pendingCount < 5 ? 'запроса' : 'запросов'} на сумму {formatCurrency(totalPending)}
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                {pendingCount} {pendingCount === 1 ? 'запрос' : pendingCount < 5 ? 'запроса' : 'запросов'} на {formatCurrency(totalPending)}
               </p>
             )}
           </div>
-          <Button onClick={() => setShowForm(true)} className="bg-teal-600 text-white flex items-center gap-2 shrink-0">
-            <Plus size={16} /> Новый запрос
-          </Button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-teal-600 text-white rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium flex items-center gap-1.5 shrink-0 shadow-sm hover:bg-teal-700 active:scale-95 transition-all"
+          >
+            <Plus size={16} /> <span className="hidden xs:inline">Новый</span> <span className="xs:hidden">+</span>
+          </button>
         </div>
 
-        <div className="flex gap-2 mb-4 overflow-x-auto">
+        <div className="flex gap-1.5 sm:gap-2 mb-3 sm:mb-4 overflow-x-auto pb-1 -mx-1 px-1">
           {[
             { value: '', label: 'Все' },
             { value: 'pending', label: 'Ожидающие' },
@@ -467,10 +499,10 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
             <button
               key={f.value}
               onClick={() => setStatusFilter(f.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
                 statusFilter === f.value
-                  ? 'bg-teal-600 text-white'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-teal-600 text-white shadow-sm'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 active:bg-slate-100'
               }`}
             >
               {f.label}
@@ -479,121 +511,140 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
         </div>
 
         {requests.length === 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-              <Send size={24} className="text-slate-400" />
+          <div className="bg-white rounded-xl border border-slate-200 p-8 sm:p-12 text-center">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+              <Send size={22} className="text-slate-400" />
             </div>
             <p className="text-slate-500 text-sm">Запросов пока нет</p>
-            <p className="text-slate-400 text-xs mt-1">Нажмите «Новый запрос» чтобы создать</p>
+            <p className="text-slate-400 text-xs mt-1">Нажмите «+» чтобы создать</p>
           </div>
         ) : (
           <div className="space-y-2">
             {requests.map(req => {
               const isExpanded = expandedId === req.id;
               return (
-                <div key={req.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden transition-shadow hover:shadow-sm">
+                <div key={req.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden transition-shadow hover:shadow-sm active:shadow-sm">
                   <div
-                    className="flex items-center gap-3 px-4 py-3 cursor-pointer"
+                    className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 cursor-pointer active:bg-slate-50"
                     onClick={() => setExpandedId(isExpanded ? null : req.id)}
                   >
                     <div className="shrink-0 text-slate-400">
-                      {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-slate-800">{formatCurrency(parseFloat(String(req.amount)))}</span>
                         {getStatusBadge(req.status)}
-                        {isAdmin && <span className="text-xs text-slate-400">от {req.username}</span>}
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 truncate">
-                        {req.categoryName && <span>{req.categoryName}</span>}
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] sm:text-xs text-slate-500 truncate">
+                        {isAdmin && req.username && <span className="text-teal-600 font-medium">{req.username}</span>}
+                        {isAdmin && req.username && (req.categoryName || req.studioName) && <span>·</span>}
+                        {req.categoryName && <span className="truncate">{req.categoryName}</span>}
                         {req.categoryName && req.studioName && <span>·</span>}
-                        {req.studioName && <span>{req.studioName}</span>}
-                        {(req.categoryName || req.studioName) && req.description && <span>·</span>}
-                        {req.description && <span className="truncate">{req.description}</span>}
+                        {req.studioName && <span className="truncate">{req.studioName}</span>}
                       </div>
                     </div>
-                    <span className="text-xs text-slate-400 shrink-0 hidden sm:inline">{formatDate(req.createdAt)}</span>
+                    <span className="text-[11px] text-slate-400 shrink-0">{formatDate(req.createdAt)}</span>
                   </div>
                   {isExpanded && (
-                    <div className="px-4 pb-4 pt-1 border-t border-slate-100 bg-slate-50/50">
-                      <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-1 border-t border-slate-100 bg-slate-50/50">
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs mb-3">
                         <div>
-                          <span className="text-slate-400">Сумма</span>
+                          <span className="text-slate-400 text-[11px]">Сумма</span>
                           <p className="font-semibold text-slate-700">{formatCurrency(parseFloat(String(req.amount)))}</p>
                         </div>
                         <div>
-                          <span className="text-slate-400">Дата создания</span>
+                          <span className="text-slate-400 text-[11px]">Создан</span>
                           <p className="font-medium text-slate-700">{formatDate(req.createdAt)}</p>
                         </div>
                         {req.categoryName && (
                           <div>
-                            <span className="text-slate-400">Статья</span>
+                            <span className="text-slate-400 text-[11px]">Статья</span>
                             <p className="font-medium text-slate-700">{req.categoryName}</p>
                           </div>
                         )}
                         {req.studioName && (
                           <div>
-                            <span className="text-slate-400">Студия</span>
+                            <span className="text-slate-400 text-[11px]">Студия</span>
                             <p className="font-medium text-slate-700">{req.studioName}</p>
                           </div>
                         )}
                         {req.contractorName && (
                           <div>
-                            <span className="text-slate-400">Контрагент</span>
+                            <span className="text-slate-400 text-[11px]">Контрагент</span>
                             <p className="font-medium text-slate-700">{req.contractorName}</p>
                           </div>
                         )}
-                        {req.description && (
-                          <div className="col-span-2">
-                            <span className="text-slate-400">Описание</span>
-                            <p className="font-medium text-slate-700">{req.description}</p>
+                        {req.accountName && (
+                          <div>
+                            <span className="text-slate-400 text-[11px]">Счёт</span>
+                            <p className="font-medium text-slate-700">{req.accountName}</p>
                           </div>
                         )}
                         {req.paymentDate && (
                           <div>
-                            <span className="text-slate-400">Дата оплаты</span>
+                            <span className="text-slate-400 text-[11px]">Дата оплаты</span>
                             <p className="font-medium text-slate-700">{formatDate(req.paymentDate)}</p>
                           </div>
                         )}
                         {req.accrualDate && (
                           <div>
-                            <span className="text-slate-400">Дата начисления</span>
+                            <span className="text-slate-400 text-[11px]">Дата начисления</span>
                             <p className="font-medium text-slate-700">{formatDate(req.accrualDate)}</p>
                           </div>
                         )}
-                        {req.accountName && (
-                          <div>
-                            <span className="text-slate-400">Счёт оплаты</span>
-                            <p className="font-medium text-slate-700">{req.accountName}</p>
+                        {req.description && (
+                          <div className="col-span-2">
+                            <span className="text-slate-400 text-[11px]">Описание</span>
+                            <p className="font-medium text-slate-700">{req.description}</p>
                           </div>
                         )}
-                        {req.paidAt && (
-                          <div>
-                            <span className="text-slate-400">Факт. оплата</span>
-                            <p className="font-medium text-emerald-600">{formatDate(req.paidAt)}</p>
-                          </div>
+                        {req.status === 'paid' && (
+                          <>
+                            <div className="col-span-2 border-t border-slate-200 pt-2 mt-1">
+                              <span className="text-emerald-600 font-semibold text-[11px]">Данные оплаты</span>
+                            </div>
+                            {req.paidAmount !== null && (
+                              <div>
+                                <span className="text-slate-400 text-[11px]">Факт. сумма</span>
+                                <p className="font-semibold text-emerald-700">{formatCurrency(parseFloat(String(req.paidAmount)))}</p>
+                              </div>
+                            )}
+                            {req.paidDate && (
+                              <div>
+                                <span className="text-slate-400 text-[11px]">Факт. дата</span>
+                                <p className="font-medium text-emerald-700">{formatDate(req.paidDate)}</p>
+                              </div>
+                            )}
+                            {req.paidAt && (
+                              <div>
+                                <span className="text-slate-400 text-[11px]">Оплачено</span>
+                                <p className="font-medium text-slate-700">{formatDate(req.paidAt)}</p>
+                              </div>
+                            )}
+                            {req.paidComment && (
+                              <div className="col-span-2">
+                                <span className="text-slate-400 text-[11px]">Комментарий</span>
+                                <p className="font-medium text-slate-700">{req.paidComment}</p>
+                              </div>
+                            )}
+                          </>
                         )}
-                        <div>
-                          <span className="text-slate-400">Статус</span>
-                          <p>{getStatusBadge(req.status)}</p>
-                        </div>
                       </div>
                       {isAdmin && req.status === 'pending' && (
                         <div className="flex gap-2 pt-2 border-t border-slate-200">
-                          <Button
-                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); handlePayClick(req.id); }}
-                            className="bg-emerald-600 text-white text-xs flex items-center gap-1"
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handlePayClick(req); }}
+                            className="flex-1 bg-emerald-600 text-white text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-emerald-700 active:scale-95 transition-all"
                           >
                             <CheckCircle2 size={14} /> Оплатить
-                          </Button>
-                          <Button
-                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleStatusChange(req.id, 'rejected'); }}
-                            variant="secondary"
-                            className="text-xs flex items-center gap-1 text-rose-600"
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleReject(req.id); }}
+                            className="bg-white border border-slate-200 text-rose-600 text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-rose-50 active:scale-95 transition-all"
                           >
                             <XCircle size={14} /> Отклонить
-                          </Button>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -606,22 +657,32 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
       </div>
 
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="Новый запрос на выплату">
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Сумма *</label>
+            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Сумма *</label>
             <input
               type="number"
               step="0.01"
               min="0.01"
               value={amount}
               onChange={e => setAmount(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-teal-500"
+              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               placeholder="0.00"
               autoFocus
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Статья расхода</label>
+            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Счёт *</label>
+            <SearchableSelect
+              value={accountId}
+              onChange={setAccountId}
+              placeholder="— Выберите счёт —"
+              options={accountOptions}
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Статья расхода</label>
             <SearchableSelect
               value={categoryId}
               onChange={setCategoryId}
@@ -630,7 +691,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Студия</label>
+            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Студия</label>
             <SearchableSelect
               value={studioId}
               onChange={setStudioId}
@@ -639,7 +700,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Контрагент</label>
+            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Контрагент</label>
             <SearchableSelect
               value={contractorId}
               onChange={setContractorId}
@@ -649,42 +710,42 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
               createLabel="Создать контрагента"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Дата оплаты</label>
+              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Дата оплаты</label>
               <input
                 type="date"
                 value={paymentDate}
                 onChange={e => setPaymentDate(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Дата начисления</label>
+              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Дата начисления</label>
               <input
                 type="date"
                 value={accrualDate}
                 onChange={e => setAccrualDate(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-teal-500"
+                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Описание</label>
+            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Описание</label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-teal-500 resize-none"
+              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
               rows={3}
               placeholder="Опишите за что нужна выплата..."
             />
           </div>
-          {error && <p className="text-sm text-rose-600">{error}</p>}
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Отмена</Button>
-            <Button type="submit" className="bg-teal-600 text-white flex items-center gap-2" disabled={loading}>
-              <Send size={16} /> {loading ? 'Отправка...' : 'Отправить запрос'}
-            </Button>
+          {error && <p className="text-xs sm:text-sm text-rose-600">{error}</p>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setShowForm(false)} className="flex-1 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200">Отмена</button>
+            <button type="submit" disabled={loading} className="flex-1 px-3 py-2.5 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-1.5 font-medium">
+              <Send size={14} /> {loading ? 'Отправка...' : 'Отправить'}
+            </button>
           </div>
         </form>
       </Modal>
@@ -697,30 +758,66 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
       )}
 
       {showPayModal !== null && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30" onClick={() => setShowPayModal(null)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/30 p-0 sm:p-4" onClick={() => setShowPayModal(null)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-md p-4 sm:p-5 safe-area-bottom" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-800">Оплата запроса</h3>
-              <button onClick={() => setShowPayModal(null)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+              <h3 className="text-sm font-bold text-slate-800">Подтверждение оплаты</h3>
+              <button onClick={() => setShowPayModal(null)} className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
             </div>
-            <p className="text-sm text-slate-600 mb-4">Выберите счёт, с которого будет произведена оплата. Операция расхода будет создана автоматически.</p>
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-slate-500 mb-1">Счёт оплаты *</label>
-              <SearchableSelect
-                value={payAccountId}
-                onChange={setPayAccountId}
-                placeholder="— Выберите счёт —"
-                options={accountOptions}
-                required
-              />
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Счёт оплаты *</label>
+                <SearchableSelect
+                  value={payAccountId}
+                  onChange={setPayAccountId}
+                  placeholder="— Выберите счёт —"
+                  options={accountOptions}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Факт. сумма *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={payAmount}
+                    onChange={e => setPayAmount(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Факт. дата *</label>
+                  <input
+                    type="date"
+                    value={payDate}
+                    onChange={e => setPayDate(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Комментарий</label>
+                <textarea
+                  value={payComment}
+                  onChange={e => setPayComment(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                  rows={2}
+                  placeholder="Комментарий к оплате..."
+                />
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setShowPayModal(null)} className="flex-1 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Отмена</button>
+
+            <div className="flex gap-2 mt-4">
+              <button type="button" onClick={() => setShowPayModal(null)} className="flex-1 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200">Отмена</button>
               <button
                 type="button"
-                onClick={() => handleStatusChange(showPayModal, 'paid', payAccountId)}
-                disabled={!payAccountId}
-                className="flex-1 px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-1"
+                onClick={handlePayConfirm}
+                disabled={!payAccountId || !payAmount || !payDate}
+                className="flex-1 px-3 py-2.5 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-1.5 font-medium active:scale-95 transition-all"
               >
                 <CheckCircle2 size={14} /> Оплатить
               </button>

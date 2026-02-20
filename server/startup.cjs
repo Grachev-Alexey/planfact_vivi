@@ -134,11 +134,15 @@ const initDB = async () => {
         category_id INTEGER REFERENCES categories(id),
         studio_id INTEGER REFERENCES studios(id),
         contractor_id INTEGER REFERENCES contractors(id),
+        account_id INTEGER REFERENCES accounts(id),
         description TEXT DEFAULT '',
         status TEXT DEFAULT 'pending',
         payment_date DATE,
         accrual_date DATE,
-        account_id INTEGER REFERENCES accounts(id),
+        telegram_message_id TEXT,
+        paid_amount NUMERIC(15,2),
+        paid_date DATE,
+        paid_comment TEXT DEFAULT '',
         paid_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
@@ -155,6 +159,18 @@ const initDB = async () => {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='account_id') THEN
           ALTER TABLE payment_requests ADD COLUMN account_id INTEGER REFERENCES accounts(id);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='telegram_message_id') THEN
+          ALTER TABLE payment_requests ADD COLUMN telegram_message_id TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='paid_amount') THEN
+          ALTER TABLE payment_requests ADD COLUMN paid_amount NUMERIC(15,2);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='paid_date') THEN
+          ALTER TABLE payment_requests ADD COLUMN paid_date DATE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='paid_comment') THEN
+          ALTER TABLE payment_requests ADD COLUMN paid_comment TEXT DEFAULT '';
         END IF;
       END $$;
     `);

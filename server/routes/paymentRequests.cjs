@@ -47,15 +47,43 @@ router.get('/payment-requests', async (req, res) => {
 
 router.post('/payment-requests', async (req, res) => {
   try {
-    const { userId, amount, categoryId, studioId, contractorId, description, paymentDate, accrualDate } = req.body;
+    const { userId, amount, categoryId, studioId, contractorId, accountId, description, paymentDate, accrualDate } = req.body;
+
+    if (!userId || !amount || parseFloat(amount) <= 0) {
+      return res.status(400).json({ error: 'userId and positive amount are required' });
+    }
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId is required' });
+    }
 
     const result = await db.query(
-      `INSERT INTO payment_requests (user_id, amount, category_id, studio_id, contractor_id, description, payment_date, accrual_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [userId, amount, categoryId || null, studioId || null, contractorId || null, description || '', paymentDate || null, accrualDate || null]
+      `INSERT INTO payment_requests (user_id, amount, category_id, studio_id, contractor_id, account_id, description, payment_date, accrual_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [userId, amount, categoryId || null, studioId || null, contractorId || null, accountId, description || '', paymentDate || null, accrualDate || null]
     );
 
-    const request = toCamelCase(result.rows[0]);
+    const pr = result.rows[0];
+    const request = toCamelCase(pr);
+
+    const txDate = pr.payment_date || new Date().toISOString().split('T')[0];
+    const txAccrualDate = pr.accrual_date || null;
+    const txAccountId = pr.account_id;
+
+    if (txAccountId) {
+      const txResult = await db.query(
+        `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, contractor_id, description, confirmed, accrual_date)
+         VALUES ($1, $2, 'expense', $3, $4, $5, $6, $7, false, $8) RETURNING *`,
+        [txDate, pr.amount, txAccountId, pr.category_id || null, pr.studio_id || null, pr.contractor_id || null, pr.description || '', txAccrualDate]
+      );
+
+      if (userId) {
+        await logAction(userId, 'create', 'transaction', txResult.rows[0].id, {
+          amount: parseFloat(pr.amount),
+          type: 'expense',
+          description: `Запрос на выплату #${pr.id}: ${pr.description || ''}`.trim()
+        });
+      }
+    }
 
     const userRes = await db.query('SELECT username FROM users WHERE id = $1', [userId]);
     const username = userRes.rows[0]?.username || '';
@@ -65,6 +93,7 @@ router.post('/payment-requests', async (req, res) => {
 
     const webhookPayload = {
       event: 'payment_request_created',
+      action: 'create',
       id: request.id,
       username,
       amount: parseFloat(amount),
@@ -90,53 +119,68 @@ router.post('/payment-requests', async (req, res) => {
   }
 });
 
+router.put('/payment-requests/:id/telegram', async (req, res) => {
+  try {
+    const { telegramMessageId } = req.body;
+    const result = await db.query(
+      `UPDATE payment_requests SET telegram_message_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [telegramMessageId, req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+    res.json(toCamelCase(result.rows[0]));
+  } catch (err) {
+    console.error('Error updating telegram message id:', err);
+    res.status(500).json({ error: 'Error updating telegram message id' });
+  }
+});
+
 router.put('/payment-requests/:id', async (req, res) => {
   try {
-    const { status, accountId } = req.body;
-    const paidAt = status === 'paid' ? 'NOW()' : 'NULL';
+    const { status, accountId, paidAmount, paidDate, paidComment } = req.body;
 
-    let updateQuery;
-    let updateParams;
-
-    if (status === 'paid' && accountId) {
-      updateQuery = `UPDATE payment_requests SET status = $1, account_id = $2, paid_at = ${paidAt}, updated_at = NOW() WHERE id = $3 RETURNING *`;
-      updateParams = [status, accountId, req.params.id];
-    } else {
-      updateQuery = `UPDATE payment_requests SET status = $1, paid_at = ${paidAt}, updated_at = NOW() WHERE id = $2 RETURNING *`;
-      updateParams = [status, req.params.id];
+    if (status === 'paid') {
+      if (!accountId) return res.status(400).json({ error: 'accountId is required for payment' });
+      if (!paidAmount || parseFloat(paidAmount) <= 0) return res.status(400).json({ error: 'paidAmount is required for payment' });
+      if (!paidDate) return res.status(400).json({ error: 'paidDate is required for payment' });
     }
 
-    const result = await db.query(updateQuery, updateParams);
+    let updateFields = ['status = $1', 'updated_at = NOW()'];
+    let params = [status];
+    let idx = 2;
+
+    if (status === 'paid') {
+      updateFields.push(`paid_at = NOW()`);
+      if (paidAmount !== undefined) {
+        updateFields.push(`paid_amount = $${idx++}`);
+        params.push(paidAmount);
+      }
+      if (paidDate) {
+        updateFields.push(`paid_date = $${idx++}`);
+        params.push(paidDate);
+      }
+      if (paidComment !== undefined) {
+        updateFields.push(`paid_comment = $${idx++}`);
+        params.push(paidComment);
+      }
+      if (accountId) {
+        updateFields.push(`account_id = $${idx++}`);
+        params.push(accountId);
+      }
+    }
+
+    params.push(req.params.id);
+    const result = await db.query(
+      `UPDATE payment_requests SET ${updateFields.join(', ')} WHERE id = $${idx} RETURNING *`,
+      params
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
     const request = toCamelCase(result.rows[0]);
-
-    if (status === 'paid') {
-      const pr = result.rows[0];
-      const txDate = pr.payment_date || new Date().toISOString().split('T')[0];
-      const txAccrualDate = pr.accrual_date || null;
-      const txAccountId = accountId || pr.account_id;
-
-      if (txAccountId) {
-        const txResult = await db.query(
-          `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, contractor_id, description, confirmed, accrual_date)
-           VALUES ($1, $2, 'expense', $3, $4, $5, $6, $7, true, $8) RETURNING *`,
-          [txDate, pr.amount, txAccountId, pr.category_id || null, pr.studio_id || null, pr.contractor_id || null, pr.description || '', txAccrualDate]
-        );
-
-        const adminUserId = req.headers['x-user-id'];
-        if (adminUserId) {
-          await logAction(adminUserId, 'create', 'transaction', txResult.rows[0].id, {
-            amount: parseFloat(pr.amount),
-            type: 'expense',
-            description: `Выплата по запросу #${pr.id}: ${pr.description || ''}`.trim()
-          });
-        }
-      }
-    }
 
     if (status === 'paid' || status === 'rejected') {
       const fullRes = await db.query(`
@@ -152,9 +196,14 @@ router.put('/payment-requests/:id', async (req, res) => {
       const full = fullRes.rows[0];
       const webhookPayload = {
         event: `payment_request_${status}`,
+        action: status,
         id: request.id,
+        telegramMessageId: full?.telegram_message_id || null,
         username: full?.username || '',
         amount: parseFloat(full?.amount || 0),
+        paidAmount: full?.paid_amount ? parseFloat(full.paid_amount) : null,
+        paidDate: full?.paid_date || null,
+        paidComment: full?.paid_comment || '',
         category: full?.category_name || null,
         studio: full?.studio_name || null,
         contractor: full?.contractor_name || null,
