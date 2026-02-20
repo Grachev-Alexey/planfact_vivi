@@ -4,9 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronRight, Search, Check, X, Calendar, DollarSign, MessageSquare } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronRight, Search, Check, X, Calendar, DollarSign, MessageSquare, Filter, ChevronLeft } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
+import { FilterSelect } from './ui/FilterSelect';
 import { Category } from '../types';
+
+const REQUESTS_PER_PAGE = 30;
 
 interface PaymentRequest {
   id: number;
@@ -286,6 +289,13 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const [accrualDate, setAccrualDate] = useState('');
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [filterStudios, setFilterStudios] = useState<string[]>([]);
+  const [filterContractors, setFilterContractors] = useState<string[]>([]);
+  const [filterAccounts, setFilterAccounts] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showNewContractor, setShowNewContractor] = useState(false);
   const [showPayModal, setShowPayModal] = useState<number | null>(null);
@@ -331,6 +341,72 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
   const contractorOptions = useMemo(() => contractors.map(c => ({ id: c.id, label: c.name, sublabel: c.inn || undefined })), [contractors]);
   const accountOptions = useMemo(() => accounts.filter(a => !a.isArchived).map(a => ({ id: a.id, label: a.name })), [accounts]);
+
+  const filterCategoryOptions = useMemo(() => {
+    const used = new Set(requests.map(r => String(r.categoryId)).filter(Boolean));
+    return categories.filter(c => used.has(c.id)).map(c => ({ id: c.id, label: c.name }));
+  }, [categories, requests]);
+
+  const filterStudioOptions = useMemo(() => {
+    const used = new Set(requests.map(r => String(r.studioId)).filter(Boolean));
+    return studios.filter(s => used.has(s.id)).map(s => ({ id: s.id, label: s.name }));
+  }, [studios, requests]);
+
+  const filterContractorOptions = useMemo(() => {
+    const used = new Set(requests.map(r => String(r.contractorId)).filter(Boolean));
+    return contractors.filter(c => used.has(c.id)).map(c => ({ id: c.id, label: c.name }));
+  }, [contractors, requests]);
+
+  const filterAccountOptions = useMemo(() => {
+    const used = new Set(requests.map(r => String(r.accountId)).filter(Boolean));
+    return accounts.filter(a => used.has(a.id)).map(a => ({ id: a.id, label: a.name }));
+  }, [accounts, requests]);
+
+  const filteredRequests = useMemo(() => {
+    let result = requests;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r =>
+        (r.description && r.description.toLowerCase().includes(q)) ||
+        (r.username && r.username.toLowerCase().includes(q)) ||
+        (r.categoryName && r.categoryName.toLowerCase().includes(q)) ||
+        (r.studioName && r.studioName.toLowerCase().includes(q)) ||
+        (r.contractorName && r.contractorName.toLowerCase().includes(q)) ||
+        (r.accountName && r.accountName.toLowerCase().includes(q)) ||
+        String(r.amount).includes(q)
+      );
+    }
+
+    if (filterCategories.length > 0) {
+      result = result.filter(r => r.categoryId && filterCategories.includes(String(r.categoryId)));
+    }
+    if (filterStudios.length > 0) {
+      result = result.filter(r => r.studioId && filterStudios.includes(String(r.studioId)));
+    }
+    if (filterContractors.length > 0) {
+      result = result.filter(r => r.contractorId && filterContractors.includes(String(r.contractorId)));
+    }
+    if (filterAccounts.length > 0) {
+      result = result.filter(r => r.accountId && filterAccounts.includes(String(r.accountId)));
+    }
+
+    return result;
+  }, [requests, searchQuery, filterCategories, filterStudios, filterContractors, filterAccounts]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / REQUESTS_PER_PAGE));
+  const clampedPage = Math.min(currentPage, totalPages);
+  const paginatedRequests = filteredRequests.slice((clampedPage - 1) * REQUESTS_PER_PAGE, clampedPage * REQUESTS_PER_PAGE);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterCategories, filterStudios, filterContractors, filterAccounts, statusFilter]);
+
+  const activeFilterCount = [filterCategories, filterStudios, filterContractors, filterAccounts].filter(f => f.length > 0).length;
 
   const handleContractorCreated = (id: string) => {
     setContractorId(id);
@@ -490,7 +566,42 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           </button>
         </div>
 
-        <div className="flex gap-1.5 sm:gap-2 mb-3 sm:mb-4 overflow-x-auto pb-1 -mx-1 px-1">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              placeholder="Поиск по описанию, контрагенту, студии..."
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`shrink-0 px-3 py-2 border rounded-lg text-sm flex items-center gap-1.5 transition-colors ${
+              showFilters || activeFilterCount > 0
+                ? 'bg-teal-50 border-teal-300 text-teal-700'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Filter size={14} />
+            <span className="hidden sm:inline">Фильтры</span>
+            {activeFilterCount > 0 && (
+              <span className="bg-teal-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{activeFilterCount}</span>
+            )}
+          </button>
+        </div>
+
+        <div className="flex gap-1.5 sm:gap-2 mb-3 overflow-x-auto pb-1 -mx-1 px-1">
           {[
             { value: '', label: 'Все' },
             { value: 'pending', label: 'Ожидающие' },
@@ -510,7 +621,46 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           ))}
         </div>
 
-        {requests.length === 0 ? (
+        {showFilters && (
+          <div className="bg-white rounded-xl border border-slate-200 p-3 mb-3 space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <FilterSelect
+                value={filterCategories}
+                onChange={setFilterCategories}
+                placeholder="Статья"
+                options={filterCategoryOptions}
+              />
+              <FilterSelect
+                value={filterStudios}
+                onChange={setFilterStudios}
+                placeholder="Студия"
+                options={filterStudioOptions}
+              />
+              <FilterSelect
+                value={filterContractors}
+                onChange={setFilterContractors}
+                placeholder="Контрагент"
+                options={filterContractorOptions}
+              />
+              <FilterSelect
+                value={filterAccounts}
+                onChange={setFilterAccounts}
+                placeholder="Счёт"
+                options={filterAccountOptions}
+              />
+            </div>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={() => { setFilterCategories([]); setFilterStudios([]); setFilterContractors([]); setFilterAccounts([]); }}
+                className="text-xs text-teal-600 hover:text-teal-700 font-medium"
+              >
+                Сбросить все фильтры
+              </button>
+            )}
+          </div>
+        )}
+
+        {filteredRequests.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 sm:p-12 text-center">
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
               <Send size={22} className="text-slate-400" />
@@ -520,7 +670,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           </div>
         ) : (
           <div className="space-y-2">
-            {requests.map(req => {
+            {paginatedRequests.map(req => {
               const isExpanded = expandedId === req.id;
               return (
                 <div key={req.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden transition-shadow hover:shadow-sm active:shadow-sm">
@@ -652,6 +802,52 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                 </div>
               );
             })}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-3 sm:px-4 py-2.5 mt-3">
+                <span className="text-xs text-slate-500">
+                  {filteredRequests.length} {filteredRequests.length === 1 ? 'запрос' : filteredRequests.length < 5 ? 'запроса' : 'запросов'}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={clampedPage <= 1}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalPages || Math.abs(p - clampedPage) <= 1)
+                    .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                      if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, i) =>
+                      typeof p === 'string' ? (
+                        <span key={`dots-${i}`} className="px-1 text-xs text-slate-400">...</span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => setCurrentPage(p)}
+                          className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${
+                            p === clampedPage ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={clampedPage >= totalPages}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
