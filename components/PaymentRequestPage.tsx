@@ -395,14 +395,14 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
 
     if (dateFrom) {
       result = result.filter(r => {
-        const d = r.createdAt ? r.createdAt.slice(0, 10) : '';
-        return d >= dateFrom;
+        const d = r.paymentDate ? r.paymentDate.slice(0, 10) : '';
+        return d && d >= dateFrom;
       });
     }
     if (dateTo) {
       result = result.filter(r => {
-        const d = r.createdAt ? r.createdAt.slice(0, 10) : '';
-        return d <= dateTo;
+        const d = r.paymentDate ? r.paymentDate.slice(0, 10) : '';
+        return d && d <= dateTo;
       });
     }
 
@@ -666,7 +666,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
               />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 shrink-0">Дата:</span>
+              <span className="text-xs text-slate-500 shrink-0">Дата оплаты:</span>
               <input
                 type="date"
                 value={dateFrom}
