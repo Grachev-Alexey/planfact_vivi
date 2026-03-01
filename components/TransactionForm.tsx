@@ -257,6 +257,15 @@ const FormRow: React.FC<{ label: string; children: React.ReactNode; className?: 
   </div>
 );
 
+const SIGNAL_LABELS: Record<string, string> = {
+  name_exact: 'Имя клиента совпадает',
+  name_partial: 'Имя клиента похоже',
+  phone: 'Телефон совпадает',
+  amount_exact: 'Сумма совпадает с визитом',
+  amount_subset: 'Сумма совпадает с частью услуг',
+  amount_close: 'Сумма примерно совпадает',
+};
+
 const YClientsSection: React.FC<{ transaction: Transaction }> = ({ transaction }) => {
   const [status, setStatus] = useState(transaction.yclientsStatus || null);
   const [data, setData] = useState<any>(() => {
@@ -286,7 +295,8 @@ const YClientsSection: React.FC<{ transaction: Transaction }> = ({ transaction }
 
   const statusConfig: Record<string, { icon: React.ReactNode; label: string; color: string; bg: string }> = {
     match: { icon: <CheckCircle2 size={16} />, label: 'Совпадение найдено', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
-    amount_mismatch: { icon: <AlertTriangle size={16} />, label: 'Сумма отличается', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+    weak_match: { icon: <CheckCircle2 size={16} />, label: 'Сумма совпадает (клиент не подтверждён)', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+    amount_mismatch: { icon: <AlertTriangle size={16} />, label: 'Клиент найден, сумма отличается', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
     not_found: { icon: <XCircle size={16} />, label: 'Не найдено в YClients', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
     no_studio: { icon: <XCircle size={16} />, label: 'Студия не привязана к YClients', color: 'text-slate-500', bg: 'bg-slate-50 border-slate-200' },
     error: { icon: <XCircle size={16} />, label: 'Ошибка проверки', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
@@ -316,14 +326,32 @@ const YClientsSection: React.FC<{ transaction: Transaction }> = ({ transaction }
             {cfg.label}
           </div>
           {data && (
-            <div className="mt-2 space-y-1 text-xs text-slate-600">
-              {data.clientName && <div><span className="text-slate-400">Клиент:</span> {data.clientName}{data.clientPhone ? ` (${data.clientPhone})` : ''}</div>}
-              {data.services && <div><span className="text-slate-400">Услуги:</span> {data.services}</div>}
+            <div className="mt-2 space-y-1.5 text-xs text-slate-600">
+              {data.clientName && (
+                <div><span className="text-slate-400">Клиент:</span> {data.clientName}{data.clientPhone ? ` (${data.clientPhone})` : ''}</div>
+              )}
+              {data.services && (
+                <div><span className="text-slate-400">Все услуги визита:</span> {data.services}</div>
+              )}
+              {data.matchedServices && (
+                <div><span className="text-slate-400">Совпавшие услуги:</span> <span className="text-emerald-700 font-medium">{data.matchedServices}</span></div>
+              )}
               {data.recAmount !== undefined && (
                 <div>
-                  <span className="text-slate-400">Сумма в YClients:</span>{' '}
-                  <span className={data.diff > 0 ? 'font-semibold text-amber-700' : 'text-emerald-700'}>{formatCurrency(data.recAmount)}</span>
-                  {data.diff > 0 && <span className="text-amber-600 ml-1">(разница: {formatCurrency(data.diff)})</span>}
+                  <span className="text-slate-400">Итого визит:</span>{' '}
+                  <span className={data.diff > 0.01 ? 'font-semibold text-amber-700' : 'text-emerald-700'}>{formatCurrency(data.recAmount)}</span>
+                  {data.diff > 0.01 && <span className="text-amber-600 ml-1">(разница: {formatCurrency(data.diff)})</span>}
+                </div>
+              )}
+              {data.signals && data.signals.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {data.signals.map((s: string) => (
+                    <span key={s} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                      s.startsWith('name_') || s === 'phone' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {SIGNAL_LABELS[s] || s}
+                    </span>
+                  ))}
                 </div>
               )}
             </div>

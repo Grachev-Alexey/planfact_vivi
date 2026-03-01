@@ -35,94 +35,242 @@ async function getRecords(companyId, startDate, endDate) {
   return allRecords;
 }
 
-function extractClientName(transaction) {
-  const desc = transaction.description || '';
-  const parts = desc.split('|').map(s => s.trim());
+function normalizeForCompare(str) {
+  return (str || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+}
+
+function clientNameScore(ycName, txName) {
+  if (!ycName || !txName) return 0;
+  const a = normalizeForCompare(ycName);
+  const b = normalizeForCompare(txName);
+  if (a === b) return 1;
+  const aParts = a.split(' ').filter(Boolean);
+  const bParts = b.split(' ').filter(Boolean);
+  if (aParts.length === 0 || bParts.length === 0) return 0;
+  let matched = 0;
+  for (const bp of bParts) {
+    if (aParts.some(ap => ap === bp || (bp.length >= 3 && ap.startsWith(bp)) || (ap.length >= 3 && bp.startsWith(ap)))) {
+      matched++;
+    }
+  }
+  return matched / Math.max(aParts.length, bParts.length);
+}
+
+function extractClientName(description) {
+  if (!description) return null;
+  const parts = description.split('|').map(s => s.trim());
   if (parts.length >= 2) {
-    const name = parts[1];
-    if (name && !/^\+?\d[\d\s\-()]+$/.test(name)) {
-      return name;
+    const candidate = parts[1];
+    if (candidate && !/^\+?\d[\d\s\-()]+$/.test(candidate) && candidate.length >= 2) {
+      return candidate;
     }
   }
   return null;
 }
 
-function normalizeForCompare(str) {
-  return (str || '').toLowerCase().replace(/ё/g, 'е').trim();
-}
-
-function clientNameMatch(ycName, txName) {
-  if (!ycName || !txName) return 0;
-  const a = normalizeForCompare(ycName);
-  const b = normalizeForCompare(txName);
-  if (a === b) return 1;
-  const aParts = a.split(/\s+/).filter(Boolean);
-  const bParts = b.split(/\s+/).filter(Boolean);
-  if (aParts.length === 0 || bParts.length === 0) return 0;
-  let matched = 0;
-  for (const bp of bParts) {
-    if (aParts.some(ap => ap === bp || ap.startsWith(bp) || bp.startsWith(ap))) matched++;
+function extractClientPhone(description) {
+  if (!description) return null;
+  const parts = description.split('|').map(s => s.trim());
+  for (const part of parts) {
+    const digits = part.replace(/\D/g, '');
+    if (digits.length >= 10) return digits.slice(-10);
   }
-  const score = matched / Math.max(aParts.length, bParts.length);
-  return score >= 0.5 ? score : 0;
+  return null;
 }
 
-function matchTransaction(transaction, ycRecords, contractorName) {
+function phoneMatch(ycPhone, txPhone) {
+  if (!ycPhone || !txPhone) return false;
+  const a = ycPhone.replace(/\D/g, '').slice(-10);
+  const b = txPhone.replace(/\D/g, '').slice(-10);
+  return a.length >= 10 && b.length >= 10 && a === b;
+}
+
+function groupRecordsByVisit(records, txDate) {
+  const visits = new Map();
+  for (const rec of records) {
+    if (rec.attendance !== 1 && rec.visit_attendance !== 1 && rec.attendance !== 2 && rec.visit_attendance !== 2) continue;
+    const recDate = (rec.date || '').split(' ')[0];
+    if (recDate !== txDate) continue;
+
+    const key = rec.visit_id || rec.id;
+    if (!visits.has(key)) {
+      visits.set(key, {
+        visitId: rec.visit_id || null,
+        recordIds: [],
+        clientName: rec.client?.name || rec.client?.display_name || '',
+        clientPhone: rec.client?.phone || '',
+        services: [],
+        totalAmount: 0,
+        date: recDate,
+      });
+    }
+    const visit = visits.get(key);
+    visit.recordIds.push(String(rec.id));
+    if (rec.services) {
+      for (const s of rec.services) {
+        const amount = parseFloat(s.cost_to_pay) || 0;
+        visit.services.push({ title: s.title, amount });
+        visit.totalAmount += amount;
+      }
+    }
+  }
+  return [...visits.values()];
+}
+
+function findServiceSubsetMatch(services, targetAmount) {
+  const nonZero = services.filter(s => s.amount > 0);
+  if (nonZero.length === 0) return null;
+
+  const totalAll = nonZero.reduce((s, x) => s + x.amount, 0);
+  if (Math.abs(targetAmount - totalAll) < 0.01) {
+    return { matched: nonZero, type: 'full' };
+  }
+
+  for (const s of nonZero) {
+    if (Math.abs(s.amount - targetAmount) < 0.01) {
+      return { matched: [s], type: 'single_service' };
+    }
+  }
+
+  const target = Math.round(targetAmount * 100);
+  const amounts = nonZero.map(s => Math.round(s.amount * 100));
+  const n = amounts.length;
+
+  if (n <= 20) {
+    const dp = new Map();
+    dp.set(0, []);
+    for (let i = 0; i < n; i++) {
+      const entries = [...dp.entries()];
+      for (const [sum, indices] of entries) {
+        const newSum = sum + amounts[i];
+        if (newSum <= target && !dp.has(newSum)) {
+          dp.set(newSum, [...indices, i]);
+        }
+      }
+      if (dp.has(target)) {
+        return { matched: dp.get(target).map(i => nonZero[i]), type: 'subset' };
+      }
+    }
+  }
+
+  return null;
+}
+
+function scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contractorName) {
+  let score = 0;
+  let signals = [];
+
+  const nameToMatch = contractorName || txClientName;
+
+  if (nameToMatch) {
+    const ns = clientNameScore(visit.clientName, nameToMatch);
+    if (ns >= 0.8) {
+      score += 100;
+      signals.push('name_exact');
+    } else if (ns >= 0.5) {
+      score += 60;
+      signals.push('name_partial');
+    }
+  }
+
+  if (txClientPhone && phoneMatch(visit.clientPhone, txClientPhone)) {
+    score += 80;
+    signals.push('phone');
+  }
+
+  const amountDiff = Math.abs(txAmount - visit.totalAmount);
+  if (amountDiff < 0.01) {
+    score += 50;
+    signals.push('amount_exact');
+  } else {
+    const subsetMatch = findServiceSubsetMatch(visit.services, txAmount);
+    if (subsetMatch) {
+      score += 40;
+      signals.push('amount_subset');
+    } else if (amountDiff / Math.max(txAmount, visit.totalAmount) < 0.1) {
+      score += 10;
+      signals.push('amount_close');
+    }
+  }
+
+  return { score, signals };
+}
+
+function matchTransaction(transaction, ycRecords, contractorName, excludeVisitKeys) {
   const txAmount = parseFloat(transaction.amount);
   const txDate = transaction.date instanceof Date
     ? transaction.date.toISOString().split('T')[0]
     : String(transaction.date).split('T')[0];
 
-  const txClientName = contractorName || extractClientName(transaction);
+  const txClientName = extractClientName(transaction.description);
+  const txClientPhone = extractClientPhone(transaction.description);
 
-  const candidates = [];
-  for (const rec of ycRecords) {
-    if (rec.attendance !== 1 && rec.visit_attendance !== 1 && rec.attendance !== 2 && rec.visit_attendance !== 2) continue;
-    const recDate = rec.date.split(' ')[0];
-    if (recDate !== txDate) continue;
-
-    const recTotal = rec.services.reduce((sum, s) => sum + (s.cost_to_pay || 0), 0);
-    const diff = Math.abs(txAmount - recTotal);
-    const recClientName = rec.client?.name || rec.client?.display_name || '';
-    const nameScore = txClientName ? clientNameMatch(recClientName, txClientName) : 0;
-
-    candidates.push({
-      recordId: String(rec.id),
-      visitId: rec.visit_id,
-      clientName: recClientName,
-      clientPhone: rec.client?.phone || '',
-      recAmount: recTotal,
-      diff,
-      nameScore,
-      services: rec.services.map(s => s.title).join(', '),
-      date: recDate,
-    });
+  let visits = groupRecordsByVisit(ycRecords, txDate);
+  if (excludeVisitKeys && excludeVisitKeys.size > 0) {
+    visits = visits.filter(v => !excludeVisitKeys.has(String(v.visitId || v.recordIds[0])));
   }
+  if (visits.length === 0) return { status: 'not_found', data: null };
 
-  candidates.sort((a, b) => {
-    if (a.nameScore > 0.5 && b.nameScore <= 0.5) return -1;
-    if (b.nameScore > 0.5 && a.nameScore <= 0.5) return 1;
-    if (a.nameScore > 0.5 && b.nameScore > 0.5) {
-      if (Math.abs(a.nameScore - b.nameScore) > 0.1) return b.nameScore - a.nameScore;
-    }
+  const scored = visits.map(visit => {
+    const { score, signals } = scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contractorName);
+    const diff = Math.abs(txAmount - visit.totalAmount);
+    const subsetMatch = findServiceSubsetMatch(visit.services, txAmount);
+
+    return {
+      visit,
+      score,
+      signals,
+      diff,
+      subsetMatch,
+    };
+  });
+
+  scored.sort((a, b) => {
+    if (a.score !== b.score) return b.score - a.score;
     return a.diff - b.diff;
   });
 
-  const best = candidates[0];
-  if (!best) return { status: 'not_found', data: null };
+  const best = scored[0];
 
-  const result = { ...best };
-  delete result.nameScore;
-
-  if (best.nameScore >= 0.5 && best.diff === 0) {
-    return { status: 'match', data: result };
-  } else if (best.nameScore >= 0.5) {
-    return { status: 'amount_mismatch', data: result };
-  } else if (best.diff === 0) {
-    return { status: 'match', data: result };
-  } else {
-    return { status: 'amount_mismatch', data: result };
+  if (best.score === 0) {
+    return { status: 'not_found', data: null };
   }
+
+  const hasNameOrPhone = best.signals.some(s => s.startsWith('name_') || s === 'phone');
+  const hasExactAmount = best.signals.includes('amount_exact') || best.signals.includes('amount_subset');
+
+  let status;
+  if (hasNameOrPhone && hasExactAmount) {
+    status = 'match';
+  } else if (hasNameOrPhone) {
+    status = 'amount_mismatch';
+  } else if (hasExactAmount) {
+    status = 'weak_match';
+  } else {
+    status = 'not_found';
+  }
+
+  const v = best.visit;
+  const nonZeroServices = v.services.filter(s => s.amount > 0);
+
+  const visitKey = String(v.visitId || v.recordIds[0]);
+  const data = {
+    recordId: v.recordIds[0],
+    visitId: v.visitId,
+    visitKey,
+    clientName: v.clientName,
+    clientPhone: v.clientPhone,
+    recAmount: v.totalAmount,
+    diff: best.diff,
+    services: nonZeroServices.map(s => `${s.title} (${s.amount}₽)`).join(', '),
+    matchedServices: best.subsetMatch
+      ? best.subsetMatch.matched.map(s => `${s.title} (${s.amount}₽)`).join(', ')
+      : null,
+    signals: best.signals,
+    date: v.date,
+  };
+
+  return { status, data };
 }
 
 async function verifyTransaction(transactionId) {
@@ -190,7 +338,6 @@ async function verifyBatch(studioId, dateFrom, dateTo) {
 
   const records = await getRecords(yclientsId, dateFrom, dateTo);
   const results = [];
-  const usedRecords = new Set();
 
   const contractorIds = [...new Set(txRes.rows.filter(t => t.contractor_id).map(t => t.contractor_id))];
   const contractorMap = {};
@@ -200,13 +347,8 @@ async function verifyBatch(studioId, dateFrom, dateTo) {
   }
 
   for (const tx of txRes.rows) {
-    const availableRecords = records.filter(r => !usedRecords.has(String(r.id)));
     const contractorName = tx.contractor_id ? contractorMap[tx.contractor_id] || null : null;
-    const result = matchTransaction(tx, availableRecords, contractorName);
-
-    if (result.data?.recordId) {
-      usedRecords.add(result.data.recordId);
-    }
+    const result = matchTransaction(tx, records, contractorName);
 
     const now = new Date();
     await db.query(
