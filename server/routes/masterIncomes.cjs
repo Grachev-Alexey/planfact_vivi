@@ -80,6 +80,13 @@ router.post('/master-incomes', async (req, res) => {
   const studioId = master.studio_id;
   const accountId = await resolveAccountId(studioId, paymentType);
 
+  if (!accountId) {
+    const suffix = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
+    const studioRes = await db.query('SELECT name FROM studios WHERE id = $1', [studioId]);
+    const studioName = studioRes.rows.length > 0 ? studioRes.rows[0].name : '?';
+    return res.status(400).json({ error: `Счёт "${studioName} ${suffix}" не найден. Обратитесь к администратору.` });
+  }
+
   try {
     const result = await db.query(
       `INSERT INTO master_incomes (user_id, studio_id, amount, payment_type, category_id, client_name, client_phone, description, account_id)

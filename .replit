@@ -45,3 +45,9 @@ externalPort = 3000
 deploymentTarget = "autoscale"
 run = ["bash", "-c", "node server/index.cjs & npx vite preview --host 0.0.0.0 --port 5000"]
 build = ["npm", "run", "build"]
+
+[userenv]
+
+[userenv.shared]
+YCLIENTS_USER_TOKEN = "473f6462c2ac02dc43089084b2df53df"
+YCLIENTS_PARTNER_TOKEN = "je7w38mpew4wpgybzedn"

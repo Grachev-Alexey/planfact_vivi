@@ -91,6 +91,9 @@ const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
       </td>
       <td className={`px-4 py-3 text-right align-top whitespace-nowrap text-[13px] font-semibold tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
         <div className="flex items-center justify-end gap-1">
+          {tx.type === 'income' && tx.yclientsStatus && (
+            <span className={`w-2 h-2 rounded-full shrink-0 ${tx.yclientsStatus === 'match' ? 'bg-emerald-400' : tx.yclientsStatus === 'amount_mismatch' ? 'bg-amber-400' : tx.yclientsStatus === 'not_found' ? 'bg-rose-400' : 'bg-slate-300'}`} title={tx.yclientsStatus === 'match' ? 'YClients: совпадение' : tx.yclientsStatus === 'amount_mismatch' ? 'YClients: сумма отличается' : tx.yclientsStatus === 'not_found' ? 'YClients: не найдено' : ''} />
+          )}
           {tx.confirmed && <CheckCircle2 size={13} className="text-teal-500 shrink-0" />}
           <span>{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}</span>
         </div>

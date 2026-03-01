@@ -265,6 +265,9 @@ export const MasterIncomePage: React.FC = () => {
         setSuccessMsg('Поступление записано');
         setTimeout(() => setSuccessMsg(''), 3000);
         fetchIncomes();
+      } else {
+        const data = await res.json().catch(() => null);
+        setErrors([data?.error || 'Ошибка сохранения']);
       }
     } catch (e) {
       console.error(e);

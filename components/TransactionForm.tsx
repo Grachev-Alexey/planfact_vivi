@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { Transaction, TransactionType } from '../types';
 import { Button } from './ui/Button';
 import { DatePicker } from './ui/DatePicker';
-import { ChevronDown, ChevronRight, Search, Plus, X, Check } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search, Plus, X, Check, RefreshCw, CheckCircle2, AlertTriangle, XCircle, ExternalLink } from 'lucide-react';
+import { formatCurrency, formatDate } from '../utils/format';
 
 interface SearchableSelectProps {
   value: string;
@@ -255,6 +256,90 @@ const FormRow: React.FC<{ label: string; children: React.ReactNode; className?: 
     <div className="min-w-0">{children}</div>
   </div>
 );
+
+const YClientsSection: React.FC<{ transaction: Transaction }> = ({ transaction }) => {
+  const [status, setStatus] = useState(transaction.yclientsStatus || null);
+  const [data, setData] = useState<any>(() => {
+    try { return transaction.yclientsData ? JSON.parse(transaction.yclientsData) : null; } catch { return null; }
+  });
+  const [checkedAt, setCheckedAt] = useState(transaction.yclientsCheckedAt || null);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+
+  const handleVerify = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/yclients/verify/${transaction.id}`, {
+        method: 'POST',
+        headers: { 'x-user-id': String(user?.id || '') },
+      });
+      const result = await res.json();
+      setStatus(result.status);
+      setData(result.data || null);
+      setCheckedAt(result.checkedAt || new Date().toISOString());
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statusConfig: Record<string, { icon: React.ReactNode; label: string; color: string; bg: string }> = {
+    match: { icon: <CheckCircle2 size={16} />, label: 'Совпадение найдено', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+    amount_mismatch: { icon: <AlertTriangle size={16} />, label: 'Сумма отличается', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+    not_found: { icon: <XCircle size={16} />, label: 'Не найдено в YClients', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
+    no_studio: { icon: <XCircle size={16} />, label: 'Студия не привязана к YClients', color: 'text-slate-500', bg: 'bg-slate-50 border-slate-200' },
+    error: { icon: <XCircle size={16} />, label: 'Ошибка проверки', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
+  };
+
+  const cfg = status ? statusConfig[status] : null;
+
+  return (
+    <div className="border-t border-slate-200 pt-4 mt-2">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">YClients</span>
+        <button
+          type="button"
+          onClick={handleVerify}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+          {status ? 'Проверить ещё раз' : 'Проверить'}
+        </button>
+      </div>
+
+      {cfg ? (
+        <div className={`rounded-lg border p-3 ${cfg.bg}`}>
+          <div className={`flex items-center gap-2 ${cfg.color} font-medium text-sm`}>
+            {cfg.icon}
+            {cfg.label}
+          </div>
+          {data && (
+            <div className="mt-2 space-y-1 text-xs text-slate-600">
+              {data.clientName && <div><span className="text-slate-400">Клиент:</span> {data.clientName}{data.clientPhone ? ` (${data.clientPhone})` : ''}</div>}
+              {data.services && <div><span className="text-slate-400">Услуги:</span> {data.services}</div>}
+              {data.recAmount !== undefined && (
+                <div>
+                  <span className="text-slate-400">Сумма в YClients:</span>{' '}
+                  <span className={data.diff > 0 ? 'font-semibold text-amber-700' : 'text-emerald-700'}>{formatCurrency(data.recAmount)}</span>
+                  {data.diff > 0 && <span className="text-amber-600 ml-1">(разница: {formatCurrency(data.diff)})</span>}
+                </div>
+              )}
+            </div>
+          )}
+          {checkedAt && (
+            <div className="mt-2 text-[10px] text-slate-400">Проверено: {formatDate(checkedAt)}</div>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-400 text-center">
+          Нажмите «Проверить» для сверки с YClients
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface TransactionFormProps {
   onClose: () => void;
@@ -527,6 +612,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
             placeholder="Комментарий..."
           />
         </FormRow>
+
+        {initialData && type === 'income' && (
+          <YClientsSection transaction={initialData} />
+        )}
 
         {errors.length > 0 && (
           <div className="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3">

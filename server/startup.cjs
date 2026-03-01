@@ -84,6 +84,31 @@ const initDB = async () => {
     await db.query(`ALTER TABLE IF EXISTS transactions DROP COLUMN IF EXISTS project_id`);
     await db.query(`DROP TABLE IF EXISTS projects`);
 
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='studios' AND column_name='yclients_id') THEN
+          ALTER TABLE studios ADD COLUMN yclients_id TEXT;
+        END IF;
+      END $$;
+    `);
+
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_status') THEN
+          ALTER TABLE transactions ADD COLUMN yclients_status TEXT DEFAULT NULL;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_record_id') THEN
+          ALTER TABLE transactions ADD COLUMN yclients_record_id TEXT DEFAULT NULL;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_data') THEN
+          ALTER TABLE transactions ADD COLUMN yclients_data TEXT DEFAULT NULL;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_checked_at') THEN
+          ALTER TABLE transactions ADD COLUMN yclients_checked_at TIMESTAMP DEFAULT NULL;
+        END IF;
+      END $$;
+    `);
+
     // Add legal_entity_id to accounts if not exists
     await db.query(`
       DO $$ BEGIN
@@ -206,6 +231,18 @@ const initDB = async () => {
         END IF;
       END $$;
     `);
+
+    const yclientsMapping = {
+      'Екатеринбург': '1073250',
+      'Новосибирск': '990785',
+      'Омск': '1147984',
+      'Санкт-Петербург (Пионерская)': '992493',
+      'Санкт-Петербург (Садовая)': '993170',
+      'Уфа': '993180',
+    };
+    for (const [name, ycId] of Object.entries(yclientsMapping)) {
+      await db.query('UPDATE studios SET yclients_id = $1 WHERE name = $2 AND (yclients_id IS NULL OR yclients_id = $3)', [ycId, name, '']);
+    }
 
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
