@@ -85,6 +85,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
 
   const [newName, setNewName] = useState('');
   const [newInn, setNewInn] = useState('');
+  const [newPhone, setNewPhone] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newParentId, setNewParentId] = useState('');
   const [newAccountType, setNewAccountType] = useState<'cash' | 'card' | 'account'>('cash');
@@ -97,6 +98,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const [editModal, setEditModal] = useState<{ type: TabType; item: any } | null>(null);
   const [editName, setEditName] = useState('');
   const [editInn, setEditInn] = useState('');
+  const [editPhone, setEditPhone] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editParentId, setEditParentId] = useState('');
   const [editAccountType, setEditAccountType] = useState<'cash' | 'card' | 'account'>('cash');
@@ -113,6 +115,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const resetAddForm = () => {
     setNewName('');
     setNewInn('');
+    setNewPhone('');
     setNewDescription('');
     setNewParentId('');
     setNewAccountType('cash');
@@ -130,6 +133,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       setEditParentId(item.parentId || '');
     } else if (type === 'contractors') {
       setEditInn(item.inn || '');
+      setEditPhone(item.phone || '');
       setEditDescription(item.description || '');
     } else if (type === 'accounts') {
       setEditAccountType(item.type || 'cash');
@@ -157,6 +161,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       if (newParentId) data.parentId = newParentId;
     } else if (activeTab === 'contractors') {
       data.inn = newInn;
+      data.phone = newPhone;
       data.description = newDescription;
     } else if (activeTab === 'accounts') {
       data.type = newAccountType;
@@ -188,6 +193,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       data.parentId = editParentId || null;
     } else if (type === 'contractors') {
       data.inn = editInn;
+      data.phone = editPhone;
       data.description = editDescription;
     } else if (type === 'accounts') {
       data.type = editAccountType;
@@ -281,11 +287,15 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
             <label className="text-sm font-medium text-slate-700">Название</label>
             <input autoFocus type="text" value={newName} onChange={e => setNewName(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" placeholder="Введите название..." />
           </div>
-          <div className="w-full md:w-48 space-y-1">
+          <div className="w-full md:w-44 space-y-1">
+            <label className="text-sm font-medium text-slate-700">Телефон</label>
+            <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" placeholder="+7..." />
+          </div>
+          <div className="w-full md:w-40 space-y-1">
             <label className="text-sm font-medium text-slate-700">ИНН</label>
             <input type="text" value={newInn} onChange={e => setNewInn(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
           </div>
-          <div className="w-full md:w-56 space-y-1">
+          <div className="w-full md:w-48 space-y-1">
             <label className="text-sm font-medium text-slate-700">Описание</label>
             <input type="text" value={newDescription} onChange={e => setNewDescription(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
           </div>
@@ -446,6 +456,10 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
 
             {type === 'contractors' && (
               <>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Телефон</label>
+                  <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" placeholder="+7..." />
+                </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">ИНН</label>
                   <input type="text" value={editInn} onChange={e => setEditInn(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
@@ -678,6 +692,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 font-semibold uppercase">
               <th className="px-6 py-3">Название</th>
+              {activeTab === 'contractors' && <th className="px-6 py-3">Телефон</th>}
               {activeTab === 'contractors' && <th className="px-6 py-3">ИНН</th>}
               {activeTab === 'contractors' && <th className="px-6 py-3">Описание</th>}
               {activeTab === 'studios' && <th className="px-6 py-3">Адрес</th>}
@@ -686,10 +701,11 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {items.length === 0 ? (
-              <tr><td colSpan={activeTab === 'contractors' ? 4 : 3} className="p-8 text-center text-slate-400">Список пуст</td></tr>
+              <tr><td colSpan={activeTab === 'contractors' ? 5 : 3} className="p-8 text-center text-slate-400">Список пуст</td></tr>
             ) : items.map((item: any) => (
               <tr key={item.id} className="hover:bg-slate-50 group">
                 <td className="px-6 py-3 font-medium text-slate-700">{item.name}</td>
+                {activeTab === 'contractors' && <td className="px-6 py-3 text-slate-500">{item.phone || '-'}</td>}
                 {activeTab === 'contractors' && <td className="px-6 py-3 text-slate-500">{item.inn || '-'}</td>}
                 {activeTab === 'contractors' && <td className="px-6 py-3 text-slate-500">{item.description || '-'}</td>}
                 {activeTab === 'studios' && <td className="px-6 py-3 text-slate-500">{item.address || '-'}</td>}

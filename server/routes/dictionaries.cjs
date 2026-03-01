@@ -18,6 +18,7 @@ const fieldLabels = {
   parentId: 'родительская статья',
   parent_id: 'родительская статья',
   inn: 'ИНН',
+  phone: 'телефон',
   kpp: 'КПП',
   description: 'описание',
   address: 'адрес',
@@ -77,6 +78,7 @@ const describeItem = async (tableName, item) => {
     }
   } else if (tableName === 'contractors') {
     if (item.inn) parts.push(`ИНН: ${item.inn}`);
+    if (item.phone) parts.push(`тел: ${item.phone}`);
   } else if (tableName === 'legal_entities') {
     if (item.inn) parts.push(`ИНН: ${item.inn}`);
     if (item.kpp) parts.push(`КПП: ${item.kpp}`);
@@ -186,7 +188,7 @@ const createCrudHandlers = (tableName, fields) => {
 };
 
 createCrudHandlers('categories', ['name', 'type', 'parentId', 'icon']);
-createCrudHandlers('contractors', ['name', 'inn', 'description']);
+createCrudHandlers('contractors', ['name', 'inn', 'phone', 'description']);
 createCrudHandlers('accounts', ['name', 'type', 'currency', 'initialBalance', 'legalEntityId']);
 createCrudHandlers('studios', ['name', 'address', 'color']);
 createCrudHandlers('legal_entities', ['name', 'inn', 'kpp', 'address', 'description']);

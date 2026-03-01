@@ -39,6 +39,7 @@ export interface Contractor {
   id: string;
   name: string;
   inn?: string;
+  phone?: string;
   description?: string;
 }
 

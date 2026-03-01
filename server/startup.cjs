@@ -86,6 +86,14 @@ const initDB = async () => {
 
     await db.query(`
       DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='contractors' AND column_name='phone') THEN
+          ALTER TABLE contractors ADD COLUMN phone TEXT;
+        END IF;
+      END $$;
+    `);
+
+    await db.query(`
+      DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='studios' AND column_name='yclients_id') THEN
           ALTER TABLE studios ADD COLUMN yclients_id TEXT;
         END IF;

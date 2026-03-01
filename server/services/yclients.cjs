@@ -156,12 +156,19 @@ function findServiceSubsetMatch(services, targetAmount) {
   return null;
 }
 
-function scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contractorName) {
+function scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contractorName, contractorPhone) {
   let score = 0;
   let signals = [];
 
-  const nameToMatch = contractorName || txClientName;
+  if (contractorPhone && phoneMatch(visit.clientPhone, contractorPhone)) {
+    score += 150;
+    signals.push('contractor_phone');
+  } else if (txClientPhone && phoneMatch(visit.clientPhone, txClientPhone)) {
+    score += 80;
+    signals.push('phone');
+  }
 
+  const nameToMatch = contractorName || txClientName;
   if (nameToMatch) {
     const ns = clientNameScore(visit.clientName, nameToMatch);
     if (ns >= 0.8) {
@@ -171,11 +178,6 @@ function scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contracto
       score += 60;
       signals.push('name_partial');
     }
-  }
-
-  if (txClientPhone && phoneMatch(visit.clientPhone, txClientPhone)) {
-    score += 80;
-    signals.push('phone');
   }
 
   const amountDiff = Math.abs(txAmount - visit.totalAmount);
@@ -196,7 +198,7 @@ function scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contracto
   return { score, signals };
 }
 
-function matchTransaction(transaction, ycRecords, contractorName, excludeVisitKeys) {
+function matchTransaction(transaction, ycRecords, contractorName, contractorPhone, excludeVisitKeys) {
   const txAmount = parseFloat(transaction.amount);
   const txDate = transaction.date instanceof Date
     ? transaction.date.toISOString().split('T')[0]
@@ -212,7 +214,7 @@ function matchTransaction(transaction, ycRecords, contractorName, excludeVisitKe
   if (visits.length === 0) return { status: 'not_found', data: null };
 
   const scored = visits.map(visit => {
-    const { score, signals } = scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contractorName);
+    const { score, signals } = scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contractorName, contractorPhone);
     const diff = Math.abs(txAmount - visit.totalAmount);
     const subsetMatch = findServiceSubsetMatch(visit.services, txAmount);
 
@@ -236,7 +238,7 @@ function matchTransaction(transaction, ycRecords, contractorName, excludeVisitKe
     return { status: 'not_found', data: null };
   }
 
-  const hasNameOrPhone = best.signals.some(s => s.startsWith('name_') || s === 'phone');
+  const hasNameOrPhone = best.signals.some(s => s.startsWith('name_') || s === 'phone' || s === 'contractor_phone');
   const hasExactAmount = best.signals.includes('amount_exact') || best.signals.includes('amount_subset');
 
   let status;
@@ -296,13 +298,17 @@ async function verifyTransaction(transactionId) {
 
   try {
     let contractorName = null;
+    let contractorPhone = null;
     if (tx.contractor_id) {
-      const cRes = await db.query('SELECT name FROM contractors WHERE id = $1', [tx.contractor_id]);
-      if (cRes.rows.length > 0) contractorName = cRes.rows[0].name;
+      const cRes = await db.query('SELECT name, phone FROM contractors WHERE id = $1', [tx.contractor_id]);
+      if (cRes.rows.length > 0) {
+        contractorName = cRes.rows[0].name;
+        contractorPhone = cRes.rows[0].phone || null;
+      }
     }
 
     const records = await getRecords(tx.yclients_id, txDate, txDate);
-    const result = matchTransaction(tx, records, contractorName);
+    const result = matchTransaction(tx, records, contractorName, contractorPhone);
 
     const now = new Date();
     await db.query(
@@ -342,13 +348,13 @@ async function verifyBatch(studioId, dateFrom, dateTo) {
   const contractorIds = [...new Set(txRes.rows.filter(t => t.contractor_id).map(t => t.contractor_id))];
   const contractorMap = {};
   if (contractorIds.length > 0) {
-    const cRes = await db.query('SELECT id, name FROM contractors WHERE id = ANY($1)', [contractorIds]);
-    for (const c of cRes.rows) contractorMap[c.id] = c.name;
+    const cRes = await db.query('SELECT id, name, phone FROM contractors WHERE id = ANY($1)', [contractorIds]);
+    for (const c of cRes.rows) contractorMap[c.id] = { name: c.name, phone: c.phone };
   }
 
   for (const tx of txRes.rows) {
-    const contractorName = tx.contractor_id ? contractorMap[tx.contractor_id] || null : null;
-    const result = matchTransaction(tx, records, contractorName);
+    const contractor = tx.contractor_id ? contractorMap[tx.contractor_id] || null : null;
+    const result = matchTransaction(tx, records, contractor?.name || null, contractor?.phone || null);
 
     const now = new Date();
     await db.query(

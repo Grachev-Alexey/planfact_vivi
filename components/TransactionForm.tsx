@@ -258,6 +258,7 @@ const FormRow: React.FC<{ label: string; children: React.ReactNode; className?: 
 );
 
 const SIGNAL_LABELS: Record<string, string> = {
+  contractor_phone: 'Телефон контрагента совпадает',
   name_exact: 'Имя клиента совпадает',
   name_partial: 'Имя клиента похоже',
   phone: 'Телефон совпадает',
