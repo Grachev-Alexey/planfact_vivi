@@ -39,7 +39,7 @@ A finance management application (Russian language UI) built with React + Vite f
 - `server/utils/logger.cjs` - Activity logging with Russian translations
 
 ### Database Tables
-- users, activity_logs, accounts, categories, studios, contractors, transactions, legal_entities, payment_requests
+- users (+ studio_id for master role), activity_logs, accounts, categories, studios, contractors, transactions, legal_entities, payment_requests, master_incomes
 
 ### API
 - All frontend API calls use `/api` prefix, proxied by Vite to backend on port 3001
@@ -47,12 +47,14 @@ A finance management application (Russian language UI) built with React + Vite f
 - Transactions: POST/PUT/DELETE /api/transactions
 - Dictionaries: POST/PUT/DELETE for categories, contractors, accounts, studios, legal_entities
 - Payment Requests: GET/POST/PUT/DELETE /api/payment-requests
+- Master Incomes: GET/POST /api/master-incomes
 - Init data: GET /api/init
 
 ### User Roles
 - admin: full access to all features
 - user: full access to all features
 - requester: can only create payment requests and view their own request history
+- master: tied to a specific studio, can only create income entries via standalone page (/master)
 
 ### Payment Requests
 - Table: payment_requests (user_id, amount, category_id, studio_id, contractor_id, description, status, payment_date, accrual_date, account_id, paid_at)

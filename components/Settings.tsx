@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Users, Trash2, Shield, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, Filter } from 'lucide-react';
@@ -41,6 +42,7 @@ const entityOptions = [
 
 export const Settings: React.FC = () => {
   const { user } = useAuth();
+  const { studios } = useFinance();
   const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users');
 
   const [users, setUsers] = useState<User[]>([]);
@@ -57,7 +59,7 @@ export const Settings: React.FC = () => {
   const [searchInput, setSearchInput] = useState('');
 
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'user' });
+  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'user', studioId: '' });
 
   useEffect(() => {
     fetchUsers();
@@ -112,7 +114,7 @@ export const Settings: React.FC = () => {
         body: JSON.stringify({ ...newUser, currentUserId: user?.id })
       });
       setIsAddUserOpen(false);
-      setNewUser({ username: '', password: '', role: 'user' });
+      setNewUser({ username: '', password: '', role: 'user', studioId: '' });
       fetchUsers();
     } catch (err) {
       console.error(err);
@@ -205,8 +207,8 @@ export const Settings: React.FC = () => {
                         {u.username}
                      </td>
                      <td className="px-6 py-3">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${u.role === 'admin' ? 'bg-teal-50 text-teal-700' : u.role === 'requester' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                            {u.role === 'admin' ? 'Администратор' : u.role === 'requester' ? 'Запрос выплат' : 'Пользователь'}
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${u.role === 'admin' ? 'bg-teal-50 text-teal-700' : u.role === 'requester' ? 'bg-amber-50 text-amber-700' : u.role === 'master' ? 'bg-purple-50 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {u.role === 'admin' ? 'Администратор' : u.role === 'requester' ? 'Запрос выплат' : u.role === 'master' ? 'Мастер' : 'Пользователь'}
                         </span>
                      </td>
                      <td className="px-6 py-3 text-sm text-slate-500">{formatDate(u.createdAt)}</td>
@@ -378,12 +380,28 @@ export const Settings: React.FC = () => {
                    <select
                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"
                      value={newUser.role}
-                     onChange={e => setNewUser({...newUser, role: e.target.value})}
+                     onChange={e => setNewUser({...newUser, role: e.target.value, studioId: ''})}
                    >
                        <option value="user">Пользователь</option>
                        <option value="admin">Администратор</option>
                        <option value="requester">Запрос выплат</option>
+                       <option value="master">Мастер</option>
                    </select>
+                   {newUser.role === 'master' && (
+                     <div className="mt-3">
+                       <label className="block text-sm font-bold text-slate-500 mb-1">Студия</label>
+                       <select
+                         className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"
+                         value={newUser.studioId}
+                         onChange={e => setNewUser({...newUser, studioId: e.target.value})}
+                       >
+                         <option value="">Выберите студию</option>
+                         {studios.map(s => (
+                           <option key={s.id} value={s.id}>{s.name}</option>
+                         ))}
+                       </select>
+                     </div>
+                   )}
                </div>
                <div className="pt-4 flex justify-end gap-3">
                    <Button type="button" variant="secondary" onClick={() => setIsAddUserOpen(false)}>Отмена</Button>

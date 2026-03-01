@@ -4,6 +4,7 @@ interface User {
   id: number;
   username: string;
   role: string;
+  studioId?: number | null;
 }
 
 interface AuthContextType {

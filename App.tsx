@@ -10,6 +10,7 @@ import { Settings } from './components/Settings';
 import { LoginPage } from './components/LoginPage';
 import { ReportsPage } from './components/ReportsPage';
 import { PaymentRequestPage } from './components/PaymentRequestPage';
+import { MasterIncomePage } from './components/MasterIncomePage';
 import { LogOut } from 'lucide-react';
 import { formatCurrency } from './utils/format';
 
@@ -64,18 +65,30 @@ const AdminRoute: React.FC<{ children: React.ReactElement }> = ({ children }) =>
   const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user?.role === 'requester') return <Navigate to="/payment-requests" replace />;
+  if (user?.role === 'master') return <Navigate to="/master" replace />;
   return children;
 };
 
 const AppRoutes = () => {
     const { user } = useAuth();
     const isRequester = user?.role === 'requester';
+    const isMaster = user?.role === 'master';
 
     const withLayout = (child: React.ReactNode) => (
       <Layout>
         {child}
       </Layout>
     );
+
+    if (isMaster) {
+      return (
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/master" element={<ProtectedRoute><MasterIncomePage /></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/master" replace />} />
+        </Routes>
+      );
+    }
 
     if (isRequester) {
       return (

@@ -23,7 +23,7 @@ router.post('/login', async (req, res) => {
 // Get Users
 router.get('/users', async (req, res) => {
   try {
-    const result = await db.query("SELECT id, username, role, created_at FROM users ORDER BY id");
+    const result = await db.query("SELECT id, username, role, studio_id, created_at FROM users ORDER BY id");
     res.json(result.rows.map(toCamelCase));
   } catch (err) {
     res.status(500).json({ error: 'Error fetching users' });
@@ -32,11 +32,14 @@ router.get('/users', async (req, res) => {
 
 // Create User
 router.post('/users', async (req, res) => {
-  const { username, password, role, currentUserId } = req.body;
+  const { username, password, role, studioId, currentUserId } = req.body;
+  if (role === 'master' && !studioId) {
+    return res.status(400).json({ error: 'studioId required for master role' });
+  }
   try {
     const result = await db.query(
-      "INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING id, username, role",
-      [username, password, role || 'user']
+      "INSERT INTO users (username, password, role, studio_id) VALUES ($1, $2, $3, $4) RETURNING id, username, role, studio_id",
+      [username, password, role || 'user', role === 'master' ? studioId : null]
     );
     const newUser = result.rows[0];
     await logAction(currentUserId, 'create', 'user', newUser.id, { name: username });

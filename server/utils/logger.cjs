@@ -15,7 +15,8 @@ const entityLabels = {
   contractors: 'Контрагент',
   accounts: 'Счет',
   studios: 'Студия',
-  legal_entities: 'Юрлицо'
+  legal_entities: 'Юрлицо',
+  master_income: 'Поступление мастера'
 };
 
 const typeLabels = {

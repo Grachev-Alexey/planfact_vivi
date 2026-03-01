@@ -175,6 +175,29 @@ const initDB = async () => {
       END $$;
     `);
 
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='studio_id') THEN
+          ALTER TABLE users ADD COLUMN studio_id INTEGER REFERENCES studios(id);
+        END IF;
+      END $$;
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS master_incomes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        studio_id INTEGER REFERENCES studios(id),
+        amount NUMERIC(15,2) NOT NULL,
+        payment_type TEXT NOT NULL,
+        category_id INTEGER REFERENCES categories(id),
+        client_name TEXT DEFAULT '',
+        client_phone TEXT DEFAULT '',
+        description TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
       await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['grachev', 'cd5d56a8', 'admin']);
