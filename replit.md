@@ -120,8 +120,10 @@ A finance management application (Russian language UI) built with React + Vite f
 - Optimistic updates: transactions appear/update/delete instantly in UI
 - YClients verification: multi-signal matching engine with visit grouping
   - Records grouped by visit_id (one visit = multiple services/transactions)
-  - Matching signals: client name (from description or contractor), phone, amount (exact/subset/close)
-  - Service subset matching via dynamic programming (handles multi-payment visits: предоплата + по акции etc.)
+  - Matching signals: client name (from description or contractor), phone, contractor_phone, amount (exact/subset/close), goods_exact
+  - Service AND goods/product subset matching via dynamic programming (handles multi-payment visits + product sales/абонементы)
+  - goods_transactions from YClients records are included in visit totals and subset matching
   - Statuses: match (name+amount), weak_match (amount only), amount_mismatch (name but not amount), not_found
-  - Frontend shows matched signals as tags, all visit services, and matched subset
+  - Frontend shows matched signals as tags, all visit services/goods, and matched subset
+  - Contractors have phone field used as high-priority matching signal (score 150)
   - Master income account resolution returns error if account not found

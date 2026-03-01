@@ -264,6 +264,7 @@ const SIGNAL_LABELS: Record<string, string> = {
   phone: 'Телефон совпадает',
   amount_exact: 'Сумма совпадает с визитом',
   amount_subset: 'Сумма совпадает с частью услуг',
+  goods_exact: 'Сумма совпадает с товаром',
   amount_close: 'Сумма примерно совпадает',
 };
 
@@ -332,10 +333,10 @@ const YClientsSection: React.FC<{ transaction: Transaction }> = ({ transaction }
                 <div><span className="text-slate-400">Клиент:</span> {data.clientName}{data.clientPhone ? ` (${data.clientPhone})` : ''}</div>
               )}
               {data.services && (
-                <div><span className="text-slate-400">Все услуги визита:</span> {data.services}</div>
+                <div><span className="text-slate-400">Все услуги/товары визита:</span> {data.services}</div>
               )}
               {data.matchedServices && (
-                <div><span className="text-slate-400">Совпавшие услуги:</span> <span className="text-emerald-700 font-medium">{data.matchedServices}</span></div>
+                <div><span className="text-slate-400">Совпавшие позиции:</span> <span className="text-emerald-700 font-medium">{data.matchedServices}</span></div>
               )}
               {data.recAmount !== undefined && (
                 <div>
@@ -348,7 +349,7 @@ const YClientsSection: React.FC<{ transaction: Transaction }> = ({ transaction }
                 <div className="flex flex-wrap gap-1 pt-1">
                   {data.signals.map((s: string) => (
                     <span key={s} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                      s.startsWith('name_') || s === 'phone' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                      s.startsWith('name_') || s === 'phone' || s === 'contractor_phone' ? 'bg-blue-100 text-blue-700' : s === 'goods_exact' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'
                     }`}>
                       {SIGNAL_LABELS[s] || s}
                     </span>

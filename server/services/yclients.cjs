@@ -100,7 +100,9 @@ function groupRecordsByVisit(records, txDate) {
         clientName: rec.client?.name || rec.client?.display_name || '',
         clientPhone: rec.client?.phone || '',
         services: [],
+        goods: [],
         totalAmount: 0,
+        goodsAmount: 0,
         date: recDate,
       });
     }
@@ -111,6 +113,16 @@ function groupRecordsByVisit(records, txDate) {
         const amount = parseFloat(s.cost_to_pay) || 0;
         visit.services.push({ title: s.title, amount });
         visit.totalAmount += amount;
+      }
+    }
+    if (rec.goods_transactions) {
+      for (const g of rec.goods_transactions) {
+        const amount = parseFloat(g.cost_to_pay) || parseFloat(g.cost) || 0;
+        if (amount > 0) {
+          visit.goods.push({ title: g.title, amount });
+          visit.goodsAmount += amount;
+          visit.totalAmount += amount;
+        }
       }
     }
   }
@@ -185,10 +197,14 @@ function scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contracto
     score += 50;
     signals.push('amount_exact');
   } else {
-    const subsetMatch = findServiceSubsetMatch(visit.services, txAmount);
+    const allItems = [...visit.services, ...visit.goods];
+    const subsetMatch = findServiceSubsetMatch(allItems, txAmount);
     if (subsetMatch) {
       score += 40;
       signals.push('amount_subset');
+    } else if (visit.goodsAmount > 0 && Math.abs(txAmount - visit.goodsAmount) < 0.01) {
+      score += 45;
+      signals.push('goods_exact');
     } else if (amountDiff / Math.max(txAmount, visit.totalAmount) < 0.1) {
       score += 10;
       signals.push('amount_close');
@@ -216,7 +232,8 @@ function matchTransaction(transaction, ycRecords, contractorName, contractorPhon
   const scored = visits.map(visit => {
     const { score, signals } = scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contractorName, contractorPhone);
     const diff = Math.abs(txAmount - visit.totalAmount);
-    const subsetMatch = findServiceSubsetMatch(visit.services, txAmount);
+    const allItems = [...visit.services, ...visit.goods];
+    const subsetMatch = findServiceSubsetMatch(allItems, txAmount);
 
     return {
       visit,
@@ -239,7 +256,7 @@ function matchTransaction(transaction, ycRecords, contractorName, contractorPhon
   }
 
   const hasNameOrPhone = best.signals.some(s => s.startsWith('name_') || s === 'phone' || s === 'contractor_phone');
-  const hasExactAmount = best.signals.includes('amount_exact') || best.signals.includes('amount_subset');
+  const hasExactAmount = best.signals.includes('amount_exact') || best.signals.includes('amount_subset') || best.signals.includes('goods_exact');
 
   let status;
   if (hasNameOrPhone && hasExactAmount) {
@@ -254,8 +271,13 @@ function matchTransaction(transaction, ycRecords, contractorName, contractorPhon
 
   const v = best.visit;
   const nonZeroServices = v.services.filter(s => s.amount > 0);
+  const nonZeroGoods = v.goods.filter(g => g.amount > 0);
 
   const visitKey = String(v.visitId || v.recordIds[0]);
+  const allItemsStr = [
+    ...nonZeroServices.map(s => `${s.title} (${s.amount}₽)`),
+    ...nonZeroGoods.map(g => `🛍 ${g.title} (${g.amount}₽)`),
+  ].join(', ');
   const data = {
     recordId: v.recordIds[0],
     visitId: v.visitId,
@@ -264,7 +286,8 @@ function matchTransaction(transaction, ycRecords, contractorName, contractorPhon
     clientPhone: v.clientPhone,
     recAmount: v.totalAmount,
     diff: best.diff,
-    services: nonZeroServices.map(s => `${s.title} (${s.amount}₽)`).join(', '),
+    services: allItemsStr,
+    goods: nonZeroGoods.length > 0 ? nonZeroGoods.map(g => `${g.title} (${g.amount}₽)`).join(', ') : null,
     matchedServices: best.subsetMatch
       ? best.subsetMatch.matched.map(s => `${s.title} (${s.amount}₽)`).join(', ')
       : null,
