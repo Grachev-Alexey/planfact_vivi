@@ -166,8 +166,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ value, onChange, pl
 const PAYMENT_TYPES = [
   { id: 'cash', label: 'Наличные' },
   { id: 'card', label: 'Карта' },
-  { id: 'transfer', label: 'Перевод' },
-  { id: 'online', label: 'Онлайн-оплата' },
+  { id: 'sbp', label: 'СБП' },
+  { id: 'ukassa', label: 'Ю-Касса' },
 ];
 
 export const MasterIncomePage: React.FC = () => {

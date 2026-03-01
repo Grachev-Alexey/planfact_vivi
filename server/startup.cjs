@@ -194,8 +194,17 @@ const initDB = async () => {
         client_name TEXT DEFAULT '',
         client_phone TEXT DEFAULT '',
         description TEXT DEFAULT '',
+        account_id INTEGER REFERENCES accounts(id),
         created_at TIMESTAMP DEFAULT NOW()
       )
+    `);
+
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='master_incomes' AND column_name='account_id') THEN
+          ALTER TABLE master_incomes ADD COLUMN account_id INTEGER REFERENCES accounts(id);
+        END IF;
+      END $$;
     `);
 
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
