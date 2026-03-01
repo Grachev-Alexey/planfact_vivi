@@ -35,11 +35,45 @@ async function getRecords(companyId, startDate, endDate) {
   return allRecords;
 }
 
-function matchTransaction(transaction, ycRecords) {
+function extractClientName(transaction) {
+  const desc = transaction.description || '';
+  const parts = desc.split('|').map(s => s.trim());
+  if (parts.length >= 2) {
+    const name = parts[1];
+    if (name && !/^\+?\d[\d\s\-()]+$/.test(name)) {
+      return name;
+    }
+  }
+  return null;
+}
+
+function normalizeForCompare(str) {
+  return (str || '').toLowerCase().replace(/ё/g, 'е').trim();
+}
+
+function clientNameMatch(ycName, txName) {
+  if (!ycName || !txName) return 0;
+  const a = normalizeForCompare(ycName);
+  const b = normalizeForCompare(txName);
+  if (a === b) return 1;
+  const aParts = a.split(/\s+/).filter(Boolean);
+  const bParts = b.split(/\s+/).filter(Boolean);
+  if (aParts.length === 0 || bParts.length === 0) return 0;
+  let matched = 0;
+  for (const bp of bParts) {
+    if (aParts.some(ap => ap === bp || ap.startsWith(bp) || bp.startsWith(ap))) matched++;
+  }
+  const score = matched / Math.max(aParts.length, bParts.length);
+  return score >= 0.5 ? score : 0;
+}
+
+function matchTransaction(transaction, ycRecords, contractorName) {
   const txAmount = parseFloat(transaction.amount);
   const txDate = transaction.date instanceof Date
     ? transaction.date.toISOString().split('T')[0]
     : String(transaction.date).split('T')[0];
+
+  const txClientName = contractorName || extractClientName(transaction);
 
   const candidates = [];
   for (const rec of ycRecords) {
@@ -49,26 +83,45 @@ function matchTransaction(transaction, ycRecords) {
 
     const recTotal = rec.services.reduce((sum, s) => sum + (s.cost_to_pay || 0), 0);
     const diff = Math.abs(txAmount - recTotal);
+    const recClientName = rec.client?.name || rec.client?.display_name || '';
+    const nameScore = txClientName ? clientNameMatch(recClientName, txClientName) : 0;
+
     candidates.push({
       recordId: String(rec.id),
       visitId: rec.visit_id,
-      clientName: rec.client?.name || rec.client?.display_name || '',
+      clientName: recClientName,
       clientPhone: rec.client?.phone || '',
       recAmount: recTotal,
       diff,
+      nameScore,
       services: rec.services.map(s => s.title).join(', '),
       date: recDate,
     });
   }
 
-  candidates.sort((a, b) => a.diff - b.diff);
+  candidates.sort((a, b) => {
+    if (a.nameScore > 0.5 && b.nameScore <= 0.5) return -1;
+    if (b.nameScore > 0.5 && a.nameScore <= 0.5) return 1;
+    if (a.nameScore > 0.5 && b.nameScore > 0.5) {
+      if (Math.abs(a.nameScore - b.nameScore) > 0.1) return b.nameScore - a.nameScore;
+    }
+    return a.diff - b.diff;
+  });
+
   const best = candidates[0];
   if (!best) return { status: 'not_found', data: null };
 
-  if (best.diff === 0) {
-    return { status: 'match', data: best };
+  const result = { ...best };
+  delete result.nameScore;
+
+  if (best.nameScore >= 0.5 && best.diff === 0) {
+    return { status: 'match', data: result };
+  } else if (best.nameScore >= 0.5) {
+    return { status: 'amount_mismatch', data: result };
+  } else if (best.diff === 0) {
+    return { status: 'match', data: result };
   } else {
-    return { status: 'amount_mismatch', data: best };
+    return { status: 'amount_mismatch', data: result };
   }
 }
 
@@ -94,8 +147,14 @@ async function verifyTransaction(transactionId) {
     : String(tx.date).split('T')[0];
 
   try {
+    let contractorName = null;
+    if (tx.contractor_id) {
+      const cRes = await db.query('SELECT name FROM contractors WHERE id = $1', [tx.contractor_id]);
+      if (cRes.rows.length > 0) contractorName = cRes.rows[0].name;
+    }
+
     const records = await getRecords(tx.yclients_id, txDate, txDate);
-    const result = matchTransaction(tx, records);
+    const result = matchTransaction(tx, records, contractorName);
 
     const now = new Date();
     await db.query(
@@ -133,9 +192,17 @@ async function verifyBatch(studioId, dateFrom, dateTo) {
   const results = [];
   const usedRecords = new Set();
 
+  const contractorIds = [...new Set(txRes.rows.filter(t => t.contractor_id).map(t => t.contractor_id))];
+  const contractorMap = {};
+  if (contractorIds.length > 0) {
+    const cRes = await db.query('SELECT id, name FROM contractors WHERE id = ANY($1)', [contractorIds]);
+    for (const c of cRes.rows) contractorMap[c.id] = c.name;
+  }
+
   for (const tx of txRes.rows) {
     const availableRecords = records.filter(r => !usedRecords.has(String(r.id)));
-    const result = matchTransaction(tx, availableRecords);
+    const contractorName = tx.contractor_id ? contractorMap[tx.contractor_id] || null : null;
+    const result = matchTransaction(tx, availableRecords, contractorName);
 
     if (result.data?.recordId) {
       usedRecords.add(result.data.recordId);

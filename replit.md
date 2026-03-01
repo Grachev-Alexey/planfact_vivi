@@ -118,3 +118,4 @@ A finance management application (Russian language UI) built with React + Vite f
   - Modal: responsive padding and title sizing
 - Performance: memoized TransactionRow component, lookup Maps instead of .find() for O(1) access
 - Optimistic updates: transactions appear/update/delete instantly in UI
+- YClients verification: improved matching uses client name from description (pipe-separated format) and contractor name when available, prioritizing name matches over amount-only; master income account resolution returns error if account not found
