@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
-import { LogOut, Send, Search, ChevronDown, Check, Plus, Clock, ChevronLeft, ChevronRight, User, Phone } from 'lucide-react';
+import { LogOut, Send, Search, ChevronDown, Check, Plus, Clock, ChevronLeft, ChevronRight, User, Phone, Edit2, Trash2, X } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import { Category } from '../types';
 
@@ -186,6 +186,7 @@ export const MasterIncomePage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [successMsg, setSuccessMsg] = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const fetchIncomes = useCallback(async () => {
     if (!user) return;
@@ -239,8 +240,10 @@ export const MasterIncomePage: React.FC = () => {
     setSubmitting(true);
 
     try {
-      const res = await fetch('/api/master-incomes', {
-        method: 'POST',
+      const url = editingId ? `/api/master-incomes/${editingId}` : '/api/master-incomes';
+      const method = editingId ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': String(user?.id || ''),
@@ -262,7 +265,8 @@ export const MasterIncomePage: React.FC = () => {
         setClientName('');
         setClientPhone('');
         setDescription('');
-        setSuccessMsg('Поступление записано');
+        setEditingId(null);
+        setSuccessMsg(editingId ? 'Запись обновлена' : 'Поступление записано');
         setTimeout(() => setSuccessMsg(''), 3000);
         fetchIncomes();
       } else {
@@ -274,6 +278,43 @@ export const MasterIncomePage: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleEdit = (inc: MasterIncome) => {
+    setEditingId(inc.id);
+    setAmount(String(inc.amount));
+    setPaymentType(inc.paymentType);
+    setCategoryId(String(inc.categoryId || ''));
+    setClientName(inc.clientName || '');
+    setClientPhone(inc.clientPhone || '');
+    setDescription(inc.description || '');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Удалить эту запись?')) return;
+    try {
+      const res = await fetch(`/api/master-incomes/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': String(user?.id || '') },
+      });
+      if (res.ok) {
+        fetchIncomes();
+      } else {
+        const data = await res.json().catch(() => null);
+        alert(data?.error || 'Ошибка удаления');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const isToday = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    return d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
   };
 
   return (
@@ -301,7 +342,27 @@ export const MasterIncomePage: React.FC = () => {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mb-6">Новое поступление</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">
+            {editingId ? 'Редактирование' : 'Новое поступление'}
+          </h1>
+          {editingId && (
+            <button
+              onClick={() => {
+                setEditingId(null);
+                setAmount('');
+                setPaymentType('');
+                setCategoryId('');
+                setClientName('');
+                setClientPhone('');
+                setDescription('');
+              }}
+              className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+            >
+              <X size={16} /> Отмена
+            </button>
+          )}
+        </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-4">
           {errors.length > 0 && (
@@ -404,7 +465,7 @@ export const MasterIncomePage: React.FC = () => {
             className="w-full py-3 bg-teal-600 text-white rounded-lg font-semibold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Send size={16} />
-            {submitting ? 'Сохранение...' : 'Записать поступление'}
+            {submitting ? 'Сохранение...' : editingId ? 'Обновить запись' : 'Записать поступление'}
           </button>
         </form>
 
@@ -441,8 +502,28 @@ export const MasterIncomePage: React.FC = () => {
                       <p className="text-xs text-slate-400 mt-1 truncate">{inc.description}</p>
                     )}
                   </div>
-                  <div className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">
-                    {formatDate(inc.createdAt)}
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <div className="text-[11px] text-slate-400 whitespace-nowrap">
+                      {formatDate(inc.createdAt)}
+                    </div>
+                    {isToday(inc.createdAt) && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEdit(inc)}
+                          className="p-1 text-slate-400 hover:text-teal-600 transition-colors"
+                          title="Редактировать"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(inc.id)}
+                          className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
+                          title="Удалить"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

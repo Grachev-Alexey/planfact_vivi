@@ -87,6 +87,23 @@ router.post('/master-incomes', async (req, res) => {
     return res.status(400).json({ error: `Счёт "${studioName} ${suffix}" не найден. Обратитесь к администратору.` });
   }
 
+  let contractorId = null;
+  if (clientName) {
+    const contrRes = await db.query('SELECT id FROM contractors WHERE name = $1', [clientName]);
+    if (contrRes.rows.length > 0) {
+      contractorId = contrRes.rows[0].id;
+      if (clientPhone) {
+        await db.query('UPDATE contractors SET phone = $1, updated_at = NOW() WHERE id = $2', [clientPhone, contractorId]);
+      }
+    } else {
+      const newContr = await db.query(
+        'INSERT INTO contractors (name, phone, type, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id',
+        [clientName, clientPhone || '', 'customer']
+      );
+      contractorId = newContr.rows[0].id;
+    }
+  }
+
   try {
     const result = await db.query(
       `INSERT INTO master_incomes (user_id, studio_id, amount, payment_type, category_id, client_name, client_phone, description, account_id)
@@ -100,10 +117,19 @@ router.post('/master-incomes', async (req, res) => {
     const extCols = useExtId ? ['external_id'] : [];
     const extVals = useExtId ? [`mi-${mi.id}`] : [];
 
-    const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed'];
+    const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id'];
     const paymentLabel = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
-    const baseVals = [new Date().toISOString().split('T')[0], amount, 'income', accountId, studioId, categoryId || null,
-      `${paymentLabel}${clientName ? ' | ' + clientName : ''}${clientPhone ? ' | ' + clientPhone : ''}${description ? ' | ' + description : ''}`, false];
+    const baseVals = [
+      new Date().toISOString().split('T')[0], 
+      amount, 
+      'income', 
+      accountId, 
+      studioId, 
+      categoryId || null,
+      `${paymentLabel}${description ? ' | ' + description : ''}`, 
+      false,
+      contractorId
+    ];
 
     const allCols = [...baseCols, ...extCols];
     const allVals = [...baseVals, ...extVals];
@@ -124,6 +150,85 @@ router.post('/master-incomes', async (req, res) => {
   } catch (err) {
     console.error('Error creating master income:', err);
     res.status(500).json({ error: 'Error creating master income' });
+  }
+});
+
+router.put('/master-incomes/:id', async (req, res) => {
+  const master = await requireMaster(req, res);
+  if (!master) return;
+  const { id } = req.params;
+  const { amount, paymentType, categoryId, clientName, clientPhone, description } = req.body;
+
+  try {
+    const oldRes = await db.query('SELECT * FROM master_incomes WHERE id = $1 AND user_id = $2', [id, master.id]);
+    if (oldRes.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
+    const old = oldRes.rows[0];
+    
+    // Check if created today
+    const createdDate = new Date(old.created_at).toISOString().split('T')[0];
+    const todayDate = new Date().toISOString().split('T')[0];
+    if (createdDate !== todayDate) return res.status(403).json({ error: 'Можно редактировать только записи за сегодня' });
+
+    const accountId = await resolveAccountId(master.studio_id, paymentType);
+    if (!accountId) return res.status(400).json({ error: 'Account not found for payment type' });
+
+    let contractorId = null;
+    if (clientName) {
+      const contrRes = await db.query('SELECT id FROM contractors WHERE name = $1', [clientName]);
+      if (contrRes.rows.length > 0) {
+        contractorId = contrRes.rows[0].id;
+        if (clientPhone) await db.query('UPDATE contractors SET phone = $1, updated_at = NOW() WHERE id = $2', [clientPhone, contractorId]);
+      } else {
+        const newContr = await db.query('INSERT INTO contractors (name, phone, type, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id', [clientName, clientPhone || '', 'customer']);
+        contractorId = newContr.rows[0].id;
+      }
+    }
+
+    const result = await db.query(
+      `UPDATE master_incomes 
+       SET amount=$1, payment_type=$2, category_id=$3, client_name=$4, client_phone=$5, description=$6, account_id=$7
+       WHERE id=$8 RETURNING *`,
+      [amount, paymentType, categoryId || null, clientName || '', clientPhone || '', description || '', accountId, id]
+    );
+
+    const paymentLabel = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
+    await db.query(
+      `UPDATE transactions 
+       SET amount=$1, account_id=$2, category_id=$3, description=$4, contractor_id=$5
+       WHERE external_id=$6`,
+      [amount, accountId, categoryId || null, `${paymentLabel}${description ? ' | ' + description : ''}`, contractorId, `mi-${id}`]
+    );
+
+    await logAction(master.id, 'update', 'master_income', id, { amount: parseFloat(amount) });
+    res.json(toCamelCase(result.rows[0]));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error updating master income' });
+  }
+});
+
+router.delete('/master-incomes/:id', async (req, res) => {
+  const master = await requireMaster(req, res);
+  if (!master) return;
+  const { id } = req.params;
+
+  try {
+    const oldRes = await db.query('SELECT * FROM master_incomes WHERE id = $1 AND user_id = $2', [id, master.id]);
+    if (oldRes.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
+    const old = oldRes.rows[0];
+
+    const createdDate = new Date(old.created_at).toISOString().split('T')[0];
+    const todayDate = new Date().toISOString().split('T')[0];
+    if (createdDate !== todayDate) return res.status(403).json({ error: 'Можно удалять только записи за сегодня' });
+
+    await db.query('DELETE FROM master_incomes WHERE id = $1', [id]);
+    await db.query('DELETE FROM transactions WHERE external_id = $1', [`mi-${id}`]);
+
+    await logAction(master.id, 'delete', 'master_income', id, `Deleted income ${old.amount}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error deleting master income' });
   }
 });
 
