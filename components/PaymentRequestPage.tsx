@@ -294,6 +294,16 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const [contractorId, setContractorId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [description, setDescription] = useState('');
+
+  useEffect(() => {
+    if (showForm && !accountId && accounts.length > 0) {
+      const bAccount = accounts.find(a => a.name.toLowerCase().includes('бухгалтер'));
+      if (bAccount) {
+        setAccountId(bAccount.id.toString());
+      }
+    }
+  }, [showForm, accounts, accountId]);
+
   const [paymentDate, setPaymentDate] = useState('');
   const [accrualDate, setAccrualDate] = useState('');
   const [error, setError] = useState('');
@@ -905,7 +915,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
               autoFocus
             />
           </div>
-          <div>
+          <div className="hidden">
             <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Счёт *</label>
             <SearchableSelect
               value={accountId}
