@@ -76,6 +76,7 @@ const initDB = async () => {
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         inn TEXT,
+        type TEXT DEFAULT 'customer',
         description TEXT,
         created_at TIMESTAMP DEFAULT NOW()
       )
@@ -88,6 +89,9 @@ const initDB = async () => {
       DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='contractors' AND column_name='phone') THEN
           ALTER TABLE contractors ADD COLUMN phone TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='contractors' AND column_name='type') THEN
+          ALTER TABLE contractors ADD COLUMN type TEXT DEFAULT 'customer';
         END IF;
       END $$;
     `);
