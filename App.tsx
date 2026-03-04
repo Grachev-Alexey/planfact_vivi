@@ -73,12 +73,23 @@ const AppRoutes = () => {
     const { user } = useAuth();
     const isRequester = user?.role === 'requester';
     const isMaster = user?.role === 'master';
+    const isPayoutController = user?.role === 'payout_controller';
 
     const withLayout = (child: React.ReactNode) => (
       <Layout>
         {child}
       </Layout>
     );
+
+    if (isPayoutController) {
+      return (
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/payment-requests" element={<ProtectedRoute>{withLayout(<PaymentRequestPage isAdmin />)}</ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/payment-requests" replace />} />
+        </Routes>
+      );
+    }
 
     if (isMaster) {
       return (

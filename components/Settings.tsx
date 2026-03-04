@@ -207,8 +207,8 @@ export const Settings: React.FC = () => {
                         {u.username}
                      </td>
                      <td className="px-6 py-3">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${u.role === 'admin' ? 'bg-teal-50 text-teal-700' : u.role === 'requester' ? 'bg-amber-50 text-amber-700' : u.role === 'master' ? 'bg-purple-50 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
-                            {u.role === 'admin' ? 'Администратор' : u.role === 'requester' ? 'Запрос выплат' : u.role === 'master' ? 'Мастер' : 'Пользователь'}
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${u.role === 'admin' ? 'bg-teal-50 text-teal-700' : u.role === 'requester' ? 'bg-amber-50 text-amber-700' : u.role === 'master' ? 'bg-purple-50 text-purple-700' : u.role === 'payout_controller' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {u.role === 'admin' ? 'Администратор' : u.role === 'requester' ? 'Запрос выплат' : u.role === 'master' ? 'Мастер' : u.role === 'payout_controller' ? 'Контроль выплат' : 'Пользователь'}
                         </span>
                      </td>
                      <td className="px-6 py-3 text-sm text-slate-500">{formatDate(u.createdAt)}</td>
@@ -386,6 +386,7 @@ export const Settings: React.FC = () => {
                        <option value="admin">Администратор</option>
                        <option value="requester">Запрос выплат</option>
                        <option value="master">Мастер</option>
+                       <option value="payout_controller">Контроль выплат</option>
                    </select>
                    {newUser.role === 'master' && (
                      <div className="mt-3">

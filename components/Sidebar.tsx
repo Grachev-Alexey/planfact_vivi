@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Receipt, PieChart, Settings, WalletCards, Menu, X, Send } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
+  const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  const navItems = [
+  const isPayoutController = user?.role === 'payout_controller';
+
+  const navItems = isPayoutController ? [] : [
     { icon: LayoutDashboard, label: 'Показатели', path: '/' },
     { icon: Receipt, label: 'Операции', path: '/transactions' },
     { icon: PieChart, label: 'Отчёты', path: '/reports' },
@@ -19,7 +23,7 @@ export const Sidebar: React.FC = () => {
 
   const bottomItems = [
     { icon: Send, label: 'Выплаты', path: '/payment-requests' },
-    { icon: Settings, label: 'Настройки', path: '/settings' },
+    ...(isPayoutController ? [] : [{ icon: Settings, label: 'Настройки', path: '/settings' }]),
   ];
 
   return (
