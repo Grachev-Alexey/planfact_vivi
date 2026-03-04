@@ -93,6 +93,9 @@ const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='contractors' AND column_name='type') THEN
           ALTER TABLE contractors ADD COLUMN type TEXT DEFAULT 'customer';
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='contractors' AND column_name='updated_at') THEN
+          ALTER TABLE contractors ADD COLUMN updated_at TIMESTAMP DEFAULT NOW();
+        END IF;
       END $$;
     `);
 
