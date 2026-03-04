@@ -135,10 +135,20 @@ router.post('/master-incomes', async (req, res) => {
     const allVals = [...baseVals, ...extVals];
     const placeholders = allVals.map((_, i) => `$${i + 1}`).join(', ');
 
-    await db.query(
-      `INSERT INTO transactions (${allCols.join(', ')}) VALUES (${placeholders})`,
+    const txResult = await db.query(
+      `INSERT INTO transactions (${allCols.join(', ')}) VALUES (${placeholders}) RETURNING id`,
       allVals
     );
+    const txId = txResult.rows[0].id;
+
+    // YClients verification
+    let yclientsResult = null;
+    try {
+      const { verifyTransaction } = require('../services/yclients.cjs');
+      yclientsResult = await verifyTransaction(txId);
+    } catch (ycErr) {
+      console.error('YClients verification failed during creation:', ycErr);
+    }
 
     await logAction(master.id, 'create', 'master_income', mi.id, {
       amount: parseFloat(amount),
@@ -146,7 +156,7 @@ router.post('/master-incomes', async (req, res) => {
       clientName: clientName || '',
     });
 
-    res.json(toCamelCase(mi));
+    res.json({ ...toCamelCase(mi), yclientsResult });
   } catch (err) {
     console.error('Error creating master income:', err);
     res.status(500).json({ error: 'Error creating master income' });
@@ -199,8 +209,20 @@ router.put('/master-incomes/:id', async (req, res) => {
       [amount, accountId, categoryId || null, `${paymentLabel}${description ? ' | ' + description : ''}`, contractorId, `mi-${id}`]
     );
 
+    // Re-verify with YClients after update
+    let yclientsResult = null;
+    try {
+      const txRes = await db.query('SELECT id FROM transactions WHERE external_id = $1', [`mi-${id}`]);
+      if (txRes.rows.length > 0) {
+        const { verifyTransaction } = require('../services/yclients.cjs');
+        yclientsResult = await verifyTransaction(txRes.rows[0].id);
+      }
+    } catch (ycErr) {
+      console.error('YClients verification failed during update:', ycErr);
+    }
+
     await logAction(master.id, 'update', 'master_income', id, { amount: parseFloat(amount) });
-    res.json(toCamelCase(result.rows[0]));
+    res.json({ ...toCamelCase(result.rows[0]), yclientsResult });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error updating master income' });

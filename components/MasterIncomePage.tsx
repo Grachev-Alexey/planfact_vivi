@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
-import { LogOut, Send, Search, ChevronDown, Check, Plus, Clock, ChevronLeft, ChevronRight, User, Phone, Edit2, Trash2, X } from 'lucide-react';
+import { IMaskInput } from 'react-imask';
+import { LogOut, Send, Search, ChevronDown, Check, Plus, Clock, ChevronLeft, ChevronRight, User, Phone, Edit2, Trash2, X, AlertCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import { Category } from '../types';
 
@@ -186,6 +187,7 @@ export const MasterIncomePage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [successMsg, setSuccessMsg] = useState('');
+  const [ycWarning, setYcWarning] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const fetchIncomes = useCallback(async () => {
@@ -259,6 +261,7 @@ export const MasterIncomePage: React.FC = () => {
       });
 
       if (res.ok) {
+        const resultData = await res.json();
         setAmount('');
         setPaymentType('');
         setCategoryId('');
@@ -267,7 +270,17 @@ export const MasterIncomePage: React.FC = () => {
         setDescription('');
         setEditingId(null);
         setSuccessMsg(editingId ? 'Запись обновлена' : 'Поступление записано');
-        setTimeout(() => setSuccessMsg(''), 3000);
+        
+        if (resultData.yclientsResult && (resultData.yclientsResult.status === 'not_found' || resultData.yclientsResult.status === 'amount_mismatch')) {
+          setYcWarning('Внимание: операция не найдена или сумма не совпадает с YClients');
+        } else {
+          setYcWarning(null);
+        }
+        
+        setTimeout(() => {
+          setSuccessMsg('');
+          setYcWarning(null);
+        }, 5000);
         fetchIncomes();
       } else {
         const data = await res.json().catch(() => null);
@@ -379,6 +392,13 @@ export const MasterIncomePage: React.FC = () => {
             </div>
           )}
 
+          {ycWarning && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+              <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-700 font-medium">{ycWarning}</p>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Сумма *</label>
             <input
@@ -438,12 +458,13 @@ export const MasterIncomePage: React.FC = () => {
               <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">
                 <span className="flex items-center gap-1.5"><Phone size={13} /> Телефон</span>
               </label>
-              <input
-                type="tel"
+              <IMaskInput
+                mask="+7 (000) 000-00-00"
                 value={clientPhone}
-                onChange={e => setClientPhone(e.target.value)}
+                unmask={true}
+                onAccept={(value) => setClientPhone(value)}
                 className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                placeholder="+7 (999) 123-45-67"
+                placeholder="+7 (___) ___-__-__"
               />
             </div>
           </div>
