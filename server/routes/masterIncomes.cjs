@@ -7,9 +7,14 @@ const { logAction } = require('../utils/logger.cjs');
 let _hasExternalId = null;
 async function hasExternalIdColumn() {
   if (_hasExternalId !== null) return _hasExternalId;
-  const res = await db.query(`SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='external_id'`);
-  _hasExternalId = res.rows.length > 0;
-  return _hasExternalId;
+  try {
+    const res = await db.query(`SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='external_id'`);
+    _hasExternalId = res.rows.length > 0;
+    return _hasExternalId;
+  } catch (err) {
+    console.error('Error checking external_id column:', err);
+    return false;
+  }
 }
 
 const PAYMENT_TYPE_SUFFIXES = {
@@ -135,6 +140,8 @@ router.post('/master-incomes', async (req, res) => {
     const allVals = [...baseVals, ...extVals];
     const placeholders = allVals.map((_, i) => `$${i + 1}`).join(', ');
 
+    console.log('Inserting transaction for master income:', { allCols, allVals });
+
     const txResult = await db.query(
       `INSERT INTO transactions (${allCols.join(', ')}) VALUES (${placeholders}) RETURNING id`,
       allVals
@@ -159,7 +166,7 @@ router.post('/master-incomes', async (req, res) => {
     res.json({ ...toCamelCase(mi), yclientsResult });
   } catch (err) {
     console.error('Error creating master income:', err);
-    res.status(500).json({ error: 'Error creating master income' });
+    res.status(500).json({ error: 'Error creating master income: ' + err.message });
   }
 });
 
