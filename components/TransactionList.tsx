@@ -103,13 +103,14 @@ const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
 });
 
 export const TransactionList: React.FC = () => {
-  const { transactions, categories, studios, accounts, contractors, legalEntities, deleteTransaction, updateTransaction } = useFinance();
+  const { transactions, categories, studios, accounts, contractors, legalEntities, deleteTransaction, updateTransaction, refreshData } = useFinance();
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
@@ -341,6 +342,38 @@ export const TransactionList: React.FC = () => {
     setIsDeleting(false);
   };
 
+  const handleBulkVerify = async () => {
+    const ids = [...selectedIds];
+    const txs = transactions.filter(t => ids.includes(t.id) && t.type === 'income');
+    if (txs.length === 0) {
+      alert('Выберите хотя бы одно поступление для сверки');
+      return;
+    }
+
+    setIsVerifying(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const tx of txs) {
+      try {
+        const res = await fetch(`/api/yclients/verify/${tx.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) successCount++;
+        else failCount++;
+      } catch (err) {
+        console.error('Verify error:', err);
+        failCount++;
+      }
+    }
+
+    setIsVerifying(false);
+    setSelectedIds(new Set());
+    if (refreshData) refreshData();
+    alert(`Сверка завершена. Успешно: ${successCount}, Ошибок: ${failCount}`);
+  };
+
   const visibleSelectedCount = [...selectedIds].filter(id => filteredIds.has(id)).length;
   const allSelected = filteredTransactions.length > 0 && visibleSelectedCount === filteredTransactions.length;
   const someSelected = visibleSelectedCount > 0 && visibleSelectedCount < filteredTransactions.length;
@@ -543,22 +576,29 @@ export const TransactionList: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button
+                onClick={handleBulkVerify}
+                disabled={isVerifying || isDeleting || visibleSelectedCount === 0}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
+              >
+                <ArrowRightLeft size={13} /> <span className="hidden sm:inline">{isVerifying ? 'Сверяю...' : 'Сверка YClients'}</span><span className="sm:hidden">Сверка</span>
+              </button>
+              <button
                 onClick={() => handleBulkConfirm(true)}
-                disabled={isDeleting}
+                disabled={isDeleting || isVerifying}
                 className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
               >
                 <CheckCircle2 size={13} /> <span className="hidden sm:inline">Подтвердить</span><span className="sm:hidden">OK</span>
               </button>
               <button
                 onClick={() => handleBulkConfirm(false)}
-                disabled={isDeleting}
+                disabled={isDeleting || isVerifying}
                 className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
               >
                 <span className="hidden sm:inline">Снять подтверждение</span><span className="sm:hidden">Снять</span>
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                disabled={isDeleting}
+                disabled={isDeleting || isVerifying}
                 className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
               >
                 <Trash2 size={13} />
