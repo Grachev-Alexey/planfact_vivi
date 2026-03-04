@@ -4,6 +4,19 @@ const YCLIENTS_PARTNER_TOKEN = process.env.YCLIENTS_PARTNER_TOKEN;
 const YCLIENTS_USER_TOKEN = process.env.YCLIENTS_USER_TOKEN;
 const BASE_URL = 'https://api.yclients.com/api/v1';
 
+// Вспомогательная функция для форматирования даты без сдвига часовых поясов
+function formatDateLocal(dateInput) {
+  if (!dateInput) return '';
+  if (dateInput instanceof Date) {
+    const year = dateInput.getFullYear();
+    const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const day = String(dateInput.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  // Если это уже строка, просто обрезаем время
+  return String(dateInput).split('T')[0];
+}
+
 async function yclientsRequest(path) {
   const url = `${BASE_URL}${path}`;
   const res = await fetch(url, {
@@ -216,9 +229,9 @@ function scoreVisitMatch(visit, txAmount, txClientName, txClientPhone, contracto
 
 function matchTransaction(transaction, ycRecords, contractorName, contractorPhone, excludeVisitKeys) {
   const txAmount = parseFloat(transaction.amount);
-  const txDate = transaction.date instanceof Date
-    ? transaction.date.toISOString().split('T')[0]
-    : String(transaction.date).split('T')[0];
+
+  // ИСПРАВЛЕНО: используем локальное форматирование даты
+  const txDate = formatDateLocal(transaction.date);
 
   const txClientName = extractClientName(transaction.description);
   const txClientPhone = extractClientPhone(transaction.description);
@@ -315,9 +328,8 @@ async function verifyTransaction(transactionId) {
     return { status: 'no_studio', message: 'Студия не привязана к YClients' };
   }
 
-  const txDate = tx.date instanceof Date
-    ? tx.date.toISOString().split('T')[0]
-    : String(tx.date).split('T')[0];
+  // ИСПРАВЛЕНО: используем локальное форматирование даты
+  const txDate = formatDateLocal(tx.date);
 
   try {
     let contractorName = null;

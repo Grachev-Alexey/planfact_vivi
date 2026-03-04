@@ -107,7 +107,7 @@ router.post('/payment-requests', async (req, res) => {
       createdAt: request.createdAt
     };
 
-    fetch('https://vivi-stats.store/webhook/planfact', {
+    fetch('https://entize.tw1.ru/webhook/planfact', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(webhookPayload)
@@ -213,7 +213,7 @@ router.put('/payment-requests/:id', async (req, res) => {
         paidAt: request.paidAt
       };
 
-      fetch('https://vivi-stats.store/webhook/planfact', {
+      fetch('https://entize.tw1.ru/webhook/planfact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(webhookPayload)
