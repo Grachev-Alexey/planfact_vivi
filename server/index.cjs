@@ -10,6 +10,7 @@ const initialDataRoutes = require('./routes/initialData.cjs');
 const paymentRequestRoutes = require('./routes/paymentRequests.cjs');
 const masterIncomeRoutes = require('./routes/masterIncomes.cjs');
 const yclientsRoutes = require('./routes/yclients.cjs');
+const contractorRoutes = require('./routes/contractors.cjs');
 
 const app = express();
 const PORT = 3010;
@@ -26,6 +27,7 @@ app.use('/api', initialDataRoutes);
 app.use('/api', paymentRequestRoutes);
 app.use('/api', masterIncomeRoutes);
 app.use('/api', yclientsRoutes);
+app.use('/api', contractorRoutes);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`ViVi Finance Server running on http://0.0.0.0:${PORT}`);

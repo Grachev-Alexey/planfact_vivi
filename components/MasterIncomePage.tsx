@@ -196,6 +196,11 @@ export const MasterIncomePage: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [ycWarning, setYcWarning] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  
+  const [contractors, setContractors] = useState<{ id: number; name: string; phone: string }[]>([]);
+  const [clientNameSearch, setClientNameSearch] = useState('');
+  const [showContractorsList, setShowContractorsList] = useState(false);
+  const contractorInputRef = useRef<HTMLDivElement>(null);
 
   const fetchIncomes = useCallback(async () => {
     if (!user) return;
@@ -214,9 +219,40 @@ export const MasterIncomePage: React.FC = () => {
     }
   }, [user]);
 
+  const searchContractors = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setContractors([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/contractors/search?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        setContractors(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   useEffect(() => {
     fetchIncomes();
   }, [fetchIncomes]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchContractors(clientNameSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clientNameSearch, searchContractors]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (contractorInputRef.current?.contains(e.target as Node)) return;
+      setShowContractorsList(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const categoryOptions = useMemo(() => {
     const filtered = categories.filter(c => c.type === 'income');
@@ -453,17 +489,41 @@ export const MasterIncomePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
+            <div ref={contractorInputRef} className="relative">
               <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">
                 <span className="flex items-center gap-1.5"><User size={13} /> ФИО клиента</span>
               </label>
               <input
                 type="text"
                 value={clientName}
-                onChange={e => setClientName(e.target.value)}
+                onChange={e => {
+                  setClientName(e.target.value);
+                  setClientNameSearch(e.target.value);
+                  setShowContractorsList(true);
+                }}
+                onFocus={() => setShowContractorsList(true)}
                 className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 placeholder="Иванов Иван Иванович"
               />
+              {showContractorsList && contractors.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto">
+                  {contractors.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setClientName(c.name);
+                        setClientPhone(c.phone);
+                        setShowContractorsList(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 border-b border-slate-100 last:border-b-0"
+                    >
+                      <div className="font-medium text-slate-800">{c.name}</div>
+                      <div className="text-xs text-slate-500">{c.phone}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">
@@ -549,6 +609,14 @@ export const MasterIncomePage: React.FC = () => {
                       {inc.categoryName && inc.clientName && <span>·</span>}
                       {inc.clientName && <span>{inc.clientName}</span>}
                       {inc.clientPhone && <span>· {inc.clientPhone}</span>}
+                      {inc.clientType && (
+                        <>
+                          <span>·</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 font-medium">
+                            {CLIENT_TYPES.find(ct => ct.id === inc.clientType)?.label || inc.clientType}
+                          </span>
+                        </>
+                      )}
                     </div>
                     {inc.description && (
                       <p className="text-xs text-slate-400 mt-1 truncate">{inc.description}</p>
