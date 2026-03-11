@@ -97,13 +97,28 @@ router.post('/master-incomes', async (req, res) => {
     const contrRes = await db.query('SELECT id FROM contractors WHERE name = $1', [clientName]);
     if (contrRes.rows.length > 0) {
       contractorId = contrRes.rows[0].id;
-      if (clientPhone) {
-        await db.query('UPDATE contractors SET phone = $1, updated_at = NOW() WHERE id = $2', [clientPhone, contractorId]);
+      if (clientPhone || clientType) {
+        const updates = [];
+        const values = [];
+        let paramNum = 1;
+        if (clientPhone) {
+          updates.push(`phone = $${paramNum++}`);
+          values.push(clientPhone);
+        }
+        if (clientType && (clientType === 'primary' || clientType === 'regular')) {
+          updates.push(`type = $${paramNum++}`);
+          values.push(clientType);
+        }
+        values.push(contractorId);
+        if (updates.length > 0) {
+          await db.query(`UPDATE contractors SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramNum}`, values);
+        }
       }
     } else {
+      const contrType = (clientType && (clientType === 'primary' || clientType === 'regular')) ? clientType : 'customer';
       const newContr = await db.query(
         'INSERT INTO contractors (name, phone, type, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id',
-        [clientName, clientPhone || '', 'customer']
+        [clientName, clientPhone || '', contrType]
       );
       contractorId = newContr.rows[0].id;
     }
@@ -194,9 +209,26 @@ router.put('/master-incomes/:id', async (req, res) => {
       const contrRes = await db.query('SELECT id FROM contractors WHERE name = $1', [clientName]);
       if (contrRes.rows.length > 0) {
         contractorId = contrRes.rows[0].id;
-        if (clientPhone) await db.query('UPDATE contractors SET phone = $1, updated_at = NOW() WHERE id = $2', [clientPhone, contractorId]);
+        if (clientPhone || clientType) {
+          const updates = [];
+          const values = [];
+          let paramNum = 1;
+          if (clientPhone) {
+            updates.push(`phone = $${paramNum++}`);
+            values.push(clientPhone);
+          }
+          if (clientType && (clientType === 'primary' || clientType === 'regular')) {
+            updates.push(`type = $${paramNum++}`);
+            values.push(clientType);
+          }
+          values.push(contractorId);
+          if (updates.length > 0) {
+            await db.query(`UPDATE contractors SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramNum}`, values);
+          }
+        }
       } else {
-        const newContr = await db.query('INSERT INTO contractors (name, phone, type, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id', [clientName, clientPhone || '', 'customer']);
+        const contrType = (clientType && (clientType === 'primary' || clientType === 'regular')) ? clientType : 'customer';
+        const newContr = await db.query('INSERT INTO contractors (name, phone, type, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id', [clientName, clientPhone || '', contrType]);
         contractorId = newContr.rows[0].id;
       }
     }
