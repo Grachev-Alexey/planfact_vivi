@@ -11,12 +11,12 @@ router.get('/contractors/search', async (req, res) => {
     const params = [];
     
     if (q && q.trim()) {
-      const searchTerm = `%${q}%`;
-      query += ` WHERE (name ILIKE $1 OR phone ILIKE $1)`;
+      const searchTerm = `%${q.trim()}%`;
+      query += ` WHERE name ILIKE $1 OR phone ILIKE $1`;
       params.push(searchTerm);
     }
     
-    query += ` ORDER BY name ASC LIMIT 20`;
+    query += ` ORDER BY name ASC`;
     const result = await db.query(query, params);
     res.json(result.rows.map(toCamelCase));
   } catch (err) {
