@@ -609,11 +609,11 @@ export const MasterIncomePage: React.FC = () => {
                       {inc.categoryName && inc.clientName && <span>·</span>}
                       {inc.clientName && <span>{inc.clientName}</span>}
                       {inc.clientPhone && <span>· {inc.clientPhone}</span>}
-                      {inc.clientType && (
+                      {inc.clientType && inc.clientType !== 'customer' && (
                         <>
                           <span>·</span>
                           <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 font-medium">
-                            {CLIENT_TYPES.find(ct => ct.id === inc.clientType)?.label || inc.clientType}
+                            {CLIENT_TYPES.find(ct => ct.id === inc.clientType)?.label}
                           </span>
                         </>
                       )}
