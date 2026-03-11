@@ -169,6 +169,15 @@ router.put('/transactions/:id', async (req, res) => {
 
     const result = await db.query(query, values);
 
+    // Sync update back to master_incomes if this is a master income (external_id='mi-{id}')
+    if (old.external_id && old.external_id.startsWith('mi-')) {
+      const masterIncomeId = old.external_id.substring(3);
+      await db.query(
+        `UPDATE master_incomes SET amount=$1, category_id=$2, account_id=$3 WHERE id=$4`,
+        [amount, categoryId || null, accountId, masterIncomeId]
+      );
+    }
+
     const newAccountName = accountId ? (await db.query('SELECT name FROM accounts WHERE id=$1', [accountId])).rows[0]?.name : null;
     const newCategoryName = categoryId ? (await db.query('SELECT name FROM categories WHERE id=$1', [categoryId])).rows[0]?.name : null;
     const newStudioName = studioId ? (await db.query('SELECT name FROM studios WHERE id=$1', [studioId])).rows[0]?.name : null;
@@ -215,6 +224,15 @@ router.delete('/transactions/:id', async (req, res) => {
       LEFT JOIN contractors co ON t.contractor_id = co.id
       WHERE t.id = $1
     `, [req.params.id]);
+
+    if (oldRes.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const old = oldRes.rows[0];
+
+    // Also delete from master_incomes if this is a master income (external_id='mi-{id}')
+    if (old.external_id && old.external_id.startsWith('mi-')) {
+      const masterIncomeId = old.external_id.substring(3);
+      await db.query('DELETE FROM master_incomes WHERE id = $1', [masterIncomeId]);
+    }
 
     await db.query('DELETE FROM transactions WHERE id = $1', [req.params.id]);
 
