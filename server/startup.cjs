@@ -160,6 +160,9 @@ const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='accrual_date') THEN
           ALTER TABLE transactions ADD COLUMN accrual_date DATE;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='client_type') THEN
+          ALTER TABLE transactions ADD COLUMN client_type TEXT;
+        END IF;
       END $$;
     `);
 

@@ -160,12 +160,15 @@ router.put('/transactions/:id', async (req, res) => {
     if (oldRes.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const old = oldRes.rows[0];
 
+    // Use old date if new date not provided
+    const finalDate = date || old.date;
+
     const query = `
       UPDATE transactions 
       SET date=$1, amount=$2, type=$3, account_id=$4, category_id=$5, studio_id=$6, description=$7, to_account_id=$8, contractor_id=$9, confirmed=$10, accrual_date=$11, updated_at=NOW()
       WHERE id = $12 RETURNING *
     `;
-    const values = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, confirmed || false, accrualDate || null, id];
+    const values = [finalDate, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, confirmed || false, accrualDate || null, id];
 
     const result = await db.query(query, values);
 

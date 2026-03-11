@@ -137,7 +137,7 @@ router.post('/master-incomes', async (req, res) => {
     const extCols = useExtId ? ['external_id'] : [];
     const extVals = useExtId ? [`mi-${mi.id}`] : [];
 
-    const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id'];
+    const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id', 'client_type'];
     const paymentLabel = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
     const baseVals = [
       new Date().toISOString().split('T')[0], 
@@ -148,7 +148,8 @@ router.post('/master-incomes', async (req, res) => {
       categoryId || null,
       `${paymentLabel}${description ? ' | ' + description : ''}`, 
       false,
-      contractorId
+      contractorId,
+      clientType || 'primary'
     ];
 
     const allCols = [...baseCols, ...extCols];
@@ -243,9 +244,9 @@ router.put('/master-incomes/:id', async (req, res) => {
     const paymentLabel = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
     await db.query(
       `UPDATE transactions 
-       SET amount=$1, account_id=$2, category_id=$3, description=$4, contractor_id=$5
-       WHERE external_id=$6`,
-      [amount, accountId, categoryId || null, `${paymentLabel}${description ? ' | ' + description : ''}`, contractorId, `mi-${id}`]
+       SET amount=$1, account_id=$2, category_id=$3, description=$4, contractor_id=$5, client_type=$6
+       WHERE external_id=$7`,
+      [amount, accountId, categoryId || null, `${paymentLabel}${description ? ' | ' + description : ''}`, contractorId, clientType || 'primary', `mi-${id}`]
     );
 
     // Re-verify with YClients after update
