@@ -41,6 +41,7 @@ export interface Contractor {
   inn?: string;
   phone?: string;
   description?: string;
+  type?: string;
 }
 
 export interface Transaction {

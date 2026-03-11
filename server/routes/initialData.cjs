@@ -28,7 +28,7 @@ router.get('/init', async (req, res) => {
       db.query(accountsQuery),
       db.query('SELECT * FROM categories ORDER BY name'),
       db.query('SELECT * FROM studios ORDER BY name'),
-      db.query('SELECT * FROM contractors ORDER BY name'),
+      db.query('SELECT id, name, inn, phone, type, description, created_at, updated_at FROM contractors ORDER BY name'),
       db.query('SELECT * FROM legal_entities ORDER BY name')
     ]);
 

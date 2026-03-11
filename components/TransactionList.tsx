@@ -74,7 +74,14 @@ const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
         {tx.type === 'transfer' && <ArrowRightLeft size={14} className="text-blue-500 inline-block" />}
       </td>
       <td className="px-3 py-3 text-slate-700 text-[13px] align-top">
-        {contractor?.name || ''}
+        <div className="flex items-center gap-2">
+          <span>{contractor?.name || ''}</span>
+          {contractor?.type && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 font-medium">
+              {contractor.type === 'primary' ? 'первичный' : contractor.type === 'regular' ? 'постоянный' : contractor.type}
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-3 py-3 align-top">
         <div className="text-slate-800 text-[13px] font-medium">
