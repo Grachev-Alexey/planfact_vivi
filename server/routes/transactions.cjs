@@ -228,10 +228,17 @@ router.delete('/transactions/:id', async (req, res) => {
     if (oldRes.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const old = oldRes.rows[0];
 
-    // Also delete from master_incomes if this is a master income (external_id='mi-{id}')
-    if (old.external_id && old.external_id.startsWith('mi-')) {
-      const masterIncomeId = old.external_id.substring(3);
-      await db.query('DELETE FROM master_incomes WHERE id = $1', [masterIncomeId]);
+    // Also delete related records if this is linked to something
+    if (old.external_id) {
+      if (old.external_id.startsWith('mi-')) {
+        // Delete from master_incomes if this is a master income
+        const masterIncomeId = old.external_id.substring(3);
+        await db.query('DELETE FROM master_incomes WHERE id = $1', [masterIncomeId]);
+      } else if (old.external_id.startsWith('pr-')) {
+        // Delete from payment_requests if this is a payment request
+        const paymentRequestId = old.external_id.substring(3);
+        await db.query('DELETE FROM payment_requests WHERE id = $1', [paymentRequestId]);
+      }
     }
 
     await db.query('DELETE FROM transactions WHERE id = $1', [req.params.id]);
