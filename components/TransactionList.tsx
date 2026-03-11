@@ -76,9 +76,9 @@ const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
       <td className="px-3 py-3 text-slate-700 text-[13px] align-top">
         <div className="flex items-center gap-2">
           <span>{contractor?.name || ''}</span>
-          {contractor?.type && contractor.type !== 'customer' && (
+          {tx.clientType && tx.clientType !== 'customer' && (
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 font-medium">
-              {contractor.type === 'primary' ? 'первичный' : contractor.type === 'regular' ? 'постоянный' : ''}
+              {tx.clientType === 'primary' ? 'первичный' : tx.clientType === 'regular' ? 'постоянный' : ''}
             </span>
           )}
         </div>

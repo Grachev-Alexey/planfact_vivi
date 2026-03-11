@@ -57,6 +57,7 @@ export interface Transaction {
   contractorId?: string;
   confirmed?: boolean;
   accrualDate?: string;
+  clientType?: string;
   yclientsStatus?: string | null;
   yclientsRecordId?: string | null;
   yclientsData?: string | null;
