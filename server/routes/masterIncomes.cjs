@@ -72,7 +72,7 @@ router.post('/master-incomes', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;
 
-  const { amount, paymentType, categoryId, clientName, clientPhone, description } = req.body;
+  const { amount, paymentType, categoryId, clientName, clientPhone, clientType, description } = req.body;
 
   if (!amount || !paymentType) {
     return res.status(400).json({ error: 'amount and paymentType required' });
@@ -111,9 +111,9 @@ router.post('/master-incomes', async (req, res) => {
 
   try {
     const result = await db.query(
-      `INSERT INTO master_incomes (user_id, studio_id, amount, payment_type, category_id, client_name, client_phone, description, account_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [master.id, studioId, amount, paymentType, categoryId || null, clientName || '', clientPhone || '', description || '', accountId]
+      `INSERT INTO master_incomes (user_id, studio_id, amount, payment_type, category_id, client_name, client_phone, client_type, description, account_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [master.id, studioId, amount, paymentType, categoryId || null, clientName || '', clientPhone || '', clientType || 'primary', description || '', accountId]
     );
 
     const mi = result.rows[0];
@@ -174,7 +174,7 @@ router.put('/master-incomes/:id', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;
   const { id } = req.params;
-  const { amount, paymentType, categoryId, clientName, clientPhone, description } = req.body;
+  const { amount, paymentType, categoryId, clientName, clientPhone, clientType, description } = req.body;
 
   try {
     const oldRes = await db.query('SELECT * FROM master_incomes WHERE id = $1 AND user_id = $2', [id, master.id]);
@@ -203,9 +203,9 @@ router.put('/master-incomes/:id', async (req, res) => {
 
     const result = await db.query(
       `UPDATE master_incomes 
-       SET amount=$1, payment_type=$2, category_id=$3, client_name=$4, client_phone=$5, description=$6, account_id=$7
-       WHERE id=$8 RETURNING *`,
-      [amount, paymentType, categoryId || null, clientName || '', clientPhone || '', description || '', accountId, id]
+       SET amount=$1, payment_type=$2, category_id=$3, client_name=$4, client_phone=$5, client_type=$6, description=$7, account_id=$8
+       WHERE id=$9 RETURNING *`,
+      [amount, paymentType, categoryId || null, clientName || '', clientPhone || '', clientType || 'primary', description || '', accountId, id]
     );
 
     const paymentLabel = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;

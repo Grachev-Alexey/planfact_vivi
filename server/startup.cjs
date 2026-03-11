@@ -244,6 +244,9 @@ const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='master_incomes' AND column_name='account_id') THEN
           ALTER TABLE master_incomes ADD COLUMN account_id INTEGER REFERENCES accounts(id);
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='master_incomes' AND column_name='client_type') THEN
+          ALTER TABLE master_incomes ADD COLUMN client_type TEXT DEFAULT 'primary';
+        END IF;
       END $$;
     `);
 

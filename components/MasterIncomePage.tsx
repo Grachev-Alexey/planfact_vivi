@@ -16,6 +16,7 @@ interface MasterIncome {
   studioName: string | null;
   clientName: string;
   clientPhone: string;
+  clientType: string;
   description: string;
   createdAt: string;
 }
@@ -171,6 +172,11 @@ const PAYMENT_TYPES = [
   { id: 'ukassa', label: 'Ю-Касса' },
 ];
 
+const CLIENT_TYPES = [
+  { id: 'primary', label: 'Первичный клиент' },
+  { id: 'regular', label: 'Постоянный клиент' },
+];
+
 export const MasterIncomePage: React.FC = () => {
   const { user, logout } = useAuth();
   const { categories } = useFinance();
@@ -183,6 +189,7 @@ export const MasterIncomePage: React.FC = () => {
   const [categoryId, setCategoryId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [clientType, setClientType] = useState('primary');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -256,6 +263,7 @@ export const MasterIncomePage: React.FC = () => {
           categoryId: categoryId || null,
           clientName,
           clientPhone,
+          clientType,
           description,
         }),
       });
@@ -267,6 +275,7 @@ export const MasterIncomePage: React.FC = () => {
         setCategoryId('');
         setClientName('');
         setClientPhone('');
+        setClientType('primary');
         setDescription('');
         setEditingId(null);
         setSuccessMsg(editingId ? 'Запись обновлена' : 'Поступление записано');
@@ -300,6 +309,7 @@ export const MasterIncomePage: React.FC = () => {
     setCategoryId(String(inc.categoryId || ''));
     setClientName(inc.clientName || '');
     setClientPhone(inc.clientPhone || '');
+    setClientType(inc.clientType || 'primary');
     setDescription(inc.description || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -368,6 +378,7 @@ export const MasterIncomePage: React.FC = () => {
                 setCategoryId('');
                 setClientName('');
                 setClientPhone('');
+                setClientType('primary');
                 setDescription('');
               }}
               className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
@@ -467,6 +478,16 @@ export const MasterIncomePage: React.FC = () => {
                 placeholder="+7 (___) ___-__-__"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Тип клиента</label>
+            <SearchableSelect
+              value={clientType}
+              onChange={setClientType}
+              placeholder="Выберите тип клиента"
+              options={CLIENT_TYPES}
+            />
           </div>
 
           <div>
