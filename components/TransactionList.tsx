@@ -219,6 +219,11 @@ export const TransactionList: React.FC = () => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [totalPages, currentPage]);
 
+  const handleEditClose = useCallback(() => {
+    setEditingTx(null);
+    setCurrentPage(1);
+  }, []);
+
   const paginatedTransactions = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return sortedTransactions.slice(start, start + pageSize);
@@ -809,8 +814,8 @@ export const TransactionList: React.FC = () => {
       </Modal>
 
       {editingTx && (
-        <Modal isOpen={!!editingTx} onClose={() => setEditingTx(null)} title="Редактирование операции">
-          <TransactionForm onClose={() => setEditingTx(null)} initialData={editingTx} />
+        <Modal isOpen={!!editingTx} onClose={handleEditClose} title="Редактирование операции">
+          <TransactionForm onClose={handleEditClose} initialData={editingTx} />
         </Modal>
       )}
 
