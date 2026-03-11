@@ -482,12 +482,22 @@ export const MasterIncomePage: React.FC = () => {
 
           <div>
             <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Тип клиента</label>
-            <SearchableSelect
-              value={clientType}
-              onChange={setClientType}
-              placeholder="Выберите тип клиента"
-              options={CLIENT_TYPES}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              {CLIENT_TYPES.map(ct => (
+                <button
+                  key={ct.id}
+                  type="button"
+                  onClick={() => setClientType(ct.id)}
+                  className={`px-3 py-2.5 rounded-lg text-sm font-medium border transition-all ${
+                    clientType === ct.id
+                      ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400 hover:text-teal-600'
+                  }`}
+                >
+                  {ct.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
