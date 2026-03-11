@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Plus, Trash2, MoreVertical, ChevronDown, ChevronRight, Edit2, X } from 'lucide-react';
+import { Plus, Trash2, MoreVertical, ChevronDown, ChevronRight, Edit2, X, Search } from 'lucide-react';
 import { Button } from './ui/Button';
 import { formatCurrency } from '../utils/format';
 import { CategoryType, Category } from '../types';
@@ -82,6 +82,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const [categoryType, setCategoryType] = useState<CategoryType>('expense');
   const [isAdding, setIsAdding] = useState(false);
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
+  const [searchText, setSearchText] = useState('');
 
   const [newName, setNewName] = useState('');
   const [newInn, setNewInn] = useState('');
@@ -398,6 +399,15 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
     return null;
   };
 
+  const filteredContractors = contractors.filter(c => {
+    if (!searchText) return true;
+    const search = searchText.toLowerCase();
+    return c.name.toLowerCase().includes(search) || 
+           (c.phone && c.phone.toLowerCase().includes(search)) ||
+           (c.inn && c.inn.toLowerCase().includes(search)) ||
+           (c.description && c.description.toLowerCase().includes(search));
+  });
+
   const renderEditModal = () => {
     if (!editModal) return null;
     const { type, item } = editModal;
@@ -685,42 +695,62 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   };
 
   const renderListContent = () => {
-    const items = activeTab === 'contractors' ? contractors : studios;
+    const items = activeTab === 'contractors' ? filteredContractors : studios;
     return (
-      <div className="bg-white rounded border border-slate-200 shadow-sm overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[600px]">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 font-semibold uppercase">
-              <th className="px-6 py-3">Название</th>
-              {activeTab === 'contractors' && <th className="px-6 py-3">Телефон</th>}
-              {activeTab === 'contractors' && <th className="px-6 py-3">ИНН</th>}
-              {activeTab === 'contractors' && <th className="px-6 py-3">Описание</th>}
-              {activeTab === 'studios' && <th className="px-6 py-3">Адрес</th>}
-              <th className="px-4 py-3 w-10"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
-            {items.length === 0 ? (
-              <tr><td colSpan={activeTab === 'contractors' ? 5 : 3} className="p-8 text-center text-slate-400">Список пуст</td></tr>
-            ) : items.map((item: any) => (
-              <tr key={item.id} className="hover:bg-slate-50 group">
-                <td className="px-6 py-3 font-medium text-slate-700">{item.name}</td>
-                {activeTab === 'contractors' && <td className="px-6 py-3 text-slate-500">{item.phone || '-'}</td>}
-                {activeTab === 'contractors' && <td className="px-6 py-3 text-slate-500">{item.inn || '-'}</td>}
-                {activeTab === 'contractors' && <td className="px-6 py-3 text-slate-500">{item.description || '-'}</td>}
-                {activeTab === 'studios' && <td className="px-6 py-3 text-slate-500">{item.address || '-'}</td>}
-                <td className="px-4 py-3 text-right">
-                  <ItemMenu onEdit={() => openEditModal(activeTab, item)} onDelete={() => deleteItem(activeTab as any, item.id)} />
-                </td>
+      <div>
+        {activeTab === 'contractors' && (
+          <div className="mb-4">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+                placeholder="Поиск по имени, телефону, ИНН..."
+                className="w-full pl-10 pr-3 py-2 text-sm border border-slate-300 rounded bg-white text-slate-900 focus:outline-none focus:border-teal-500"
+              />
+            </div>
+          </div>
+        )}
+        <div className="bg-white rounded border border-slate-200 shadow-sm overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[600px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 font-semibold uppercase">
+                <th className="px-6 py-3">Название</th>
+                {activeTab === 'contractors' && <th className="px-6 py-3">Телефон</th>}
+                {activeTab === 'contractors' && <th className="px-6 py-3">ИНН</th>}
+                {activeTab === 'contractors' && <th className="px-6 py-3">Описание</th>}
+                {activeTab === 'studios' && <th className="px-6 py-3">Адрес</th>}
+                <th className="px-4 py-3 w-10"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {items.length === 0 ? (
+                <tr><td colSpan={activeTab === 'contractors' ? 5 : 3} className="p-8 text-center text-slate-400">Список пуст</td></tr>
+              ) : items.map((item: any) => (
+                <tr key={item.id} className="hover:bg-slate-50 group">
+                  <td className="px-6 py-3 font-medium text-slate-700">{item.name}</td>
+                  {activeTab === 'contractors' && <td className="px-6 py-3 text-slate-500">{item.phone || '-'}</td>}
+                  {activeTab === 'contractors' && <td className="px-6 py-3 text-slate-500">{item.inn || '-'}</td>}
+                  {activeTab === 'contractors' && <td className="px-6 py-3 text-slate-500">{item.description || '-'}</td>}
+                  {activeTab === 'studios' && <td className="px-6 py-3 text-slate-500">{item.address || '-'}</td>}
+                  <td className="px-4 py-3 text-right">
+                    <ItemMenu onEdit={() => openEditModal(activeTab, item)} onDelete={() => deleteItem(activeTab as any, item.id)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
 
   const renderContent = () => {
+    // Очищаем поиск при смене табов
+    if (activeTab !== 'contractors' && searchText) {
+      setSearchText('');
+    }
     if (activeTab === 'categories') return renderCategoriesContent();
     if (activeTab === 'accounts') return renderAccountsContent();
     if (activeTab === 'legal_entities') return renderLegalEntitiesContent();

@@ -22,6 +22,26 @@ interface Log {
   createdAt: string;
 }
 
+const formatLogDetails = (details: string): string => {
+  if (!details) return '';
+  try {
+    // Попытаемся распарсить JSON
+    const parsed = JSON.parse(details);
+    if (typeof parsed === 'object' && parsed !== null) {
+      // Если это объект с данными, форматируем красиво
+      const parts: string[] = [];
+      if (parsed.amount) parts.push(`сумма: ${parsed.amount}`);
+      if (parsed.paymentType) parts.push(`тип оплаты: ${parsed.paymentType}`);
+      if (parsed.clientName) parts.push(`клиент: ${parsed.clientName}`);
+      if (parsed.name) parts.push(`${parsed.name}`);
+      if (parts.length > 0) return parts.join(', ');
+    }
+  } catch (e) {
+    // Если это не JSON, возвращаем как есть
+  }
+  return details;
+};
+
 const actionOptions = [
   { value: '', label: 'Все действия' },
   { value: 'Создание', label: 'Создание' },
@@ -295,7 +315,7 @@ export const Settings: React.FC = () => {
                        <td className="px-6 py-3 text-slate-500">{log.entityType}</td>
                        <td className="px-6 py-3 text-slate-600">
                           <div className="max-w-md" title={log.details}>
-                              {log.details}
+                              {formatLogDetails(log.details)}
                           </div>
                        </td>
                      </tr>
