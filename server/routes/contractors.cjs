@@ -7,12 +7,12 @@ router.get('/contractors/search', async (req, res) => {
   const { q } = req.query;
   
   try {
-    let query = 'SELECT id, name, phone FROM contractors WHERE type = $1';
-    const params = ['customer'];
+    let query = 'SELECT id, name, phone FROM contractors';
+    const params = [];
     
     if (q && q.trim()) {
       const searchTerm = `%${q}%`;
-      query += ` AND (name ILIKE $2 OR phone ILIKE $2)`;
+      query += ` WHERE (name ILIKE $1 OR phone ILIKE $1)`;
       params.push(searchTerm);
     }
     
