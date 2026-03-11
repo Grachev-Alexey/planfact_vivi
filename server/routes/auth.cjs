@@ -13,10 +13,10 @@ router.post('/login', async (req, res) => {
       const user = result.rows[0];
       res.json(toCamelCase(user));
     } else {
-      res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Неверный логин или пароль' });
     }
   } catch (err) {
-    res.status(500).json({ error: 'Login error' });
+    res.status(500).json({ error: 'Ошибка при входе в систему' });
   }
 });
 
@@ -26,7 +26,7 @@ router.get('/users', async (req, res) => {
     const result = await db.query("SELECT id, username, role, studio_id, created_at FROM users ORDER BY id");
     res.json(result.rows.map(toCamelCase));
   } catch (err) {
-    res.status(500).json({ error: 'Error fetching users' });
+    res.status(500).json({ error: 'Ошибка загрузки пользователей' });
   }
 });
 
@@ -34,7 +34,7 @@ router.get('/users', async (req, res) => {
 router.post('/users', async (req, res) => {
   const { username, password, role, studioId, currentUserId } = req.body;
   if (role === 'master' && !studioId) {
-    return res.status(400).json({ error: 'studioId required for master role' });
+    return res.status(400).json({ error: 'Для роли мастера необходимо указать студию' });
   }
   try {
     const result = await db.query(
@@ -45,7 +45,7 @@ router.post('/users', async (req, res) => {
     await logAction(currentUserId, 'create', 'user', newUser.id, { name: username });
     res.json(toCamelCase(newUser));
   } catch (err) {
-    res.status(500).json({ error: 'Error creating user' });
+    res.status(500).json({ error: 'Ошибка создания пользователя' });
   }
 });
 
@@ -59,7 +59,7 @@ router.delete('/users/:id', async (req, res) => {
     await logAction(currentUserId, 'delete', 'user', req.params.id, { name: deletedName });
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: 'Error deleting user' });
+    res.status(500).json({ error: 'Ошибка удаления пользователя' });
   }
 });
 
@@ -110,7 +110,7 @@ router.get('/logs', async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Error fetching logs' });
+    res.status(500).json({ error: 'Ошибка загрузки журнала действий' });
   }
 });
 
