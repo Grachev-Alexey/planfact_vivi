@@ -445,6 +445,8 @@ export const MasterIncomePage: React.FC = () => {
       }
     }
 
+    // Build YClients data snapshot for DB storage (all current field values)
+    let yclientsDataSnapshot: Record<string, unknown> | null = null;
     if (selectedVisit && ycRecordData !== null && ycFormSettings) {
       try {
         const recordId = selectedVisit.recordIds[0];
@@ -482,6 +484,18 @@ export const MasterIncomePage: React.FC = () => {
             }),
           });
         }
+
+        // Snapshot of all visible field values for DB storage
+        const fieldSnapshot = ycFormSettings.fields.filter(f => f.enabled).map(f => {
+          const numId = parseInt(f.ycFieldId);
+          const key = `${f.target}_${numId}`;
+          return { label: f.label, id: f.ycFieldId, target: f.target, value: ycFieldValues[key] ?? '' };
+        });
+        yclientsDataSnapshot = {
+          recordId,
+          comment: ycFormSettings.commentEnabled ? ycComment : undefined,
+          fields: fieldSnapshot,
+        };
       } catch (err) {
         console.error('Failed to update YClients record data:', err);
       }
@@ -502,6 +516,7 @@ export const MasterIncomePage: React.FC = () => {
             clientPhone,
             clientType,
             description: entry.description,
+            ...(yclientsDataSnapshot ? { yclientsData: yclientsDataSnapshot } : {}),
           }),
         });
 

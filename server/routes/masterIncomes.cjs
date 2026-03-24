@@ -72,7 +72,7 @@ router.post('/master-incomes', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;
 
-  const { amount, paymentType, categoryId, clientName, clientPhone, clientType, description } = req.body;
+  const { amount, paymentType, categoryId, clientName, clientPhone, clientType, description, yclientsData } = req.body;
 
   if (!amount || !paymentType) {
     return res.status(400).json({ error: 'amount and paymentType required' });
@@ -125,10 +125,11 @@ router.post('/master-incomes', async (req, res) => {
   }
 
   try {
+    const ycDataVal = yclientsData ? JSON.stringify(yclientsData) : null;
     const result = await db.query(
-      `INSERT INTO master_incomes (user_id, studio_id, amount, payment_type, category_id, client_name, client_phone, client_type, description, account_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [master.id, studioId, amount, paymentType, categoryId || null, clientName || '', clientPhone || '', clientType || 'primary', description || '', accountId]
+      `INSERT INTO master_incomes (user_id, studio_id, amount, payment_type, category_id, client_name, client_phone, client_type, description, account_id, yclients_data)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [master.id, studioId, amount, paymentType, categoryId || null, clientName || '', clientPhone || '', clientType || 'primary', description || '', accountId, ycDataVal]
     );
 
     const mi = result.rows[0];

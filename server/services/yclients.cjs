@@ -469,15 +469,25 @@ function toFieldsArray(fields) {
 }
 
 async function updateRecord(companyId, recordId, fields) {
-  // Send only the fields that are actually being changed — no extra fields
-  const payload = {};
+  // GET current record to include required fields (YClients requires them all in PUT)
+  const current = await yclientsRequest(`/record/${companyId}/${recordId}`);
+  const staff = Array.isArray(current.staff) ? current.staff[0] : current.staff;
 
+  // Required fields copied from current record
+  const payload = {
+    staff_id: staff?.id,
+    services: (current.services || []).map(s => ({ id: s.id, cost: s.cost, amount: s.amount || 1 })),
+    client: current.client ? { id: current.client.id } : {},
+    datetime: current.datetime,
+    seance_length: current.seance_length,
+  };
+
+  // Only add the fields we actually want to change
   if (fields.comment !== undefined) {
     payload.comment = fields.comment;
   }
 
   if (fields.custom_fields && fields.custom_fields.length > 0) {
-    // Build custom_fields as object {code: value} — only changed fields
     const customFieldsObj = {};
     for (const changed of fields.custom_fields) {
       const apiKey = changed.code || String(changed.id);
