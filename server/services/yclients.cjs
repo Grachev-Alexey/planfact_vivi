@@ -522,12 +522,52 @@ async function updateClientCustomFields(companyId, clientId, customFields) {
 }
 
 async function getAvailableCustomFields(companyId) {
-  const [recordResult, clientResult] = await Promise.allSettled([
-    yclientsRequest(`/custom_fields/${companyId}`),
-    yclientsRequest(`/client_custom_fields/${companyId}`),
-  ]);
-  const toArr = (r) => (r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : []);
-  return { record: toArr(recordResult), client: toArr(clientResult) };
+  // YClients has no dedicated endpoint for listing custom field definitions.
+  // We extract unique fields by scanning recent records and a sample of clients.
+  const today = formatDateLocal(new Date());
+  const weekAgo = formatDateLocal(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+
+  let records = [];
+  try {
+    records = await getRecords(companyId, weekAgo, today);
+  } catch (e) {
+    console.error('getAvailableCustomFields: getRecords failed', e.message);
+  }
+
+  // Collect unique record custom fields (id + title)
+  const recordFieldMap = new Map();
+  for (const rec of records) {
+    for (const f of toFieldsArray(rec.custom_fields)) {
+      if (f.id != null && !recordFieldMap.has(f.id)) {
+        recordFieldMap.set(f.id, { id: f.id, name: f.title || f.name || `Поле ${f.id}` });
+      }
+    }
+  }
+
+  // Collect unique client custom fields by sampling a few clients from those records
+  const clientFieldMap = new Map();
+  const sampledClientIds = new Set();
+  for (const rec of records) {
+    if (clientFieldMap.size >= 20) break;
+    const clientId = rec.client?.id;
+    if (!clientId || sampledClientIds.has(clientId)) continue;
+    sampledClientIds.add(clientId);
+    try {
+      const clientData = await yclientsRequest(`/client/${companyId}/${clientId}`);
+      for (const f of toFieldsArray(clientData.custom_fields)) {
+        if (f.id != null && !clientFieldMap.has(f.id)) {
+          clientFieldMap.set(f.id, { id: f.id, name: f.title || f.name || `Поле клиента ${f.id}` });
+        }
+      }
+    } catch {}
+  }
+
+  const result = {
+    record: Array.from(recordFieldMap.values()),
+    client: Array.from(clientFieldMap.values()),
+  };
+  console.log(`[getAvailableCustomFields] companyId=${companyId} record=${result.record.length} client=${result.client.length}`);
+  return result;
 }
 
 async function getVisitsByPhone(companyId, date, phone) {
