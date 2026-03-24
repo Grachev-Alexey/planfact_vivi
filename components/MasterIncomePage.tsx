@@ -269,6 +269,7 @@ export const MasterIncomePage: React.FC = () => {
   const [ycComment, setYcComment] = useState('');
   const [ycFieldValues, setYcFieldValues] = useState<Record<string, string>>({});
   const [ycSectionOpen, setYcSectionOpen] = useState(true);
+  const ycSectionRef = useRef<HTMLDivElement>(null);
 
   const [editingIncome, setEditingIncome] = useState<MasterIncome | null>(null);
   const [editAmount, setEditAmount] = useState('');
@@ -301,6 +302,19 @@ export const MasterIncomePage: React.FC = () => {
       .then(d => setYcFormSettings(d))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!ycRecordData) return;
+    const hasComment = !!(ycRecordData.comment);
+    const hasFields = (ycRecordData.recordCustomFields || []).some((f: { value?: string }) => f.value) ||
+                      (ycRecordData.clientCustomFields || []).some((f: { value?: string }) => f.value);
+    if (hasComment || hasFields) {
+      setYcSectionOpen(true);
+      setTimeout(() => {
+        ycSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+    }
+  }, [ycRecordData]);
 
   const fetchYcRecordData = async (recordId: string, clientId: number | null) => {
     setYcRecordLoading(true);
@@ -982,8 +996,16 @@ export const MasterIncomePage: React.FC = () => {
               </div>
             </div>
 
-            {selectedVisit && ycFormSettings && (ycFormSettings.commentEnabled || (ycFormSettings.fields ?? []).some(f => f.enabled)) && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {selectedVisit && ycFormSettings && (ycFormSettings.commentEnabled || (ycFormSettings.fields ?? []).some(f => f.enabled)) && (() => {
+              const filledCount = ycRecordData
+                ? [
+                    ycRecordData.comment ? 1 : 0,
+                    ...((ycRecordData.recordCustomFields || []) as { value?: string }[]).map(f => f.value ? 1 : 0),
+                    ...((ycRecordData.clientCustomFields || []) as { value?: string }[]).map(f => f.value ? 1 : 0),
+                  ].reduce((a: number, b: number) => a + b, 0)
+                : 0;
+              return (
+              <div ref={ycSectionRef} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setYcSectionOpen(o => !o)}
@@ -992,6 +1014,11 @@ export const MasterIncomePage: React.FC = () => {
                   <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
                     <span className="w-4 h-4 rounded bg-teal-100 text-teal-600 text-[10px] flex items-center justify-center font-bold">Y</span>
                     Данные в YClients
+                    {filledCount > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded-full bg-teal-500 text-white text-[10px] font-bold leading-none">
+                        {filledCount}
+                      </span>
+                    )}
                   </span>
                   <span className="text-slate-400 text-xs">{ycSectionOpen ? '▲' : '▼'}</span>
                 </button>
@@ -1102,7 +1129,8 @@ export const MasterIncomePage: React.FC = () => {
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {globalError && (
               <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-600">
