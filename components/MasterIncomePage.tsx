@@ -27,6 +27,9 @@ interface MasterIncome {
 interface YCVisit {
   visitId: string | null;
   recordIds: string[];
+  clientId: number | null;
+  clientFirstName: string;
+  clientLastName: string;
   clientName: string;
   clientPhone: string;
   services: { title: string; amount: number }[];
@@ -228,9 +231,12 @@ export const MasterIncomePage: React.FC = () => {
   const [step, setStep] = useState<Step>('phone');
 
   const [clientPhone, setClientPhone] = useState('');
-  const [clientName, setClientName] = useState('');
+  const [clientFirstName, setClientFirstName] = useState('');
+  const [clientLastName, setClientLastName] = useState('');
   const [clientType, setClientType] = useState<'primary' | 'regular'>('primary');
   const [selectedVisit, setSelectedVisit] = useState<YCVisit | null>(null);
+  const [ycClientId, setYcClientId] = useState<number | null>(null);
+  const [lastNameWasEmpty, setLastNameWasEmpty] = useState(false);
 
   const [ycVisits, setYcVisits] = useState<YCVisit[]>([]);
   const [ycLoading, setYcLoading] = useState(false);
@@ -315,12 +321,17 @@ export const MasterIncomePage: React.FC = () => {
 
   const handleSelectVisit = (visit: YCVisit) => {
     setSelectedVisit(visit);
-    setClientName(visit.clientName || '');
+    setYcClientId(visit.clientId);
+    setClientFirstName(visit.clientFirstName || '');
+    setClientLastName(visit.clientLastName || '');
+    setLastNameWasEmpty(!visit.clientLastName);
     setStep('entries');
   };
 
   const handleSkipVisit = () => {
     setSelectedVisit(null);
+    setYcClientId(null);
+    setLastNameWasEmpty(false);
     setStep('entries');
   };
 
@@ -330,11 +341,15 @@ export const MasterIncomePage: React.FC = () => {
     setYcSearched(false);
     setYcError(null);
     setSelectedVisit(null);
+    setYcClientId(null);
+    setLastNameWasEmpty(false);
   };
 
   const handleBackToVisit = () => {
     setStep('visit');
     setSelectedVisit(null);
+    setYcClientId(null);
+    setLastNameWasEmpty(false);
     setDone(false);
     setSubmitResults([]);
     setGlobalError(null);
@@ -346,6 +361,8 @@ export const MasterIncomePage: React.FC = () => {
     setEntries(prev => prev.map(e => e.tempId === tempId ? { ...e, [field]: value } : e));
   };
 
+  const clientFullName = [clientLastName.trim(), clientFirstName.trim()].filter(Boolean).join(' ');
+
   const handleSubmitAll = async () => {
     const errs: string[] = [];
     entries.forEach((e, i) => {
@@ -355,6 +372,18 @@ export const MasterIncomePage: React.FC = () => {
     if (errs.length > 0) { setGlobalError(errs.join(' · ')); return; }
     setGlobalError(null);
     setSubmitting(true);
+
+    if (ycClientId && lastNameWasEmpty && clientLastName.trim()) {
+      try {
+        await fetch('/api/yclients/update-client', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+          body: JSON.stringify({ clientId: ycClientId, surname: clientLastName.trim() }),
+        });
+      } catch {
+        console.error('Failed to update YClients client surname');
+      }
+    }
 
     const results: { success: boolean; msg: string; ycWarning?: boolean }[] = [];
 
@@ -367,7 +396,7 @@ export const MasterIncomePage: React.FC = () => {
             amount: parseFloat(entry.amount),
             paymentType: entry.paymentType,
             categoryId: entry.categoryId || null,
-            clientName,
+            clientName: clientFullName || clientFirstName.trim(),
             clientPhone,
             clientType,
             description: entry.description,
@@ -402,9 +431,12 @@ export const MasterIncomePage: React.FC = () => {
   const handleStartNew = () => {
     setStep('phone');
     setClientPhone('');
-    setClientName('');
+    setClientFirstName('');
+    setClientLastName('');
     setClientType('primary');
     setSelectedVisit(null);
+    setYcClientId(null);
+    setLastNameWasEmpty(false);
     setYcVisits([]);
     setYcSearched(false);
     setYcError(null);
@@ -570,8 +602,8 @@ export const MasterIncomePage: React.FC = () => {
                 <h2 className="font-bold text-slate-800">Поступления сохранены</h2>
               </div>
               <div className="text-xs text-slate-500">
-                {clientName && <span className="font-medium text-slate-700">{clientName}</span>}
-                {clientName && clientPhone && ' · '}
+                {clientFullName && <span className="font-medium text-slate-700">{clientFullName}</span>}
+                {clientFullName && clientPhone && ' · '}
                 {clientPhone && <span>{formatPhoneDisplay(clientPhone)}</span>}
               </div>
             </div>
@@ -663,18 +695,28 @@ export const MasterIncomePage: React.FC = () => {
                 </button>
               </div>
             ) : ycSearched && ycVisits.length === 0 ? (
-              <div className="p-4 text-center space-y-3">
-                <div className="text-slate-400 text-sm py-4">
+              <div className="p-4 space-y-3">
+                <div className="text-slate-400 text-sm py-2 text-center">
                   <Calendar size={28} className="mx-auto mb-2 opacity-40" />
                   Записей на сегодня не найдено
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5 text-left">ФИО клиента</label>
-                  <input
-                    type="text" value={clientName} onChange={e => setClientName(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    placeholder="Иванов Иван Иванович"
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Имя</label>
+                    <input
+                      type="text" value={clientFirstName} onChange={e => setClientFirstName(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="Иван"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Фамилия</label>
+                    <input
+                      type="text" value={clientLastName} onChange={e => setClientLastName(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="Иванов"
+                    />
+                  </div>
                 </div>
                 <button onClick={handleSkipVisit}
                   className="w-full py-2.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors">
@@ -717,18 +759,29 @@ export const MasterIncomePage: React.FC = () => {
                     );
                   })}
                 </div>
-                <div className="p-3 border-t border-slate-100">
-                  <div className="mb-2">
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">ФИО клиента (если не совпадает)</label>
-                    <input
-                      type="text" value={clientName} onChange={e => setClientName(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      placeholder="Иванов Иван Иванович"
-                    />
+                <div className="p-3 border-t border-slate-100 space-y-2">
+                  <div className="text-xs font-medium text-slate-500 mb-1">Не нашли нужную запись?</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Имя</label>
+                      <input
+                        type="text" value={clientFirstName} onChange={e => setClientFirstName(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        placeholder="Иван"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Фамилия</label>
+                      <input
+                        type="text" value={clientLastName} onChange={e => setClientLastName(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        placeholder="Иванов"
+                      />
+                    </div>
                   </div>
                   <button onClick={handleSkipVisit}
                     className="w-full py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                    Продолжить без привязки
+                    Продолжить без привязки к записи
                   </button>
                 </div>
               </div>
@@ -752,16 +805,37 @@ export const MasterIncomePage: React.FC = () => {
               </div>
 
               <div className="px-4 py-3 space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1">
-                    <User size={12} /> ФИО клиента
-                  </label>
-                  <input
-                    type="text" value={clientName} onChange={e => setClientName(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    placeholder="Иванов Иван Иванович"
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1">
+                      <User size={12} /> Имя *
+                    </label>
+                    <input
+                      type="text" value={clientFirstName} onChange={e => setClientFirstName(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="Иван"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1.5">
+                      Фамилия *
+                      {lastNameWasEmpty && !clientLastName.trim() && (
+                        <span className="text-[10px] text-amber-600 font-medium">не в YClients</span>
+                      )}
+                    </label>
+                    <input
+                      type="text" value={clientLastName} onChange={e => setClientLastName(e.target.value)}
+                      className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 ${lastNameWasEmpty && !clientLastName.trim() ? 'border-amber-400 bg-amber-50' : 'border-slate-300'}`}
+                      placeholder="Иванов"
+                      autoFocus={lastNameWasEmpty}
+                    />
+                  </div>
                 </div>
+                {lastNameWasEmpty && clientLastName.trim() && ycClientId && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-teal-600 bg-teal-50 rounded-lg px-2.5 py-1.5">
+                    <Check size={11} /> Фамилия будет добавлена в YClients при сохранении
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">Тип клиента</label>
                   <div className="grid grid-cols-2 gap-2">

@@ -107,10 +107,15 @@ function groupRecordsByVisit(records, txDate) {
 
     const key = rec.visit_id || rec.id;
     if (!visits.has(key)) {
+      const rawName = rec.client?.name || rec.client?.display_name || '';
+      const rawSurname = rec.client?.surname || '';
       visits.set(key, {
         visitId: rec.visit_id || null,
         recordIds: [],
-        clientName: rec.client?.name || rec.client?.display_name || '',
+        clientId: rec.client?.id || null,
+        clientFirstName: rawName,
+        clientLastName: rawSurname,
+        clientName: [rawSurname, rawName].filter(Boolean).join(' ') || rawName,
         clientPhone: rec.client?.phone || '',
         services: [],
         goods: [],
@@ -403,6 +408,24 @@ async function verifyBatch(studioId, dateFrom, dateTo) {
   return { verified: results.length, results };
 }
 
+async function updateClientInfo(companyId, clientId, fields) {
+  const url = `${BASE_URL}/client/${companyId}/${clientId}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Accept': 'application/vnd.yclients.v2+json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${YCLIENTS_PARTNER_TOKEN}, User ${YCLIENTS_USER_TOKEN}`,
+    },
+    body: JSON.stringify(fields),
+  });
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(`YClients client update error: ${data.meta?.message || 'Unknown'}`);
+  }
+  return data.data;
+}
+
 async function getVisitsByPhone(companyId, date, phone) {
   const records = await getRecords(companyId, date, date);
   const visits = groupRecordsByVisit(records, date);
@@ -418,4 +441,4 @@ async function getVisitsByPhone(companyId, date, phone) {
   });
 }
 
-module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone };
+module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, updateClientInfo };
