@@ -6,7 +6,7 @@ import { IMaskInput } from 'react-imask';
 import {
   LogOut, Send, Search, ChevronDown, Check, Plus, Clock,
   User, Phone, Edit2, Trash2, X, AlertCircle, ArrowLeft,
-  CheckCircle2, Loader2, Calendar, Banknote, ChevronRight
+  CheckCircle2, Loader2, Calendar, Banknote, ChevronRight, ChevronLeft
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 
@@ -249,6 +249,9 @@ export const MasterIncomePage: React.FC = () => {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  const [historyPage, setHistoryPage] = useState(1);
+  const HISTORY_PAGE_SIZE = 10;
+
   const [editingIncome, setEditingIncome] = useState<MasterIncome | null>(null);
   const [editAmount, setEditAmount] = useState('');
   const [editPaymentType, setEditPaymentType] = useState('');
@@ -425,6 +428,7 @@ export const MasterIncomePage: React.FC = () => {
     setSubmitResults(results);
     setSubmitting(false);
     setDone(true);
+    setHistoryPage(1);
     fetchIncomes();
   };
 
@@ -927,57 +931,128 @@ export const MasterIncomePage: React.FC = () => {
           </div>
         )}
 
-        <div className="mt-2">
-          <h2 className="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
-            <Clock size={16} /> Последние записи
-          </h2>
-
+        <div className="mt-2 pb-4">
           {loading && incomes.length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-sm">Загрузка...</div>
           ) : incomes.length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-sm bg-white rounded-xl border border-slate-200">
               Записей пока нет
             </div>
-          ) : (
-            <div className="space-y-2">
-              {incomes.map(inc => (
-                <div key={inc.id} className="bg-white rounded-xl border border-slate-200 p-3.5 flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-emerald-600">+{formatCurrency(inc.amount)}</span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500">
-                        {PAYMENT_TYPES.find(p => p.id === inc.paymentType)?.label || inc.paymentType}
-                      </span>
-                      {inc.clientType && inc.clientType !== 'customer' && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 font-medium">
-                          {CLIENT_TYPES.find(ct => ct.id === inc.clientType)?.label}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500 flex-wrap">
-                      {inc.categoryName && <span>{inc.categoryName}</span>}
-                      {inc.clientName && <><span>·</span><span>{inc.clientName}</span></>}
-                      {inc.clientPhone && <><span>·</span><span className="font-mono">{inc.clientPhone}</span></>}
-                    </div>
-                    {inc.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{inc.description}</p>}
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <div className="text-[11px] text-slate-400 whitespace-nowrap">{formatDate(inc.createdAt)}</div>
-                    {isToday(inc.createdAt) && !editingIncome && (
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => handleEdit(inc)} className="p-1 text-slate-300 hover:text-teal-600 transition-colors" title="Редактировать">
-                          <Edit2 size={13} />
-                        </button>
-                        <button onClick={() => handleDelete(inc.id)} className="p-1 text-slate-300 hover:text-rose-500 transition-colors" title="Удалить">
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
+          ) : (() => {
+            const totalPages = Math.ceil(incomes.length / HISTORY_PAGE_SIZE);
+            const safePage = Math.min(historyPage, totalPages);
+            const pageSlice = incomes.slice((safePage - 1) * HISTORY_PAGE_SIZE, safePage * HISTORY_PAGE_SIZE);
+            const fromIdx = (safePage - 1) * HISTORY_PAGE_SIZE + 1;
+            const toIdx = Math.min(safePage * HISTORY_PAGE_SIZE, incomes.length);
+
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const yesterdayStr = new Date(now.getTime() - 86400000).toISOString().split('T')[0];
+
+            const dateLabel = (dateStr: string) => {
+              const d = new Date(dateStr);
+              const ds = d.toISOString().split('T')[0];
+              if (ds === todayStr) return 'Сегодня';
+              if (ds === yesterdayStr) return 'Вчера';
+              return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+            };
+
+            let lastDateLabel = '';
+
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <Clock size={16} /> Записи
+                  </h2>
+                  <span className="text-xs text-slate-400">{fromIdx}–{toIdx} из {incomes.length}</span>
                 </div>
-              ))}
-            </div>
-          )}
+
+                <div className="space-y-1">
+                  {pageSlice.map(inc => {
+                    const label = dateLabel(inc.createdAt);
+                    const showHeader = label !== lastDateLabel;
+                    lastDateLabel = label;
+                    return (
+                      <React.Fragment key={inc.id}>
+                        {showHeader && (
+                          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide pt-2 pb-1 px-1">
+                            {label}
+                          </div>
+                        )}
+                        <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold text-emerald-600">+{formatCurrency(inc.amount)}</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500">
+                                {PAYMENT_TYPES.find(p => p.id === inc.paymentType)?.label || inc.paymentType}
+                              </span>
+                              {inc.clientType && inc.clientType !== 'customer' && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 font-medium">
+                                  {CLIENT_TYPES.find(ct => ct.id === inc.clientType)?.label}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500 flex-wrap">
+                              {inc.categoryName && <span>{inc.categoryName}</span>}
+                              {inc.clientName && <><span>·</span><span>{inc.clientName}</span></>}
+                              {inc.clientPhone && <><span>·</span><span className="font-mono">{inc.clientPhone}</span></>}
+                            </div>
+                            {inc.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{inc.description}</p>}
+                          </div>
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            <div className="text-[11px] text-slate-400 whitespace-nowrap">
+                              {new Date(inc.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            {isToday(inc.createdAt) && !editingIncome && (
+                              <div className="flex items-center gap-1.5">
+                                <button onClick={() => handleEdit(inc)} className="p-1 text-slate-300 hover:text-teal-600 transition-colors" title="Редактировать">
+                                  <Edit2 size={13} />
+                                </button>
+                                <button onClick={() => handleDelete(inc.id)} className="p-1 text-slate-300 hover:text-rose-500 transition-colors" title="Удалить">
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-200">
+                    <button
+                      onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                      disabled={safePage === 1}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-300 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft size={15} /> Назад
+                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setHistoryPage(p)}
+                          className={`w-7 h-7 rounded-full text-xs font-semibold transition-colors ${p === safePage ? 'bg-teal-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))}
+                      disabled={safePage === totalPages}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-300 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Вперёд <ChevronRight size={15} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
