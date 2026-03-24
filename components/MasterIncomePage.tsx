@@ -755,18 +755,22 @@ export const MasterIncomePage: React.FC = () => {
             </div>
             <div className="divide-y divide-slate-100">
               {submitResults.map((r, i) => (
-                <div key={i} className={`px-4 py-3 flex items-start gap-3 ${r.success ? '' : 'bg-rose-50'}`}>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${r.success ? 'bg-emerald-100' : 'bg-rose-100'}`}>
-                    {r.success ? <Check size={11} className="text-emerald-600" /> : <X size={11} className="text-rose-600" />}
+                <div key={i}>
+                  <div className={`px-4 py-3 flex items-start gap-3 ${r.success ? '' : 'bg-rose-50'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${r.success ? 'bg-emerald-100' : 'bg-rose-100'}`}>
+                      {r.success ? <Check size={11} className="text-emerald-600" /> : <X size={11} className="text-rose-600" />}
+                    </div>
+                    <div className="text-sm font-medium text-slate-800">{r.msg}</div>
                   </div>
-                  <div>
-                    <div className={`text-sm font-medium ${r.success ? 'text-slate-800' : 'text-rose-700'}`}>{r.msg}</div>
-                    {r.ycWarning && (
-                      <div className="flex items-center gap-1 mt-0.5 text-xs text-amber-600">
-                        <AlertCircle size={11} /> Не найдено или сумма не совпадает в YClients
+                  {r.ycWarning && (
+                    <div className="mx-4 mb-3 flex items-start gap-2.5 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2.5">
+                      <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-sm font-semibold text-amber-800">Проверьте запись в YClients</div>
+                        <div className="text-xs text-amber-700 mt-0.5">Сумма поступления не совпадает с суммой в YClients или запись не найдена</div>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
