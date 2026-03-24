@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Users, Trash2, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, ToggleLeft, ToggleRight, ArrowUp, ArrowDown, Settings2 } from 'lucide-react';
+import { Users, Trash2, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, ToggleLeft, ToggleRight, ArrowUp, ArrowDown, Settings2, Check, Loader2, RefreshCw } from 'lucide-react';
 import { formatDate } from '../utils/format';
 
 interface YcField {
@@ -13,6 +13,18 @@ interface YcField {
   target: 'record' | 'client';
   enabled: boolean;
   editable: boolean;
+}
+
+interface YcApiField {
+  id: number;
+  name: string;
+  field_type?: string;
+  required?: boolean;
+}
+
+interface YcAvailableFields {
+  record: YcApiField[];
+  client: YcApiField[];
 }
 
 interface YcFormConfig {
@@ -84,6 +96,9 @@ export const Settings: React.FC = () => {
   const [ycSaving, setYcSaving] = useState(false);
   const [ycSaved, setYcSaved] = useState(false);
   const [newField, setNewField] = useState<Partial<YcField>>({ label: '', ycFieldId: '', target: 'record', enabled: true, editable: true });
+  const [ycAvailable, setYcAvailable] = useState<YcAvailableFields | null>(null);
+  const [ycAvailableLoading, setYcAvailableLoading] = useState(false);
+  const [ycPickerTab, setYcPickerTab] = useState<'record' | 'client'>('record');
 
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
@@ -106,6 +121,12 @@ export const Settings: React.FC = () => {
     fetchYcConfig();
   }, []);
 
+  useEffect(() => {
+    if (activeTab === 'yclients' && !ycAvailable && !ycAvailableLoading) {
+      fetchAvailableFields();
+    }
+  }, [activeTab]);
+
   const fetchYcConfig = async () => {
     try {
       const res = await fetch('/api/yclients/form-settings');
@@ -114,6 +135,34 @@ export const Settings: React.FC = () => {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const fetchAvailableFields = async () => {
+    setYcAvailableLoading(true);
+    try {
+      const res = await fetch('/api/yclients/available-fields', { headers: { 'x-user-id': user?.id.toString() || '' } });
+      if (res.ok) {
+        const data = await res.json();
+        setYcAvailable(data);
+      }
+    } catch (err) {
+      console.error('fetchAvailableFields error:', err);
+    }
+    setYcAvailableLoading(false);
+  };
+
+  const addFieldFromApi = (apiField: YcApiField, target: 'record' | 'client') => {
+    const alreadyAdded = ycConfig.fields.some(f => f.ycFieldId === String(apiField.id) && f.target === target);
+    if (alreadyAdded) return;
+    const field: YcField = {
+      id: Date.now().toString(),
+      label: apiField.name,
+      ycFieldId: String(apiField.id),
+      target,
+      enabled: true,
+      editable: true,
+    };
+    setYcConfig(c => ({ ...c, fields: [...c.fields, field] }));
   };
 
   const saveYcConfig = async () => {
@@ -380,40 +429,101 @@ export const Settings: React.FC = () => {
                    </div>
                  ))}
                </div>
-               <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
-                 <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Добавить поле</div>
-                 <div className="flex items-center gap-2">
-                   <input
-                     value={newField.label || ''}
-                     onChange={e => setNewField(f => ({ ...f, label: e.target.value }))}
-                     onKeyDown={e => e.key === 'Enter' && addYcField()}
-                     className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm"
-                     placeholder="Название поля"
-                   />
-                   <input
-                     value={newField.ycFieldId || ''}
-                     onChange={e => setNewField(f => ({ ...f, ycFieldId: e.target.value }))}
-                     onKeyDown={e => e.key === 'Enter' && addYcField()}
-                     className="w-28 px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm font-mono"
-                     placeholder="ID поля"
-                   />
-                   <select
-                     value={newField.target || 'record'}
-                     onChange={e => setNewField(f => ({ ...f, target: e.target.value as 'record' | 'client' }))}
-                     className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
-                   >
-                     <option value="record">Запись</option>
-                     <option value="client">Клиент</option>
-                   </select>
-                   <Button
-                     onClick={addYcField}
-                     className="bg-teal-600 text-white text-xs px-3 py-1.5 gap-1.5 shrink-0"
-                     disabled={!newField.label?.trim()}
-                   >
-                     <Plus size={14} /> Добавить
-                   </Button>
-                 </div>
-               </div>
+               <div className="border-t border-slate-200">
+                <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-3">
+                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Добавить поле из YClients</div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setYcPickerTab('record')}
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${ycPickerTab === 'record' ? 'bg-teal-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                    >Запись</button>
+                    <button
+                      onClick={() => setYcPickerTab('client')}
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${ycPickerTab === 'client' ? 'bg-teal-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                    >Клиент</button>
+                    <button
+                      onClick={fetchAvailableFields}
+                      disabled={ycAvailableLoading}
+                      className="ml-1 p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                      title="Обновить список"
+                    >
+                      {ycAvailableLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                    </button>
+                  </div>
+                </div>
+                <div className="px-4 pb-3">
+                  {ycAvailableLoading && !ycAvailable ? (
+                    <div className="text-center py-4 text-xs text-slate-400 flex items-center justify-center gap-2">
+                      <Loader2 size={14} className="animate-spin" /> Загружаем поля из YClients...
+                    </div>
+                  ) : ycAvailable ? (
+                    (() => {
+                      const list = ycAvailable[ycPickerTab] || [];
+                      if (list.length === 0) {
+                        return <div className="text-center py-3 text-xs text-slate-400">Нет доступных полей для {ycPickerTab === 'record' ? 'записей' : 'клиентов'}</div>;
+                      }
+                      return (
+                        <div className="flex flex-wrap gap-2">
+                          {list.map(apiField => {
+                            const added = ycConfig.fields.some(f => f.ycFieldId === String(apiField.id) && f.target === ycPickerTab);
+                            return (
+                              <button
+                                key={apiField.id}
+                                onClick={() => addFieldFromApi(apiField, ycPickerTab)}
+                                disabled={added}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                  added
+                                    ? 'bg-teal-50 border-teal-200 text-teal-600 cursor-default'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700'
+                                }`}
+                              >
+                                {added ? <Check size={11} /> : <Plus size={11} />}
+                                {apiField.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="text-center py-3 text-xs text-slate-400">Не удалось загрузить поля</div>
+                  )}
+                </div>
+                <div className="px-4 pb-3 border-t border-slate-100 pt-3">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Или добавить вручную</div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={newField.label || ''}
+                      onChange={e => setNewField(f => ({ ...f, label: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && addYcField()}
+                      className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm"
+                      placeholder="Название поля"
+                    />
+                    <input
+                      value={newField.ycFieldId || ''}
+                      onChange={e => setNewField(f => ({ ...f, ycFieldId: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && addYcField()}
+                      className="w-28 px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm font-mono"
+                      placeholder="ID поля"
+                    />
+                    <select
+                      value={newField.target || 'record'}
+                      onChange={e => setNewField(f => ({ ...f, target: e.target.value as 'record' | 'client' }))}
+                      className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                    >
+                      <option value="record">Запись</option>
+                      <option value="client">Клиент</option>
+                    </select>
+                    <Button
+                      onClick={addYcField}
+                      className="bg-slate-600 text-white text-xs px-3 py-1.5 gap-1.5 shrink-0"
+                      disabled={!newField.label?.trim()}
+                    >
+                      <Plus size={14} /> Добавить
+                    </Button>
+                  </div>
+                </div>
+              </div>
              </div>
 
              <div className="flex justify-end">

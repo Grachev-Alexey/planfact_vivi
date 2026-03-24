@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs');
-const { verifyTransaction, verifyBatch, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields } = require('../services/yclients.cjs');
+const { verifyTransaction, verifyBatch, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields } = require('../services/yclients.cjs');
 
 router.get('/yclients/search-by-phone', async (req, res) => {
   const userId = req.headers['x-user-id'];
@@ -152,6 +152,25 @@ router.get('/yclients/record-details', async (req, res) => {
     });
   } catch (err) {
     console.error('record-details error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/yclients/available-fields', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const userRes = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0 || userRes.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const studioRes = await db.query('SELECT yclients_id FROM studios WHERE yclients_id IS NOT NULL LIMIT 1');
+    if (studioRes.rows.length === 0) return res.json({ record: [], client: [] });
+    const companyId = studioRes.rows[0].yclients_id;
+    const fields = await getAvailableCustomFields(companyId);
+    res.json(fields);
+  } catch (err) {
+    console.error('available-fields error:', err);
     res.status(500).json({ error: err.message });
   }
 });

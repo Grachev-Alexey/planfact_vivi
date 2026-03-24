@@ -521,6 +521,15 @@ async function updateClientCustomFields(companyId, clientId, customFields) {
   });
 }
 
+async function getAvailableCustomFields(companyId) {
+  const [recordResult, clientResult] = await Promise.allSettled([
+    yclientsRequest(`/custom_fields/${companyId}`),
+    yclientsRequest(`/client_custom_fields/${companyId}`),
+  ]);
+  const toArr = (r) => (r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : []);
+  return { record: toArr(recordResult), client: toArr(clientResult) };
+}
+
 async function getVisitsByPhone(companyId, date, phone) {
   const records = await getRecords(companyId, date, date);
   const visits = groupRecordsByVisit(records, date);
@@ -536,4 +545,4 @@ async function getVisitsByPhone(companyId, date, phone) {
   });
 }
 
-module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields };
+module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields };
