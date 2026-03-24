@@ -403,4 +403,19 @@ async function verifyBatch(studioId, dateFrom, dateTo) {
   return { verified: results.length, results };
 }
 
-module.exports = { verifyTransaction, verifyBatch, getRecords };
+async function getVisitsByPhone(companyId, date, phone) {
+  const records = await getRecords(companyId, date, date);
+  const visits = groupRecordsByVisit(records, date);
+
+  if (!phone) return visits;
+
+  const digits = String(phone).replace(/\D/g, '').slice(-10);
+  if (digits.length < 10) return [];
+
+  return visits.filter(v => {
+    const vDigits = (v.clientPhone || '').replace(/\D/g, '').slice(-10);
+    return vDigits.length >= 10 && vDigits === digits;
+  });
+}
+
+module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone };

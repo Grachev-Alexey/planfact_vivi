@@ -3,9 +3,12 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { IMaskInput } from 'react-imask';
-import { LogOut, Send, Search, ChevronDown, Check, Plus, Clock, ChevronLeft, ChevronRight, User, Phone, Edit2, Trash2, X, AlertCircle } from 'lucide-react';
+import {
+  LogOut, Send, Search, ChevronDown, Check, Plus, Clock,
+  User, Phone, Edit2, Trash2, X, AlertCircle, ArrowLeft,
+  CheckCircle2, Loader2, Calendar, Banknote, ChevronRight
+} from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
-import { Category } from '../types';
 
 interface MasterIncome {
   id: number;
@@ -19,6 +22,25 @@ interface MasterIncome {
   clientType: string;
   description: string;
   createdAt: string;
+}
+
+interface YCVisit {
+  visitId: string | null;
+  recordIds: string[];
+  clientName: string;
+  clientPhone: string;
+  services: { title: string; amount: number }[];
+  goods: { title: string; amount: number }[];
+  totalAmount: number;
+  date: string;
+}
+
+interface IncomeEntry {
+  tempId: string;
+  amount: string;
+  paymentType: string;
+  categoryId: string;
+  description: string;
 }
 
 interface SearchableSelectProps {
@@ -173,9 +195,28 @@ const PAYMENT_TYPES = [
 ];
 
 const CLIENT_TYPES = [
-  { id: 'primary', label: 'Первичный клиент' },
-  { id: 'regular', label: 'Постоянный клиент' },
+  { id: 'primary', label: 'Первичный' },
+  { id: 'regular', label: 'Постоянный' },
 ];
+
+type Step = 'phone' | 'visit' | 'entries';
+
+let entryCounter = 0;
+function newEntry(): IncomeEntry {
+  entryCounter++;
+  return { tempId: String(entryCounter), amount: '', paymentType: '', categoryId: '', description: '' };
+}
+
+function formatPhoneDisplay(raw: string): string {
+  const d = raw.replace(/\D/g, '');
+  if (!d) return '';
+  const n = d.startsWith('7') ? d.slice(1) : d;
+  if (n.length === 0) return '+7';
+  if (n.length <= 3) return `+7 (${n}`;
+  if (n.length <= 6) return `+7 (${n.slice(0,3)}) ${n.slice(3)}`;
+  if (n.length <= 8) return `+7 (${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6)}`;
+  return `+7 (${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6,8)}-${n.slice(8,10)}`;
+}
 
 export const MasterIncomePage: React.FC = () => {
   const { user, logout } = useAuth();
@@ -184,34 +225,40 @@ export const MasterIncomePage: React.FC = () => {
   const [incomes, setIncomes] = useState<MasterIncome[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const [amount, setAmount] = useState('');
-  const [paymentType, setPaymentType] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [clientName, setClientName] = useState('');
+  const [step, setStep] = useState<Step>('phone');
+
   const [clientPhone, setClientPhone] = useState('');
-  const [clientType, setClientType] = useState('primary');
-  const [description, setDescription] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [clientType, setClientType] = useState<'primary' | 'regular'>('primary');
+  const [selectedVisit, setSelectedVisit] = useState<YCVisit | null>(null);
+
+  const [ycVisits, setYcVisits] = useState<YCVisit[]>([]);
+  const [ycLoading, setYcLoading] = useState(false);
+  const [ycError, setYcError] = useState<string | null>(null);
+  const [ycSearched, setYcSearched] = useState(false);
+
+  const [entries, setEntries] = useState<IncomeEntry[]>([newEntry()]);
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState<string[]>([]);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [ycWarning, setYcWarning] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  
-  const [contractors, setContractors] = useState<{ id: number; name: string; phone: string }[]>([]);
-  const [clientNameSearch, setClientNameSearch] = useState('');
-  const [showContractorsList, setShowContractorsList] = useState(false);
-  const contractorInputRef = useRef<HTMLDivElement>(null);
+  const [submitResults, setSubmitResults] = useState<{ success: boolean; msg: string; ycWarning?: boolean }[]>([]);
+  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const [editingIncome, setEditingIncome] = useState<MasterIncome | null>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [editPaymentType, setEditPaymentType] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const fetchIncomes = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/master-incomes`, {
+      const res = await fetch('/api/master-incomes', {
         headers: { 'x-user-id': String(user.id) },
       });
-      if (res.ok) {
-        setIncomes(await res.json());
-      }
+      if (res.ok) setIncomes(await res.json());
     } catch (e) {
       console.error(e);
     } finally {
@@ -219,40 +266,7 @@ export const MasterIncomePage: React.FC = () => {
     }
   }, [user]);
 
-  const searchContractors = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setContractors([]);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/contractors/search?q=${encodeURIComponent(query)}`);
-      if (res.ok) {
-        setContractors(await res.json());
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchIncomes();
-  }, [fetchIncomes]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      searchContractors(clientNameSearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [clientNameSearch, searchContractors]);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (contractorInputRef.current?.contains(e.target as Node)) return;
-      setShowContractorsList(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  useEffect(() => { fetchIncomes(); }, [fetchIncomes]);
 
   const categoryOptions = useMemo(() => {
     const filtered = categories.filter(c => c.type === 'income');
@@ -262,12 +276,7 @@ export const MasterIncomePage: React.FC = () => {
       const items = filtered.filter(c => depth === 0 ? !c.parentId : c.parentId === parentId);
       items.forEach(item => {
         const isParent = hasChildren(item.id);
-        result.push({
-          id: item.id,
-          label: '\u00A0\u00A0'.repeat(depth) + item.name,
-          indent: depth > 0 && !isParent,
-          disabled: isParent,
-        });
+        result.push({ id: item.id, label: '\u00A0\u00A0'.repeat(depth) + item.name, indent: depth > 0 && !isParent, disabled: isParent });
         addChildren(item.id, depth + 1);
       });
     };
@@ -275,79 +284,179 @@ export const MasterIncomePage: React.FC = () => {
     return result;
   }, [categories]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const searchYclients = useCallback(async (phone: string) => {
+    setYcLoading(true);
+    setYcError(null);
+    setYcSearched(false);
+    try {
+      const res = await fetch(`/api/yclients/search-by-phone?phone=${encodeURIComponent(phone)}`, {
+        headers: { 'x-user-id': String(user?.id || '') },
+      });
+      if (!res.ok) throw new Error('Ошибка запроса');
+      const data = await res.json();
+      setYcVisits(data.visits || []);
+      setYcSearched(true);
+    } catch (e) {
+      setYcError('Не удалось загрузить данные YClients');
+      setYcVisits([]);
+      setYcSearched(true);
+    } finally {
+      setYcLoading(false);
+    }
+  }, [user]);
+
+  const handlePhoneComplete = useCallback((phone: string) => {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length >= 11) {
+      searchYclients(phone);
+      setStep('visit');
+    }
+  }, [searchYclients]);
+
+  const handleSelectVisit = (visit: YCVisit) => {
+    setSelectedVisit(visit);
+    setClientName(visit.clientName || '');
+    setStep('entries');
+  };
+
+  const handleSkipVisit = () => {
+    setSelectedVisit(null);
+    setStep('entries');
+  };
+
+  const handleBackToPhone = () => {
+    setStep('phone');
+    setYcVisits([]);
+    setYcSearched(false);
+    setYcError(null);
+    setSelectedVisit(null);
+  };
+
+  const handleBackToVisit = () => {
+    setStep('visit');
+    setSelectedVisit(null);
+    setDone(false);
+    setSubmitResults([]);
+    setGlobalError(null);
+  };
+
+  const addEntry = () => setEntries(prev => [...prev, newEntry()]);
+  const removeEntry = (tempId: string) => setEntries(prev => prev.filter(e => e.tempId !== tempId));
+  const updateEntry = (tempId: string, field: keyof IncomeEntry, value: string) => {
+    setEntries(prev => prev.map(e => e.tempId === tempId ? { ...e, [field]: value } : e));
+  };
+
+  const handleSubmitAll = async () => {
     const errs: string[] = [];
-    if (!amount || parseFloat(amount) <= 0) errs.push('Введите сумму');
-    if (!paymentType) errs.push('Выберите тип оплаты');
-    if (errs.length > 0) { setErrors(errs); return; }
-    setErrors([]);
+    entries.forEach((e, i) => {
+      if (!e.amount || parseFloat(e.amount) <= 0) errs.push(`Поступление ${i + 1}: введите сумму`);
+      if (!e.paymentType) errs.push(`Поступление ${i + 1}: выберите тип оплаты`);
+    });
+    if (errs.length > 0) { setGlobalError(errs.join(' · ')); return; }
+    setGlobalError(null);
     setSubmitting(true);
 
-    try {
-      const url = editingId ? `/api/master-incomes/${editingId}` : '/api/master-incomes';
-      const method = editingId ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': String(user?.id || ''),
-        },
-        body: JSON.stringify({
-          amount: parseFloat(amount),
-          paymentType,
-          categoryId: categoryId || null,
-          clientName,
-          clientPhone,
-          clientType,
-          description,
-        }),
-      });
+    const results: { success: boolean; msg: string; ycWarning?: boolean }[] = [];
 
-      if (res.ok) {
-        const resultData = await res.json();
-        setAmount('');
-        setPaymentType('');
-        setCategoryId('');
-        setClientName('');
-        setClientPhone('');
-        setClientType('primary');
-        setDescription('');
-        setEditingId(null);
-        setSuccessMsg(editingId ? 'Запись обновлена' : 'Поступление записано');
-        
-        if (resultData.yclientsResult && (resultData.yclientsResult.status === 'not_found' || resultData.yclientsResult.status === 'amount_mismatch')) {
-          setYcWarning('Внимание: операция не найдена или сумма не совпадает с YClients');
+    for (const entry of entries) {
+      try {
+        const res = await fetch('/api/master-incomes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+          body: JSON.stringify({
+            amount: parseFloat(entry.amount),
+            paymentType: entry.paymentType,
+            categoryId: entry.categoryId || null,
+            clientName,
+            clientPhone,
+            clientType,
+            description: entry.description,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const ycWarn = data.yclientsResult && (data.yclientsResult.status === 'not_found' || data.yclientsResult.status === 'amount_mismatch');
+          const catLabel = categoryOptions.find(c => c.id === entry.categoryId)?.label?.trim() || '';
+          const ptLabel = PAYMENT_TYPES.find(p => p.id === entry.paymentType)?.label || entry.paymentType;
+          results.push({
+            success: true,
+            msg: `${formatCurrency(parseFloat(entry.amount))} · ${ptLabel}${catLabel ? ' · ' + catLabel : ''}`,
+            ycWarning: ycWarn,
+          });
         } else {
-          setYcWarning(null);
+          const data = await res.json().catch(() => null);
+          results.push({ success: false, msg: data?.error || 'Ошибка сохранения' });
         }
-        
-        setTimeout(() => {
-          setSuccessMsg('');
-          setYcWarning(null);
-        }, 5000);
-        fetchIncomes();
-      } else {
-        const data = await res.json().catch(() => null);
-        setErrors([data?.error || 'Ошибка сохранения']);
+      } catch {
+        results.push({ success: false, msg: 'Ошибка сети' });
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSubmitting(false);
     }
+
+    setSubmitResults(results);
+    setSubmitting(false);
+    setDone(true);
+    fetchIncomes();
+  };
+
+  const handleStartNew = () => {
+    setStep('phone');
+    setClientPhone('');
+    setClientName('');
+    setClientType('primary');
+    setSelectedVisit(null);
+    setYcVisits([]);
+    setYcSearched(false);
+    setYcError(null);
+    setEntries([newEntry()]);
+    setSubmitResults([]);
+    setGlobalError(null);
+    setDone(false);
   };
 
   const handleEdit = (inc: MasterIncome) => {
-    setEditingId(inc.id);
-    setAmount(String(inc.amount));
-    setPaymentType(inc.paymentType);
-    setCategoryId(String(inc.categoryId || ''));
-    setClientName(inc.clientName || '');
-    setClientPhone(inc.clientPhone || '');
-    setClientType(inc.clientType || 'primary');
-    setDescription(inc.description || '');
+    setEditingIncome(inc);
+    setEditAmount(String(inc.amount));
+    setEditPaymentType(inc.paymentType);
+    setEditCategoryId(String(inc.categoryId || ''));
+    setEditDescription(inc.description || '');
+    setEditError(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingIncome) return;
+    if (!editAmount || parseFloat(editAmount) <= 0) { setEditError('Введите сумму'); return; }
+    if (!editPaymentType) { setEditError('Выберите тип оплаты'); return; }
+    setEditError(null);
+    setEditSubmitting(true);
+    try {
+      const res = await fetch(`/api/master-incomes/${editingIncome.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+        body: JSON.stringify({
+          amount: parseFloat(editAmount),
+          paymentType: editPaymentType,
+          categoryId: editCategoryId || null,
+          clientName: editingIncome.clientName,
+          clientPhone: editingIncome.clientPhone,
+          clientType: editingIncome.clientType,
+          description: editDescription,
+        }),
+      });
+      if (res.ok) {
+        setEditingIncome(null);
+        fetchIncomes();
+      } else {
+        const data = await res.json().catch(() => null);
+        setEditError(data?.error || 'Ошибка сохранения');
+      }
+    } catch {
+      setEditError('Ошибка сети');
+    } finally {
+      setEditSubmitting(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -357,28 +466,23 @@ export const MasterIncomePage: React.FC = () => {
         method: 'DELETE',
         headers: { 'x-user-id': String(user?.id || '') },
       });
-      if (res.ok) {
-        fetchIncomes();
-      } else {
-        const data = await res.json().catch(() => null);
-        alert(data?.error || 'Ошибка удаления');
-      }
-    } catch (e) {
-      console.error(e);
-    }
+      if (res.ok) fetchIncomes();
+      else { const data = await res.json().catch(() => null); alert(data?.error || 'Ошибка удаления'); }
+    } catch (e) { console.error(e); }
   };
 
   const isToday = (dateStr: string) => {
     const d = new Date(dateStr);
     const now = new Date();
-    return d.getDate() === now.getDate() &&
-      d.getMonth() === now.getMonth() &&
-      d.getFullYear() === now.getFullYear();
+    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   };
+
+  const phoneDigits = clientPhone.replace(/\D/g, '');
+  const phoneComplete = phoneDigits.length >= 11;
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="bg-white border-b border-slate-200 shadow-sm">
+      <div className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center">
@@ -400,247 +504,398 @@ export const MasterIncomePage: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">
-            {editingId ? 'Редактирование' : 'Новое поступление'}
-          </h1>
-          {editingId && (
-            <button
-              onClick={() => {
-                setEditingId(null);
-                setAmount('');
-                setPaymentType('');
-                setCategoryId('');
-                setClientName('');
-                setClientPhone('');
-                setClientType('primary');
-                setDescription('');
-              }}
-              className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
-            >
-              <X size={16} /> Отмена
-            </button>
-          )}
-        </div>
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-4">
-          {errors.length > 0 && (
-            <div className="bg-rose-50 border border-rose-200 rounded-lg p-3">
-              {errors.map((e, i) => (
-                <p key={i} className="text-sm text-rose-600">{e}</p>
-              ))}
+        {editingIncome ? (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-semibold text-slate-800 text-sm">Редактирование</h2>
+              <button onClick={() => setEditingIncome(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={16} />
+              </button>
             </div>
-          )}
-
-          {successMsg && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-              <p className="text-sm text-emerald-700 font-medium">{successMsg}</p>
-            </div>
-          )}
-
-          {ycWarning && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-              <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-700 font-medium">{ycWarning}</p>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Сумма *</label>
-            <input
-              type="number"
-              step="0.01"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-              placeholder="0.00"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Тип оплаты *</label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {PAYMENT_TYPES.map(pt => (
-                <button
-                  key={pt.id}
-                  type="button"
-                  onClick={() => setPaymentType(pt.id)}
-                  className={`px-3 py-2.5 rounded-lg text-sm font-medium border transition-all ${
-                    paymentType === pt.id
-                      ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400 hover:text-teal-600'
-                  }`}
-                >
-                  {pt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Статья</label>
-            <SearchableSelect
-              value={categoryId}
-              onChange={setCategoryId}
-              placeholder="Выберите статью"
-              options={categoryOptions}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div ref={contractorInputRef} className="relative">
-              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">
-                <span className="flex items-center gap-1.5"><User size={13} /> ФИО клиента</span>
-              </label>
-              <input
-                type="text"
-                value={clientName}
-                onChange={e => {
-                  setClientName(e.target.value);
-                  setClientNameSearch(e.target.value);
-                  setShowContractorsList(true);
-                }}
-                onFocus={() => setShowContractorsList(true)}
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                placeholder="Иванов Иван Иванович"
-              />
-              {showContractorsList && contractors.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto">
-                  {contractors.map(c => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => {
-                        setClientName(c.name);
-                        setClientPhone(c.phone);
-                        setShowContractorsList(false);
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 border-b border-slate-100 last:border-b-0"
-                    >
-                      <div className="font-medium text-slate-800">{c.name}</div>
-                      <div className="text-xs text-slate-500">{c.phone}</div>
+            <form onSubmit={handleEditSubmit} className="p-4 space-y-3">
+              {editError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-sm text-rose-600">{editError}</div>
+              )}
+              <div className="text-xs text-slate-500 bg-slate-50 rounded-lg p-2 flex items-center gap-2">
+                <User size={12} /> <span>{editingIncome.clientName || '—'}</span>
+                <Phone size={12} className="ml-2" /> <span>{editingIncome.clientPhone || '—'}</span>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Сумма *</label>
+                <input
+                  type="number" step="0.01" value={editAmount} onChange={e => setEditAmount(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Тип оплаты *</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {PAYMENT_TYPES.map(pt => (
+                    <button key={pt.id} type="button" onClick={() => setEditPaymentType(pt.id)}
+                      className={`px-2 py-2 rounded-lg text-xs font-medium border transition-all ${editPaymentType === pt.id ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
+                      {pt.label}
                     </button>
                   ))}
                 </div>
-              )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Статья</label>
+                <SearchableSelect value={editCategoryId} onChange={setEditCategoryId} placeholder="Выберите статью" options={categoryOptions} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Комментарий</label>
+                <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none" rows={2} placeholder="Примечание..." />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setEditingIncome(null)}
+                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  Отмена
+                </button>
+                <button type="submit" disabled={editSubmitting}
+                  className="flex-1 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-50">
+                  {editSubmitting ? 'Сохранение...' : 'Сохранить'}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : done ? (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCircle2 size={20} className="text-emerald-500" />
+                <h2 className="font-bold text-slate-800">Поступления сохранены</h2>
+              </div>
+              <div className="text-xs text-slate-500">
+                {clientName && <span className="font-medium text-slate-700">{clientName}</span>}
+                {clientName && clientPhone && ' · '}
+                {clientPhone && <span>{formatPhoneDisplay(clientPhone)}</span>}
+              </div>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {submitResults.map((r, i) => (
+                <div key={i} className={`px-4 py-3 flex items-start gap-3 ${r.success ? '' : 'bg-rose-50'}`}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${r.success ? 'bg-emerald-100' : 'bg-rose-100'}`}>
+                    {r.success ? <Check size={11} className="text-emerald-600" /> : <X size={11} className="text-rose-600" />}
+                  </div>
+                  <div>
+                    <div className={`text-sm font-medium ${r.success ? 'text-slate-800' : 'text-rose-700'}`}>{r.msg}</div>
+                    {r.ycWarning && (
+                      <div className="flex items-center gap-1 mt-0.5 text-xs text-amber-600">
+                        <AlertCircle size={11} /> Не найдено или сумма не совпадает в YClients
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 flex gap-2">
+              <button onClick={handleBackToVisit}
+                className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1">
+                <Plus size={14} /> Ещё для этого клиента
+              </button>
+              <button onClick={handleStartNew}
+                className="flex-1 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors">
+                Новый клиент
+              </button>
+            </div>
+          </div>
+        ) : step === 'phone' ? (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+            <div>
+              <h1 className="text-lg font-bold text-slate-800">Новое поступление</h1>
+              <p className="text-xs text-slate-500 mt-0.5">Введите номер телефона клиента</p>
             </div>
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">
-                <span className="flex items-center gap-1.5"><Phone size={13} /> Телефон</span>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-1.5">
+                <Phone size={14} /> Телефон клиента *
               </label>
               <IMaskInput
                 mask="+7 (000) 000-00-00"
                 value={clientPhone}
-                unmask={true}
-                onAccept={(value) => setClientPhone(value)}
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                unmask={false}
+                onAccept={(value: string) => setClientPhone(value)}
+                className="w-full px-3 py-3 border border-slate-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono tracking-wide"
                 placeholder="+7 (___) ___-__-__"
+                autoFocus
               />
             </div>
+            <button
+              onClick={() => handlePhoneComplete(clientPhone)}
+              disabled={!phoneComplete}
+              className="w-full py-3 bg-teal-600 text-white rounded-lg font-semibold text-sm hover:bg-teal-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              Найти запись в YClients <ChevronRight size={16} />
+            </button>
+            <button
+              onClick={handleSkipVisit}
+              className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              Создать без поиска в YClients
+            </button>
           </div>
-
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Тип клиента</label>
-            <div className="grid grid-cols-2 gap-2">
-              {CLIENT_TYPES.map(ct => (
-                <button
-                  key={ct.id}
-                  type="button"
-                  onClick={() => setClientType(ct.id)}
-                  className={`px-3 py-2.5 rounded-lg text-sm font-medium border transition-all ${
-                    clientType === ct.id
-                      ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400 hover:text-teal-600'
-                  }`}
-                >
-                  {ct.label}
-                </button>
-              ))}
+        ) : step === 'visit' ? (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+              <button onClick={handleBackToPhone} className="text-slate-400 hover:text-slate-700 transition-colors">
+                <ArrowLeft size={16} />
+              </button>
+              <div>
+                <div className="text-sm font-semibold text-slate-800">Запись в YClients</div>
+                <div className="text-xs text-slate-500 font-mono">{formatPhoneDisplay(clientPhone)}</div>
+              </div>
             </div>
+
+            {ycLoading ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-slate-400">
+                <Loader2 size={18} className="animate-spin" /> Поиск в YClients...
+              </div>
+            ) : ycError ? (
+              <div className="p-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2 text-sm text-amber-700">
+                  <AlertCircle size={15} /> {ycError}
+                </div>
+                <button onClick={handleSkipVisit} className="mt-3 w-full py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  Продолжить без привязки
+                </button>
+              </div>
+            ) : ycSearched && ycVisits.length === 0 ? (
+              <div className="p-4 text-center space-y-3">
+                <div className="text-slate-400 text-sm py-4">
+                  <Calendar size={28} className="mx-auto mb-2 opacity-40" />
+                  Записей на сегодня не найдено
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5 text-left">ФИО клиента</label>
+                  <input
+                    type="text" value={clientName} onChange={e => setClientName(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    placeholder="Иванов Иван Иванович"
+                  />
+                </div>
+                <button onClick={handleSkipVisit}
+                  className="w-full py-2.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors">
+                  Продолжить без привязки
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="divide-y divide-slate-100">
+                  {ycVisits.map((visit, i) => {
+                    const allItems = [...visit.services, ...visit.goods];
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => handleSelectVisit(visit)}
+                        className="w-full text-left px-4 py-3.5 hover:bg-teal-50 transition-colors flex items-start justify-between gap-3 group"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
+                            <User size={13} className="text-teal-500 shrink-0" />
+                            {visit.clientName || 'Без имени'}
+                          </div>
+                          {visit.clientPhone && (
+                            <div className="text-xs text-slate-400 mt-0.5 font-mono">{visit.clientPhone}</div>
+                          )}
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {allItems.map((s, si) => (
+                              <span key={si} className="text-[11px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
+                                {s.title} {s.amount > 0 ? `(${formatCurrency(s.amount)})` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="text-sm font-bold text-teal-600">{formatCurrency(visit.totalAmount)}</div>
+                          <div className="w-6 h-6 rounded-full border-2 border-slate-300 group-hover:border-teal-500 mt-1 ml-auto transition-colors" />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="p-3 border-t border-slate-100">
+                  <div className="mb-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">ФИО клиента (если не совпадает)</label>
+                    <input
+                      type="text" value={clientName} onChange={e => setClientName(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="Иванов Иван Иванович"
+                    />
+                  </div>
+                  <button onClick={handleSkipVisit}
+                    className="w-full py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                    Продолжить без привязки
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+                <button onClick={handleBackToVisit} className="text-slate-400 hover:text-slate-700 transition-colors">
+                  <ArrowLeft size={16} />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-slate-500 font-mono">{formatPhoneDisplay(clientPhone)}</div>
+                  {selectedVisit && (
+                    <div className="text-[10px] text-teal-600 font-medium flex items-center gap-1 mt-0.5">
+                      <Check size={10} /> Привязано к записи YClients
+                    </div>
+                  )}
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Комментарий</label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
-              rows={2}
-              placeholder="Примечание..."
-            />
+              <div className="px-4 py-3 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1">
+                    <User size={12} /> ФИО клиента
+                  </label>
+                  <input
+                    type="text" value={clientName} onChange={e => setClientName(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    placeholder="Иванов Иван Иванович"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Тип клиента</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CLIENT_TYPES.map(ct => (
+                      <button key={ct.id} type="button" onClick={() => setClientType(ct.id as 'primary' | 'regular')}
+                        className={`py-2 rounded-lg text-sm font-medium border transition-all ${clientType === ct.id ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
+                        {ct.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {globalError && (
+              <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-600">
+                {globalError}
+              </div>
+            )}
+
+            {entries.map((entry, idx) => (
+              <div key={entry.tempId} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+                    <Banknote size={13} /> Поступление {idx + 1}
+                  </span>
+                  {entries.length > 1 && (
+                    <button onClick={() => removeEntry(entry.tempId)} className="text-slate-300 hover:text-rose-500 transition-colors">
+                      <X size={15} />
+                    </button>
+                  )}
+                </div>
+                <div className="p-4 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Сумма *</label>
+                    <input
+                      type="number" step="0.01" value={entry.amount}
+                      onChange={e => updateEntry(entry.tempId, 'amount', e.target.value)}
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="0.00" autoFocus={idx === entries.length - 1 && idx > 0}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Тип оплаты *</label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {PAYMENT_TYPES.map(pt => (
+                        <button key={pt.id} type="button" onClick={() => updateEntry(entry.tempId, 'paymentType', pt.id)}
+                          className={`py-2 rounded-lg text-xs font-medium border transition-all ${entry.paymentType === pt.id ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
+                          {pt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Статья</label>
+                    <SearchableSelect value={entry.categoryId} onChange={v => updateEntry(entry.tempId, 'categoryId', v)} placeholder="Выберите статью" options={categoryOptions} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Комментарий</label>
+                    <input
+                      type="text" value={entry.description}
+                      onChange={e => updateEntry(entry.tempId, 'description', e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="Например: По акции, АБ-Первый платёж..."
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <button
+              onClick={addEntry}
+              className="w-full py-2.5 border-2 border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:border-teal-400 hover:text-teal-600 transition-colors flex items-center justify-center gap-2"
+            >
+              <Plus size={15} /> Добавить ещё поступление
+            </button>
+
+            <button
+              onClick={handleSubmitAll}
+              disabled={submitting}
+              className="w-full py-3.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+            >
+              {submitting ? (
+                <><Loader2 size={16} className="animate-spin" /> Сохранение...</>
+              ) : (
+                <><Send size={16} /> Сохранить {entries.length > 1 ? `${entries.length} поступления` : 'поступление'}</>
+              )}
+            </button>
           </div>
+        )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-3 bg-teal-600 text-white rounded-lg font-semibold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <Send size={16} />
-            {submitting ? 'Сохранение...' : editingId ? 'Обновить запись' : 'Записать поступление'}
-          </button>
-        </form>
-
-        <div className="mt-8">
-          <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <Clock size={18} />
-            Последние записи
+        <div className="mt-2">
+          <h2 className="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <Clock size={16} /> Последние записи
           </h2>
 
           {loading && incomes.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">Загрузка...</div>
+            <div className="text-center py-8 text-slate-400 text-sm">Загрузка...</div>
           ) : incomes.length === 0 ? (
-            <div className="text-center py-8 text-slate-400 bg-white rounded-xl border border-slate-200">
+            <div className="text-center py-8 text-slate-400 text-sm bg-white rounded-xl border border-slate-200">
               Записей пока нет
             </div>
           ) : (
             <div className="space-y-2">
               {incomes.map(inc => (
-                <div key={inc.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3">
+                <div key={inc.id} className="bg-white rounded-xl border border-slate-200 p-3.5 flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-emerald-600">+{formatCurrency(inc.amount)}</span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500">
                         {PAYMENT_TYPES.find(p => p.id === inc.paymentType)?.label || inc.paymentType}
                       </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
-                      {inc.categoryName && <span>{inc.categoryName}</span>}
-                      {inc.categoryName && inc.clientName && <span>·</span>}
-                      {inc.clientName && <span>{inc.clientName}</span>}
-                      {inc.clientPhone && <span>· {inc.clientPhone}</span>}
                       {inc.clientType && inc.clientType !== 'customer' && (
-                        <>
-                          <span>·</span>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 font-medium">
-                            {CLIENT_TYPES.find(ct => ct.id === inc.clientType)?.label}
-                          </span>
-                        </>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 font-medium">
+                          {CLIENT_TYPES.find(ct => ct.id === inc.clientType)?.label}
+                        </span>
                       )}
                     </div>
-                    {inc.description && (
-                      <p className="text-xs text-slate-400 mt-1 truncate">{inc.description}</p>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    <div className="text-[11px] text-slate-400 whitespace-nowrap">
-                      {formatDate(inc.createdAt)}
+                    <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500 flex-wrap">
+                      {inc.categoryName && <span>{inc.categoryName}</span>}
+                      {inc.clientName && <><span>·</span><span>{inc.clientName}</span></>}
+                      {inc.clientPhone && <><span>·</span><span className="font-mono">{inc.clientPhone}</span></>}
                     </div>
-                    {isToday(inc.createdAt) && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleEdit(inc)}
-                          className="p-1 text-slate-400 hover:text-teal-600 transition-colors"
-                          title="Редактировать"
-                        >
-                          <Edit2 size={14} />
+                    {inc.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{inc.description}</p>}
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <div className="text-[11px] text-slate-400 whitespace-nowrap">{formatDate(inc.createdAt)}</div>
+                    {isToday(inc.createdAt) && !editingIncome && (
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => handleEdit(inc)} className="p-1 text-slate-300 hover:text-teal-600 transition-colors" title="Редактировать">
+                          <Edit2 size={13} />
                         </button>
-                        <button
-                          onClick={() => handleDelete(inc.id)}
-                          className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
-                          title="Удалить"
-                        >
-                          <Trash2 size={14} />
+                        <button onClick={() => handleDelete(inc.id)} className="p-1 text-slate-300 hover:text-rose-500 transition-colors" title="Удалить">
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     )}
