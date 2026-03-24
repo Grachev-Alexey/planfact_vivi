@@ -82,9 +82,6 @@ const initDB = async () => {
       )
     `);
 
-    await db.query(`ALTER TABLE IF EXISTS transactions DROP COLUMN IF EXISTS project_id`);
-    await db.query(`DROP TABLE IF EXISTS projects`);
-
     await db.query(`
       DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='contractors' AND column_name='phone') THEN
@@ -107,23 +104,6 @@ const initDB = async () => {
       END $$;
     `);
 
-    await db.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_status') THEN
-          ALTER TABLE transactions ADD COLUMN yclients_status TEXT DEFAULT NULL;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_record_id') THEN
-          ALTER TABLE transactions ADD COLUMN yclients_record_id TEXT DEFAULT NULL;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_data') THEN
-          ALTER TABLE transactions ADD COLUMN yclients_data TEXT DEFAULT NULL;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_checked_at') THEN
-          ALTER TABLE transactions ADD COLUMN yclients_checked_at TIMESTAMP DEFAULT NULL;
-        END IF;
-      END $$;
-    `);
-
     // Add legal_entity_id to accounts if not exists
     await db.query(`
       DO $$ BEGIN
@@ -132,6 +112,9 @@ const initDB = async () => {
         END IF;
       END $$;
     `);
+
+    await db.query(`ALTER TABLE IF EXISTS transactions DROP COLUMN IF EXISTS project_id`);
+    await db.query(`DROP TABLE IF EXISTS projects`);
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS transactions (
@@ -163,11 +146,20 @@ const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='client_type') THEN
           ALTER TABLE transactions ADD COLUMN client_type TEXT;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_status') THEN
+          ALTER TABLE transactions ADD COLUMN yclients_status TEXT DEFAULT NULL;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_record_id') THEN
+          ALTER TABLE transactions ADD COLUMN yclients_record_id TEXT DEFAULT NULL;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_data') THEN
+          ALTER TABLE transactions ADD COLUMN yclients_data TEXT DEFAULT NULL;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_checked_at') THEN
+          ALTER TABLE transactions ADD COLUMN yclients_checked_at TIMESTAMP DEFAULT NULL;
+        END IF;
       END $$;
     `);
-
-
-
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS payment_requests (
