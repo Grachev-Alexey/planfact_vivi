@@ -473,13 +473,14 @@ async function updateRecord(companyId, recordId, fields) {
   const current = await yclientsRequest(`/record/${companyId}/${recordId}`);
   const staff = Array.isArray(current.staff) ? current.staff[0] : current.staff;
 
-  // Required fields copied from current record
+  // Required fields + fields that YClients resets to default if omitted
   const payload = {
     staff_id: staff?.id,
     services: (current.services || []).map(s => ({ id: s.id, cost: s.cost, amount: s.amount || 1 })),
     client: current.client ? { id: current.client.id } : {},
     datetime: current.datetime,
     seance_length: current.seance_length,
+    attendance: current.attendance ?? 0,
   };
 
   // Only add the fields we actually want to change
