@@ -1075,7 +1075,6 @@ export const MasterIncomePage: React.FC = () => {
                             <div key={f.id}>
                               <label className="block text-xs font-medium text-slate-600 mb-1.5">
                                 {f.label}
-                                <span className="ml-1.5 text-[10px] text-slate-400 font-normal">{f.target === 'record' ? 'запись' : 'клиент'}</span>
                               </label>
                               {f.editable ? (
                                 <input
