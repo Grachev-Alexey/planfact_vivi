@@ -135,20 +135,36 @@ router.get('/yclients/record-details', async (req, res) => {
     const companyId = studioRes.rows[0].yclients_id;
 
     const { recordId, clientId } = req.query;
-    const [record, client] = await Promise.all([
+
+    // Also get all company IDs to build a global id→code map (cross-company field ID mismatch)
+    const allStudiosRes = await db.query('SELECT DISTINCT yclients_id FROM studios WHERE yclients_id IS NOT NULL');
+    const allCompanyIds = allStudiosRes.rows.map(r => r.yclients_id);
+
+    const [record, client, recordCodeMap, clientCodeMap] = await Promise.all([
       recordId ? getRecord(companyId, recordId) : null,
       clientId ? getClientDetails(companyId, clientId) : null,
+      buildGlobalFieldCodeMap('record', allCompanyIds),
+      buildGlobalFieldCodeMap('client', allCompanyIds),
     ]);
+
     // YClients may return custom_fields as array or as object keyed by id — normalise to array
     const toArray = (fields) => {
       if (!fields) return [];
       if (Array.isArray(fields)) return fields;
       return Object.values(fields);
     };
+
+    // Enrich each field item with `code` from global map
+    const enrichWithCode = (fields, codeMap) =>
+      toArray(fields).map(f => ({
+        ...f,
+        code: codeMap.get(f.id) || f.code || null,
+      }));
+
     res.json({
       comment: record?.comment || '',
-      recordCustomFields: toArray(record?.custom_fields),
-      clientCustomFields: toArray(client?.custom_fields),
+      recordCustomFields: enrichWithCode(record?.custom_fields, recordCodeMap),
+      clientCustomFields: enrichWithCode(client?.custom_fields, clientCodeMap),
     });
   } catch (err) {
     console.error('record-details error:', err);

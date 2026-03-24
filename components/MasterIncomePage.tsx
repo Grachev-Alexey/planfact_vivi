@@ -319,8 +319,16 @@ export const MasterIncomePage: React.FC = () => {
         setYcRecordData(data);
         setYcComment(data.comment || '');
         const vals: Record<string, string> = {};
-        (data.recordCustomFields || []).forEach((f: { id: number; value: string }) => { vals[`record_${f.id}`] = f.value || ''; });
-        (data.clientCustomFields || []).forEach((f: { id: number; value: string }) => { vals[`client_${f.id}`] = f.value || ''; });
+        (data.recordCustomFields || []).forEach((f: { id: number; code?: string; value: string }) => {
+          const val = f.value || '';
+          vals[`record_${f.id}`] = val;
+          if (f.code) vals[`record_code_${f.code}`] = val;
+        });
+        (data.clientCustomFields || []).forEach((f: { id: number; code?: string; value: string }) => {
+          const val = f.value || '';
+          vals[`client_${f.id}`] = val;
+          if (f.code) vals[`client_code_${f.code}`] = val;
+        });
         setYcFieldValues(vals);
       }
     } catch (e: unknown) {
@@ -458,11 +466,14 @@ export const MasterIncomePage: React.FC = () => {
         ycFormSettings.fields.filter(f => f.enabled && f.editable).forEach(f => {
           const numId = parseInt(f.ycFieldId);
           if (!numId) return;
-          const key = `${f.target}_${numId}`;
+          const key = f.ycFieldCode ? `${f.target}_code_${f.ycFieldCode}` : `${f.target}_${numId}`;
           const newVal = ycFieldValues[key] ?? '';
-          const original = f.target === 'record'
-            ? (ycRecordData.recordCustomFields.find(x => x.id === numId)?.value || '')
-            : (ycRecordData.clientCustomFields.find(x => x.id === numId)?.value || '');
+          const sourceFields = f.target === 'record'
+            ? (ycRecordData.recordCustomFields as { id: number; code?: string; value?: string }[])
+            : (ycRecordData.clientCustomFields as { id: number; code?: string; value?: string }[]);
+          const original = f.ycFieldCode
+            ? (sourceFields.find(x => x.code === f.ycFieldCode)?.value || '')
+            : (sourceFields.find(x => x.id === numId)?.value || '');
           if (newVal !== original) {
             const entry: { id: number; code?: string; value: string } = { id: numId, value: newVal };
             if (f.ycFieldCode) entry.code = f.ycFieldCode;
@@ -488,7 +499,7 @@ export const MasterIncomePage: React.FC = () => {
         // Snapshot of all visible field values for DB storage
         const fieldSnapshot = ycFormSettings.fields.filter(f => f.enabled).map(f => {
           const numId = parseInt(f.ycFieldId);
-          const key = `${f.target}_${numId}`;
+          const key = f.ycFieldCode ? `${f.target}_code_${f.ycFieldCode}` : `${f.target}_${numId}`;
           return { label: f.label, id: f.ycFieldId, target: f.target, value: ycFieldValues[key] ?? '' };
         });
         yclientsDataSnapshot = {
@@ -1052,12 +1063,14 @@ export const MasterIncomePage: React.FC = () => {
                         })()}
                         {ycFormSettings.fields.filter(f => f.enabled).map(f => {
                           const numId = parseInt(f.ycFieldId);
-                          const key = `${f.target}_${numId}`;
+                          const key = f.ycFieldCode ? `${f.target}_code_${f.ycFieldCode}` : `${f.target}_${numId}`;
                           const currentVal = ycFieldValues[key] ?? '';
-                          const sourceFields = f.target === 'record'
+                          const sourceFields = (f.target === 'record'
                             ? (ycRecordData?.recordCustomFields || [])
-                            : (ycRecordData?.clientCustomFields || []);
-                          const ycField = sourceFields.find(x => x.id === numId);
+                            : (ycRecordData?.clientCustomFields || [])) as { id: number; code?: string; value?: string }[];
+                          const ycField = f.ycFieldCode
+                            ? sourceFields.find(x => x.code === f.ycFieldCode)
+                            : sourceFields.find(x => x.id === numId);
                           return (
                             <div key={f.id}>
                               <label className="block text-xs font-medium text-slate-600 mb-1.5">
