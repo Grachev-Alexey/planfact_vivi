@@ -4,6 +4,13 @@ const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
 const { logAction } = require('../utils/logger.cjs');
 
+function normalizePhone(raw) {
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 11 && (digits[0] === '7' || digits[0] === '8')) return digits.slice(1);
+  return digits;
+}
+
 let _hasExternalId = null;
 async function hasExternalIdColumn() {
   if (_hasExternalId !== null) return _hasExternalId;
@@ -72,7 +79,8 @@ router.post('/master-incomes', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;
 
-  const { amount, paymentType, categoryId, clientName, clientPhone, clientType, description, yclientsData } = req.body;
+  const { amount, paymentType, categoryId, clientName, clientType, description, yclientsData } = req.body;
+  const clientPhone = normalizePhone(req.body.clientPhone);
 
   if (!amount || !paymentType) {
     return res.status(400).json({ error: 'amount and paymentType required' });
@@ -191,7 +199,8 @@ router.put('/master-incomes/:id', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;
   const { id } = req.params;
-  const { amount, paymentType, categoryId, clientName, clientPhone, clientType, description } = req.body;
+  const { amount, paymentType, categoryId, clientName, clientType, description } = req.body;
+  const clientPhone = normalizePhone(req.body.clientPhone);
 
   try {
     const oldRes = await db.query('SELECT * FROM master_incomes WHERE id = $1 AND user_id = $2', [id, master.id]);

@@ -248,6 +248,18 @@ const initDB = async () => {
       END $$;
     `);
 
+    // Normalize phone numbers in contractors table to 10-digit format
+    await db.query(`
+      UPDATE contractors
+      SET phone = CASE
+        WHEN length(regexp_replace(phone, '[^0-9]', '', 'g')) = 11
+          AND substring(regexp_replace(phone, '[^0-9]', '', 'g'), 1, 1) IN ('7', '8')
+        THEN substring(regexp_replace(phone, '[^0-9]', '', 'g'), 2)
+        ELSE regexp_replace(phone, '[^0-9]', '', 'g')
+      END
+      WHERE phone ~ '[^0-9]' AND phone != ''
+    `);
+
     const yclientsMapping = {
       'Екатеринбург': '1073250',
       'Новосибирск': '990785',
