@@ -147,32 +147,26 @@ router.get('/yclients/record-details', async (req, res) => {
       buildGlobalFieldCodeMap('client', allCompanyIds),
     ]);
 
-    // YClients may return custom_fields as array or as object keyed by id — normalise to array
-    const toArray = (fields) => {
+    // YClients may return custom_fields as:
+    // - array of objects [{id, title, value, ...}]
+    // - object keyed by code {"referrer": "value"} → convert to [{code, value}]
+    const normaliseFields = (fields, codeMap) => {
       if (!fields) return [];
-      if (Array.isArray(fields)) return fields;
-      return Object.values(fields);
+      if (Array.isArray(fields)) {
+        // Array of objects — enrich with code via global map
+        return fields.map(f => ({
+          ...f,
+          code: codeMap.get(f.id) || f.code || null,
+        }));
+      }
+      // Object keyed by code: {"referrer": "122365"} → [{code: "referrer", value: "122365"}]
+      return Object.entries(fields).map(([code, value]) => ({ code, value: String(value ?? '') }));
     };
 
-    // Enrich each field item with `code` from global map
-    const enrichWithCode = (fields, codeMap) => {
-      const arr = toArray(fields);
-      console.log('[record-details] raw custom_fields input:', JSON.stringify(fields));
-      console.log('[record-details] toArray result:', JSON.stringify(arr));
-      return arr.map(f => ({
-        ...f,
-        code: codeMap.get(f.id) || f.code || null,
-      }));
-    };
-
-    const enrichedRecord = enrichWithCode(record?.custom_fields, recordCodeMap);
-    const enrichedClient = enrichWithCode(client?.custom_fields, clientCodeMap);
-    console.log('[record-details] enrichedRecord:', JSON.stringify(enrichedRecord));
-    console.log('[record-details] enrichedClient:', JSON.stringify(enrichedClient));
     res.json({
       comment: record?.comment || '',
-      recordCustomFields: enrichedRecord,
-      clientCustomFields: enrichedClient,
+      recordCustomFields: normaliseFields(record?.custom_fields, recordCodeMap),
+      clientCustomFields: normaliseFields(client?.custom_fields, clientCodeMap),
     });
   } catch (err) {
     console.error('record-details error:', err);
