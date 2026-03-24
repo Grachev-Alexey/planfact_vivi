@@ -745,7 +745,7 @@ export const MasterIncomePage: React.FC = () => {
                             {visit.clientName || 'Без имени'}
                           </div>
                           {visit.clientPhone && (
-                            <div className="text-xs text-slate-400 mt-0.5 font-mono">{visit.clientPhone}</div>
+                            <div className="text-xs text-slate-400 mt-0.5 font-mono">{formatPhoneDisplay(visit.clientPhone)}</div>
                           )}
                           <div className="mt-1.5 flex flex-wrap gap-1">
                             {allItems.map((s, si) => (
@@ -996,7 +996,7 @@ export const MasterIncomePage: React.FC = () => {
                             <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500 flex-wrap">
                               {inc.categoryName && <span>{inc.categoryName}</span>}
                               {inc.clientName && <><span>·</span><span>{inc.clientName}</span></>}
-                              {inc.clientPhone && <><span>·</span><span className="font-mono">{inc.clientPhone}</span></>}
+                              {inc.clientPhone && <><span>·</span><span className="font-mono">{formatPhoneDisplay(inc.clientPhone)}</span></>}
                             </div>
                             {inc.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{inc.description}</p>}
                           </div>
