@@ -252,6 +252,24 @@ export const MasterIncomePage: React.FC = () => {
   const [historyPage, setHistoryPage] = useState(1);
   const HISTORY_PAGE_SIZE = 10;
 
+  interface YcFormSettings {
+    commentEnabled: boolean;
+    commentEditable: boolean;
+    fields: { id: string; label: string; ycFieldId: string; target: 'record' | 'client'; enabled: boolean; editable: boolean }[];
+  }
+  interface YcRecordData {
+    comment: string;
+    recordCustomFields: { id: number; title: string; value: string }[];
+    clientCustomFields: { id: number; title: string; value: string }[];
+  }
+
+  const [ycFormSettings, setYcFormSettings] = useState<YcFormSettings | null>(null);
+  const [ycRecordData, setYcRecordData] = useState<YcRecordData | null>(null);
+  const [ycRecordLoading, setYcRecordLoading] = useState(false);
+  const [ycComment, setYcComment] = useState('');
+  const [ycFieldValues, setYcFieldValues] = useState<Record<string, string>>({});
+  const [ycSectionOpen, setYcSectionOpen] = useState(true);
+
   const [editingIncome, setEditingIncome] = useState<MasterIncome | null>(null);
   const [editAmount, setEditAmount] = useState('');
   const [editPaymentType, setEditPaymentType] = useState('');
@@ -276,6 +294,41 @@ export const MasterIncomePage: React.FC = () => {
   }, [user]);
 
   useEffect(() => { fetchIncomes(); }, [fetchIncomes]);
+
+  useEffect(() => {
+    fetch('/api/yclients/form-settings')
+      .then(r => r.json())
+      .then(d => setYcFormSettings(d))
+      .catch(() => {});
+  }, []);
+
+  const fetchYcRecordData = async (recordId: string, clientId: number | null) => {
+    setYcRecordLoading(true);
+    setYcRecordData(null);
+    setYcComment('');
+    setYcFieldValues({});
+    try {
+      const params = new URLSearchParams();
+      if (recordId) params.set('recordId', recordId);
+      if (clientId) params.set('clientId', String(clientId));
+      const res = await fetch(`/api/yclients/record-details?${params.toString()}`, {
+        headers: { 'x-user-id': String(user?.id || '') },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setYcRecordData(data);
+        setYcComment(data.comment || '');
+        const vals: Record<string, string> = {};
+        (data.recordCustomFields || []).forEach((f: { id: number; value: string }) => { vals[`record_${f.id}`] = f.value || ''; });
+        (data.clientCustomFields || []).forEach((f: { id: number; value: string }) => { vals[`client_${f.id}`] = f.value || ''; });
+        setYcFieldValues(vals);
+      }
+    } catch (e) {
+      console.error('fetchYcRecordData error:', e);
+    } finally {
+      setYcRecordLoading(false);
+    }
+  };
 
   const categoryOptions = useMemo(() => {
     const filtered = categories.filter(c => c.type === 'income');
@@ -329,6 +382,9 @@ export const MasterIncomePage: React.FC = () => {
     setClientLastName(visit.clientLastName || '');
     setLastNameWasEmpty(!visit.clientLastName);
     setStep('entries');
+    if (ycFormSettings && (ycFormSettings.commentEnabled || (ycFormSettings.fields ?? []).some(f => f.enabled))) {
+      fetchYcRecordData(visit.recordIds[0], visit.clientId);
+    }
   };
 
   const handleSkipVisit = () => {
@@ -385,6 +441,46 @@ export const MasterIncomePage: React.FC = () => {
         });
       } catch {
         console.error('Failed to update YClients client surname');
+      }
+    }
+
+    if (selectedVisit && ycRecordData !== null && ycFormSettings) {
+      try {
+        const recordId = selectedVisit.recordIds[0];
+        const originalComment = ycRecordData.comment || '';
+        const commentChanged = ycFormSettings.commentEditable && ycComment !== originalComment;
+
+        const recordFields: { id: number; value: string }[] = [];
+        const clientFields: { id: number; value: string }[] = [];
+        ycFormSettings.fields.filter(f => f.enabled && f.editable).forEach(f => {
+          const numId = parseInt(f.ycFieldId);
+          if (!numId) return;
+          const key = `${f.target}_${numId}`;
+          const newVal = ycFieldValues[key] ?? '';
+          const original = f.target === 'record'
+            ? (ycRecordData.recordCustomFields.find(x => x.id === numId)?.value || '')
+            : (ycRecordData.clientCustomFields.find(x => x.id === numId)?.value || '');
+          if (newVal !== original) {
+            if (f.target === 'record') recordFields.push({ id: numId, value: newVal });
+            else clientFields.push({ id: numId, value: newVal });
+          }
+        });
+
+        if (commentChanged || recordFields.length > 0 || clientFields.length > 0) {
+          await fetch('/api/yclients/update-record', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+            body: JSON.stringify({
+              recordId,
+              clientId: ycClientId,
+              ...(commentChanged ? { comment: ycComment } : {}),
+              recordCustomFields: recordFields,
+              clientCustomFields: clientFields,
+            }),
+          });
+        }
+      } catch (err) {
+        console.error('Failed to update YClients record data:', err);
       }
     }
 
@@ -448,6 +544,9 @@ export const MasterIncomePage: React.FC = () => {
     setSubmitResults([]);
     setGlobalError(null);
     setDone(false);
+    setYcRecordData(null);
+    setYcComment('');
+    setYcFieldValues({});
   };
 
   const handleEdit = (inc: MasterIncome) => {
@@ -853,6 +952,86 @@ export const MasterIncomePage: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {selectedVisit && ycFormSettings && (ycFormSettings.commentEnabled || (ycFormSettings.fields ?? []).some(f => f.enabled)) && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setYcSectionOpen(o => !o)}
+                  className="w-full px-4 py-3 flex items-center justify-between bg-slate-50 border-b border-slate-100"
+                >
+                  <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded bg-teal-100 text-teal-600 text-[10px] flex items-center justify-center font-bold">Y</span>
+                    Данные в YClients
+                  </span>
+                  <span className="text-slate-400 text-xs">{ycSectionOpen ? '▲' : '▼'}</span>
+                </button>
+
+                {ycSectionOpen && (
+                  <div className="px-4 py-3 space-y-3">
+                    {ycRecordLoading ? (
+                      <div className="text-xs text-slate-400 text-center py-2">Загружаем данные из YClients...</div>
+                    ) : (
+                      <>
+                        {ycFormSettings.commentEnabled && (
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1.5">Комментарий к записи</label>
+                            {ycFormSettings.commentEditable ? (
+                              <textarea
+                                value={ycComment}
+                                onChange={e => setYcComment(e.target.value)}
+                                rows={3}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                                placeholder="Нет комментария..."
+                              />
+                            ) : (
+                              <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 min-h-[42px]">
+                                {ycComment || <span className="text-slate-400 italic">Нет комментария</span>}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {ycFormSettings.fields.filter(f => f.enabled).map(f => {
+                          const numId = parseInt(f.ycFieldId);
+                          const key = `${f.target}_${numId}`;
+                          const currentVal = ycFieldValues[key] ?? '';
+                          const sourceFields = f.target === 'record'
+                            ? (ycRecordData?.recordCustomFields || [])
+                            : (ycRecordData?.clientCustomFields || []);
+                          const ycField = sourceFields.find(x => x.id === numId);
+                          return (
+                            <div key={f.id}>
+                              <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                                {f.label}
+                                <span className="ml-1.5 text-[10px] text-slate-400 font-normal">{f.target === 'record' ? 'запись' : 'клиент'}</span>
+                              </label>
+                              {f.editable ? (
+                                <input
+                                  type="text"
+                                  value={currentVal}
+                                  onChange={e => setYcFieldValues(v => ({ ...v, [key]: e.target.value }))}
+                                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                  placeholder={ycField ? `Сейчас: ${ycField.value}` : 'Нет значения'}
+                                />
+                              ) : (
+                                <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600">
+                                  {currentVal || <span className="text-slate-400 italic">Нет значения</span>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {!ycRecordData && !ycRecordLoading && (
+                          <div className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                            Данные YClients недоступны — не сохранено в YClients
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {globalError && (
               <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-600">

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs');
-const { verifyTransaction, verifyBatch, getVisitsByPhone, updateClientInfo } = require('../services/yclients.cjs');
+const { verifyTransaction, verifyBatch, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields } = require('../services/yclients.cjs');
 
 router.get('/yclients/search-by-phone', async (req, res) => {
   const userId = req.headers['x-user-id'];
@@ -85,6 +85,101 @@ router.post('/yclients/verify-batch', async (req, res) => {
   } catch (err) {
     console.error('YClients batch verify error:', err);
     res.status(500).json({ error: 'Batch verification failed' });
+  }
+});
+
+const DEFAULT_FORM_CONFIG = { commentEnabled: false, commentEditable: false, fields: [] };
+
+router.get('/yclients/form-settings', async (req, res) => {
+  try {
+    const r = await db.query("SELECT value FROM app_settings WHERE key = 'yclients_form_config'");
+    const config = r.rows.length > 0 ? JSON.parse(r.rows[0].value) : DEFAULT_FORM_CONFIG;
+    res.json(config);
+  } catch (err) {
+    if (err.code === '42P01') return res.json(DEFAULT_FORM_CONFIG);
+    console.error('form-settings GET error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/yclients/form-settings', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const userRes = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0 || userRes.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const config = req.body;
+    await db.query(
+      "INSERT INTO app_settings (key, value) VALUES ('yclients_form_config', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [JSON.stringify(config)]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('form-settings PUT error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/yclients/record-details', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const userRes = await db.query('SELECT role, studio_id FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0) return res.status(403).json({ error: 'Forbidden' });
+    const user = userRes.rows[0];
+    if (!user.studio_id) return res.json({ error: 'No studio' });
+    const studioRes = await db.query('SELECT yclients_id FROM studios WHERE id = $1', [user.studio_id]);
+    if (studioRes.rows.length === 0 || !studioRes.rows[0].yclients_id) return res.json({ error: 'No YClients' });
+    const companyId = studioRes.rows[0].yclients_id;
+
+    const { recordId, clientId } = req.query;
+    const [record, client] = await Promise.all([
+      recordId ? getRecord(companyId, recordId) : null,
+      clientId ? getClientDetails(companyId, clientId) : null,
+    ]);
+    res.json({
+      comment: record?.comment || '',
+      recordCustomFields: record?.custom_fields || [],
+      clientCustomFields: client?.custom_fields || [],
+    });
+  } catch (err) {
+    console.error('record-details error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/yclients/update-record', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const userRes = await db.query('SELECT role, studio_id FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0) return res.status(403).json({ error: 'Forbidden' });
+    const user = userRes.rows[0];
+    if (!user.studio_id) return res.status(400).json({ error: 'No studio' });
+    const studioRes = await db.query('SELECT yclients_id FROM studios WHERE id = $1', [user.studio_id]);
+    if (studioRes.rows.length === 0 || !studioRes.rows[0].yclients_id) return res.status(400).json({ error: 'No YClients' });
+    const companyId = studioRes.rows[0].yclients_id;
+
+    const { recordId, clientId, comment, recordCustomFields, clientCustomFields } = req.body;
+    const results = {};
+
+    if (recordId && (comment !== undefined || (recordCustomFields && recordCustomFields.length > 0))) {
+      const payload = {};
+      if (comment !== undefined) payload.comment = comment;
+      if (recordCustomFields && recordCustomFields.length > 0) payload.custom_fields = recordCustomFields;
+      results.record = await updateRecord(companyId, recordId, payload);
+    }
+
+    if (clientId && clientCustomFields && clientCustomFields.length > 0) {
+      results.client = await updateClientCustomFields(companyId, clientId, clientCustomFields);
+    }
+
+    res.json({ success: true, results });
+  } catch (err) {
+    console.error('update-record error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

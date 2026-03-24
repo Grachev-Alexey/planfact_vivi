@@ -426,6 +426,50 @@ async function updateClientInfo(companyId, clientId, fields) {
   return data.data;
 }
 
+async function yclientsRequestPost(path, method, body) {
+  const url = `${BASE_URL}${path}`;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'Accept': 'application/vnd.yclients.v2+json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${YCLIENTS_PARTNER_TOKEN}, User ${YCLIENTS_USER_TOKEN}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(`YClients API error (${method} ${path}): ${data.meta?.message || JSON.stringify(data)}`);
+  }
+  return data.data;
+}
+
+async function getRecord(companyId, recordId) {
+  try {
+    return await yclientsRequest(`/record/${companyId}/${recordId}`);
+  } catch (err) {
+    console.error('getRecord error:', err.message);
+    return null;
+  }
+}
+
+async function updateRecord(companyId, recordId, fields) {
+  return yclientsRequestPost(`/record/${companyId}/${recordId}`, 'PUT', fields);
+}
+
+async function getClientDetails(companyId, clientId) {
+  try {
+    return await yclientsRequest(`/client/${companyId}/${clientId}`);
+  } catch (err) {
+    console.error('getClientDetails error:', err.message);
+    return null;
+  }
+}
+
+async function updateClientCustomFields(companyId, clientId, customFields) {
+  return yclientsRequestPost(`/client/${companyId}/${clientId}`, 'PUT', { custom_fields: customFields });
+}
+
 async function getVisitsByPhone(companyId, date, phone) {
   const records = await getRecords(companyId, date, date);
   const visits = groupRecordsByVisit(records, date);
@@ -441,4 +485,4 @@ async function getVisitsByPhone(companyId, date, phone) {
   });
 }
 
-module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, updateClientInfo };
+module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields };

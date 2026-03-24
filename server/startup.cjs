@@ -257,6 +257,18 @@ const initDB = async () => {
       await db.query('UPDATE studios SET yclients_id = $1 WHERE name = $2 AND (yclients_id IS NULL OR yclients_id = $3)', [ycId, name, '']);
     }
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    `);
+    await db.query(`
+      INSERT INTO app_settings (key, value)
+      VALUES ('yclients_form_config', '{"commentEnabled":false,"commentEditable":false,"fields":[]}')
+      ON CONFLICT (key) DO NOTHING
+    `);
+
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
       await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['grachev', 'cd5d56a8', 'admin']);

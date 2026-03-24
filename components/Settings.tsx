@@ -3,8 +3,23 @@ import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Users, Trash2, Shield, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, Filter } from 'lucide-react';
+import { Users, Trash2, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, ToggleLeft, ToggleRight, ArrowUp, ArrowDown, Settings2 } from 'lucide-react';
 import { formatDate } from '../utils/format';
+
+interface YcField {
+  id: string;
+  label: string;
+  ycFieldId: string;
+  target: 'record' | 'client';
+  enabled: boolean;
+  editable: boolean;
+}
+
+interface YcFormConfig {
+  commentEnabled: boolean;
+  commentEditable: boolean;
+  fields: YcField[];
+}
 
 interface User {
   id: number;
@@ -63,7 +78,12 @@ const entityOptions = [
 export const Settings: React.FC = () => {
   const { user } = useAuth();
   const { studios } = useFinance();
-  const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'yclients'>('users');
+
+  const [ycConfig, setYcConfig] = useState<YcFormConfig>({ commentEnabled: false, commentEditable: false, fields: [] });
+  const [ycSaving, setYcSaving] = useState(false);
+  const [ycSaved, setYcSaved] = useState(false);
+  const [newField, setNewField] = useState<Partial<YcField>>({ label: '', ycFieldId: '', target: 'record', enabled: true, editable: true });
 
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
@@ -83,7 +103,67 @@ export const Settings: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
+    fetchYcConfig();
   }, []);
+
+  const fetchYcConfig = async () => {
+    try {
+      const res = await fetch('/api/yclients/form-settings');
+      const data = await res.json();
+      setYcConfig(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const saveYcConfig = async () => {
+    setYcSaving(true);
+    try {
+      await fetch('/api/yclients/form-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id.toString() || '' },
+        body: JSON.stringify(ycConfig),
+      });
+      setYcSaved(true);
+      setTimeout(() => setYcSaved(false), 2000);
+    } catch (err) {
+      console.error(err);
+    }
+    setYcSaving(false);
+  };
+
+  const addYcField = () => {
+    if (!newField.label?.trim()) return;
+    const field: YcField = {
+      id: Date.now().toString(),
+      label: newField.label!.trim(),
+      ycFieldId: newField.ycFieldId?.trim() || '',
+      target: newField.target as 'record' | 'client',
+      enabled: true,
+      editable: newField.editable ?? true,
+    };
+    setYcConfig(c => ({ ...c, fields: [...c.fields, field] }));
+    setNewField({ label: '', ycFieldId: '', target: 'record', enabled: true, editable: true });
+  };
+
+  const removeYcField = (id: string) => {
+    setYcConfig(c => ({ ...c, fields: c.fields.filter(f => f.id !== id) }));
+  };
+
+  const updateYcField = (id: string, patch: Partial<YcField>) => {
+    setYcConfig(c => ({ ...c, fields: c.fields.map(f => f.id === id ? { ...f, ...patch } : f) }));
+  };
+
+  const moveYcField = (id: string, dir: -1 | 1) => {
+    setYcConfig(c => {
+      const fields = [...c.fields];
+      const idx = fields.findIndex(f => f.id === id);
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= fields.length) return c;
+      [fields[idx], fields[newIdx]] = [fields[newIdx], fields[idx]];
+      return { ...c, fields };
+    });
+  };
 
   const fetchLogs = useCallback(async (page = 1) => {
     try {
@@ -195,11 +275,158 @@ export const Settings: React.FC = () => {
                >
                    История
                </button>
+               <button
+                onClick={() => setActiveTab('yclients')}
+                className={`pb-3 sm:pb-4 text-base sm:text-xl font-bold transition-colors border-b-2 px-1 ${activeTab === 'yclients' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+               >
+                   YClients
+               </button>
            </div>
        </div>
 
        <div className="flex-1 p-3 sm:p-8 overflow-y-auto">
-         {activeTab === 'users' ? (
+         {activeTab === 'yclients' ? (
+           <div className="max-w-2xl space-y-5">
+             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+               <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                 <Settings2 size={16} className="text-teal-600" />
+                 <h3 className="font-bold text-slate-700">Комментарий к записи YClients</h3>
+               </div>
+               <div className="px-5 py-4 space-y-3">
+                 <label className="flex items-center justify-between gap-4 cursor-pointer group">
+                   <div>
+                     <div className="text-sm font-medium text-slate-700">Показывать мастеру</div>
+                     <div className="text-xs text-slate-400 mt-0.5">Мастер увидит текущий комментарий из YClients при выборе визита</div>
+                   </div>
+                   <button
+                     onClick={() => setYcConfig(c => ({ ...c, commentEnabled: !c.commentEnabled, commentEditable: !c.commentEnabled ? c.commentEditable : false }))}
+                     className="shrink-0"
+                   >
+                     {ycConfig.commentEnabled
+                       ? <ToggleRight size={32} className="text-teal-500" />
+                       : <ToggleLeft size={32} className="text-slate-300" />}
+                   </button>
+                 </label>
+                 {ycConfig.commentEnabled && (
+                   <label className="flex items-center justify-between gap-4 cursor-pointer pl-4 border-l-2 border-slate-100">
+                     <div>
+                       <div className="text-sm font-medium text-slate-700">Разрешить редактирование</div>
+                       <div className="text-xs text-slate-400 mt-0.5">Мастер сможет изменить комментарий — изменение сохранится в YClients</div>
+                     </div>
+                     <button onClick={() => setYcConfig(c => ({ ...c, commentEditable: !c.commentEditable }))} className="shrink-0">
+                       {ycConfig.commentEditable
+                         ? <ToggleRight size={32} className="text-teal-500" />
+                         : <ToggleLeft size={32} className="text-slate-300" />}
+                     </button>
+                   </label>
+                 )}
+               </div>
+             </div>
+
+             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+               <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+                 <h3 className="font-bold text-slate-700">Дополнительные поля</h3>
+                 <p className="text-xs text-slate-400 mt-1">Поля из YClients, которые мастер будет видеть и заполнять при вводе поступления. Укажите числовой ID поля из YClients.</p>
+               </div>
+               <div className="divide-y divide-slate-100">
+                 {ycConfig.fields.length === 0 && (
+                   <div className="px-5 py-6 text-center text-slate-400 text-sm">Полей пока нет</div>
+                 )}
+                 {ycConfig.fields.map((f, idx) => (
+                   <div key={f.id} className="px-4 py-3 flex items-center gap-3">
+                     <div className="flex flex-col gap-0.5 shrink-0">
+                       <button onClick={() => moveYcField(f.id, -1)} disabled={idx === 0} className="text-slate-300 hover:text-slate-500 disabled:opacity-30"><ArrowUp size={13} /></button>
+                       <button onClick={() => moveYcField(f.id, 1)} disabled={idx === ycConfig.fields.length - 1} className="text-slate-300 hover:text-slate-500 disabled:opacity-30"><ArrowDown size={13} /></button>
+                     </div>
+                     <div className="flex-1 grid grid-cols-2 gap-2">
+                       <input
+                         value={f.label}
+                         onChange={e => updateYcField(f.id, { label: e.target.value })}
+                         className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm"
+                         placeholder="Название поля"
+                       />
+                       <input
+                         value={f.ycFieldId}
+                         onChange={e => updateYcField(f.id, { ycFieldId: e.target.value })}
+                         className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm font-mono"
+                         placeholder="ID поля YClients"
+                       />
+                     </div>
+                     <select
+                       value={f.target}
+                       onChange={e => updateYcField(f.id, { target: e.target.value as 'record' | 'client' })}
+                       className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-700 shrink-0"
+                     >
+                       <option value="record">Запись</option>
+                       <option value="client">Клиент</option>
+                     </select>
+                     <div className="flex items-center gap-2 shrink-0">
+                       <div className="flex flex-col items-center gap-0.5">
+                         <span className="text-[9px] text-slate-400 uppercase tracking-wide">Показ</span>
+                         <button onClick={() => updateYcField(f.id, { enabled: !f.enabled })}>
+                           {f.enabled ? <ToggleRight size={22} className="text-teal-500" /> : <ToggleLeft size={22} className="text-slate-300" />}
+                         </button>
+                       </div>
+                       <div className="flex flex-col items-center gap-0.5">
+                         <span className="text-[9px] text-slate-400 uppercase tracking-wide">Ред.</span>
+                         <button onClick={() => updateYcField(f.id, { editable: !f.editable })}>
+                           {f.editable ? <ToggleRight size={22} className="text-teal-500" /> : <ToggleLeft size={22} className="text-slate-300" />}
+                         </button>
+                       </div>
+                     </div>
+                     <button onClick={() => removeYcField(f.id)} className="text-slate-300 hover:text-rose-500 transition-colors shrink-0">
+                       <X size={16} />
+                     </button>
+                   </div>
+                 ))}
+               </div>
+               <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
+                 <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Добавить поле</div>
+                 <div className="flex items-center gap-2">
+                   <input
+                     value={newField.label || ''}
+                     onChange={e => setNewField(f => ({ ...f, label: e.target.value }))}
+                     onKeyDown={e => e.key === 'Enter' && addYcField()}
+                     className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm"
+                     placeholder="Название поля"
+                   />
+                   <input
+                     value={newField.ycFieldId || ''}
+                     onChange={e => setNewField(f => ({ ...f, ycFieldId: e.target.value }))}
+                     onKeyDown={e => e.key === 'Enter' && addYcField()}
+                     className="w-28 px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm font-mono"
+                     placeholder="ID поля"
+                   />
+                   <select
+                     value={newField.target || 'record'}
+                     onChange={e => setNewField(f => ({ ...f, target: e.target.value as 'record' | 'client' }))}
+                     className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white text-slate-700"
+                   >
+                     <option value="record">Запись</option>
+                     <option value="client">Клиент</option>
+                   </select>
+                   <Button
+                     onClick={addYcField}
+                     className="bg-teal-600 text-white text-xs px-3 py-1.5 gap-1.5 shrink-0"
+                     disabled={!newField.label?.trim()}
+                   >
+                     <Plus size={14} /> Добавить
+                   </Button>
+                 </div>
+               </div>
+             </div>
+
+             <div className="flex justify-end">
+               <Button
+                 onClick={saveYcConfig}
+                 disabled={ycSaving}
+                 className={`px-6 py-2.5 font-semibold text-sm gap-2 ${ycSaved ? 'bg-emerald-600' : 'bg-teal-600'} text-white`}
+               >
+                 {ycSaved ? '✓ Сохранено' : ycSaving ? 'Сохраняем...' : 'Сохранить настройки'}
+               </Button>
+             </div>
+           </div>
+         ) : activeTab === 'users' ? (
            <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden">
              <div className="p-3 sm:p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <h3 className="font-bold text-sm sm:text-base text-slate-700">Список пользователей</h3>
