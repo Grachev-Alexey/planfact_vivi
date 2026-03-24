@@ -447,6 +447,7 @@ async function yclientsRequestPost(path, method, body) {
   });
   const data = await res.json();
   if (!data.success) {
+    console.error(`YClients API error (${method} ${path}) full response:`, JSON.stringify(data));
     throw new Error(`YClients API error (${method} ${path}): ${data.meta?.message || JSON.stringify(data)}`);
   }
   return data.data;
@@ -481,10 +482,22 @@ async function updateRecord(companyId, recordId, fields) {
     }
   }
 
+  // Build client object with all available fields (phone required by YClients)
+  const clientObj = {};
+  if (current.client) {
+    if (current.client.id) clientObj.id = current.client.id;
+    if (current.client.name) clientObj.name = current.client.name;
+    if (current.client.phone) clientObj.phone = current.client.phone;
+  }
+
   const payload = {
     staff_id: staff?.id,
-    services: (current.services || []).map(s => ({ id: s.id, cost: s.cost, amount: s.amount || 1 })),
-    client: current.client ? { id: current.client.id } : {},
+    services: (current.services || []).map(s => {
+      const svc = { id: s.id, cost: s.cost, amount: s.amount || 1 };
+      if (s.first_cost != null) svc.first_cost = s.first_cost;
+      return svc;
+    }),
+    client: clientObj,
     datetime: current.datetime,
     comment: fields.comment !== undefined ? fields.comment : (current.comment || ''),
     custom_fields: mergedCustomFields,
