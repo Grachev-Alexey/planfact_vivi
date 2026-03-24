@@ -155,16 +155,24 @@ router.get('/yclients/record-details', async (req, res) => {
     };
 
     // Enrich each field item with `code` from global map
-    const enrichWithCode = (fields, codeMap) =>
-      toArray(fields).map(f => ({
+    const enrichWithCode = (fields, codeMap) => {
+      const arr = toArray(fields);
+      console.log('[record-details] raw custom_fields input:', JSON.stringify(fields));
+      console.log('[record-details] toArray result:', JSON.stringify(arr));
+      return arr.map(f => ({
         ...f,
         code: codeMap.get(f.id) || f.code || null,
       }));
+    };
 
+    const enrichedRecord = enrichWithCode(record?.custom_fields, recordCodeMap);
+    const enrichedClient = enrichWithCode(client?.custom_fields, clientCodeMap);
+    console.log('[record-details] enrichedRecord:', JSON.stringify(enrichedRecord));
+    console.log('[record-details] enrichedClient:', JSON.stringify(enrichedClient));
     res.json({
       comment: record?.comment || '',
-      recordCustomFields: enrichWithCode(record?.custom_fields, recordCodeMap),
-      clientCustomFields: enrichWithCode(client?.custom_fields, clientCodeMap),
+      recordCustomFields: enrichedRecord,
+      clientCustomFields: enrichedClient,
     });
   } catch (err) {
     console.error('record-details error:', err);
