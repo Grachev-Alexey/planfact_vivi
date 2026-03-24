@@ -973,24 +973,65 @@ export const MasterIncomePage: React.FC = () => {
                       <div className="text-xs text-slate-400 text-center py-2">Загружаем данные из YClients...</div>
                     ) : (
                       <>
-                        {ycFormSettings.commentEnabled && (
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1.5">Комментарий к записи</label>
-                            {ycFormSettings.commentEditable ? (
-                              <textarea
-                                value={ycComment}
-                                onChange={e => setYcComment(e.target.value)}
-                                rows={3}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
-                                placeholder="Нет комментария..."
-                              />
-                            ) : (
-                              <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 min-h-[42px]">
-                                {ycComment || <span className="text-slate-400 italic">Нет комментария</span>}
+                        {ycFormSettings.commentEnabled && (() => {
+                          const originalComment = ycRecordData?.comment || '';
+                          const isChanged = ycComment !== originalComment;
+                          return (
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-xs font-medium text-slate-600">Комментарий к записи</label>
+                                {ycFormSettings.commentEditable && isChanged && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setYcComment(originalComment)}
+                                    className="text-[10px] text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-0.5"
+                                  >
+                                    <X size={10} /> сбросить
+                                  </button>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        )}
+                              {ycFormSettings.commentEditable ? (
+                                <div className={`relative rounded-lg border transition-colors ${isChanged ? 'border-teal-400 ring-1 ring-teal-200' : 'border-slate-300'}`}>
+                                  <textarea
+                                    ref={el => {
+                                      if (el) {
+                                        el.style.height = 'auto';
+                                        el.style.height = Math.max(el.scrollHeight, 60) + 'px';
+                                      }
+                                    }}
+                                    value={ycComment}
+                                    onChange={e => {
+                                      setYcComment(e.target.value);
+                                      e.target.style.height = 'auto';
+                                      e.target.style.height = Math.max(e.target.scrollHeight, 60) + 'px';
+                                    }}
+                                    className="w-full px-3 py-2.5 text-sm focus:outline-none resize-none bg-transparent rounded-lg"
+                                    placeholder="Добавьте комментарий..."
+                                    style={{ minHeight: '60px', overflow: 'hidden' }}
+                                  />
+                                  {isChanged && (
+                                    <div className="px-3 pb-2 text-[10px] text-teal-600 font-medium">Изменено</div>
+                                  )}
+                                  {!isChanged && ycComment.length > 0 && (
+                                    <div className="px-3 pb-1.5 text-[10px] text-slate-300">{ycComment.length} симв.</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 leading-relaxed min-h-[44px]">
+                                  {ycComment
+                                    ? ycComment.split('\n').map((line, i) => <div key={i}>{line || <br />}</div>)
+                                    : <span className="text-slate-400 italic text-xs">Нет комментария</span>}
+                                </div>
+                              )}
+                              {ycFormSettings.commentEditable && isChanged && originalComment && (
+                                <div className="mt-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
+                                  <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5 font-medium">Было</div>
+                                  <div className="text-xs text-slate-500 leading-relaxed">{originalComment}</div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {ycFormSettings.fields.filter(f => f.enabled).map(f => {
                           const numId = parseInt(f.ycFieldId);
                           const key = `${f.target}_${numId}`;
