@@ -421,7 +421,8 @@ async function updateClientInfo(companyId, clientId, fields) {
   });
   const data = await res.json();
   if (!data.success) {
-    throw new Error(`YClients client update error: ${data.meta?.message || 'Unknown'}`);
+    console.error('YClients updateClientInfo full response:', JSON.stringify(data));
+    throw new Error(`YClients client update error: ${data.meta?.message || data.meta?.errors?.join(', ') || JSON.stringify(data)}`);
   }
   return data.data;
 }

@@ -323,8 +323,9 @@ export const MasterIncomePage: React.FC = () => {
         (data.clientCustomFields || []).forEach((f: { id: number; value: string }) => { vals[`client_${f.id}`] = f.value || ''; });
         setYcFieldValues(vals);
       }
-    } catch (e) {
-      console.error('fetchYcRecordData error:', e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('fetchYcRecordData error:', msg);
     } finally {
       setYcRecordLoading(false);
     }
@@ -437,7 +438,7 @@ export const MasterIncomePage: React.FC = () => {
         await fetch('/api/yclients/update-client', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
-          body: JSON.stringify({ clientId: ycClientId, surname: clientLastName.trim() }),
+          body: JSON.stringify({ clientId: ycClientId, name: clientFirstName.trim(), surname: clientLastName.trim() }),
         });
       } catch {
         console.error('Failed to update YClients client surname');
