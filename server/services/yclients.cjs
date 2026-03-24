@@ -469,68 +469,23 @@ function toFieldsArray(fields) {
 }
 
 async function updateRecord(companyId, recordId, fields) {
-  // Fetch current record AND field definitions in parallel
-  const [current, fieldDefsRaw] = await Promise.all([
-    yclientsRequest(`/record/${companyId}/${recordId}`),
-    yclientsRequest(`/custom_fields/record/${companyId}`).catch(() => []),
-  ]);
-  const staff = Array.isArray(current.staff) ? current.staff[0] : current.staff;
+  // Send only the fields that are actually being changed — no extra fields
+  const payload = {};
 
-  // Log raw custom_fields from record to understand format
-  console.log('updateRecord current.custom_fields raw:', JSON.stringify(current.custom_fields));
-  console.log('updateRecord fieldDefsRaw[0]:', JSON.stringify(fieldDefsRaw?.[0]));
-
-  // Build id → api_key map from field definitions
-  const idToApiKey = new Map();
-  const defs = Array.isArray(fieldDefsRaw) ? fieldDefsRaw : [];
-  for (const def of defs) {
-    const apiKey = def.custom_field?.api_key || def.api_key || String(def.id);
-    idToApiKey.set(def.id, apiKey);
+  if (fields.comment !== undefined) {
+    payload.comment = fields.comment;
   }
 
-  // Also extract api_key from record's existing custom_fields if they carry it
-  const existingFields = toFieldsArray(current.custom_fields);
-  for (const f of existingFields) {
-    if (f.api_key && !idToApiKey.has(f.id)) idToApiKey.set(f.id, f.api_key);
-  }
-
-  // Build custom_fields as object {api_key: value} (format required by YClients PUT)
-  const customFieldsObj = {};
-  // Start with existing values
-  for (const f of existingFields) {
-    const apiKey = idToApiKey.get(f.id) || String(f.id);
-    customFieldsObj[apiKey] = f.value ?? '';
-  }
-  // Override with changed values
   if (fields.custom_fields && fields.custom_fields.length > 0) {
+    // Build custom_fields as object {code: value} — only changed fields
+    const customFieldsObj = {};
     for (const changed of fields.custom_fields) {
-      // Prefer explicit code (passed from frontend), then id-based lookup, then numeric string
-      const apiKey = changed.code || idToApiKey.get(changed.id) || String(changed.id);
+      const apiKey = changed.code || String(changed.id);
       customFieldsObj[apiKey] = changed.value;
     }
+    payload.custom_fields = customFieldsObj;
   }
 
-  // Build client object with all available fields (phone required by YClients)
-  const clientObj = {};
-  if (current.client) {
-    if (current.client.id) clientObj.id = current.client.id;
-    if (current.client.name) clientObj.name = current.client.name;
-    if (current.client.phone) clientObj.phone = current.client.phone;
-  }
-
-  const payload = {
-    staff_id: staff?.id,
-    seance_length: current.seance_length,
-    services: (current.services || []).map(s => {
-      const svc = { id: s.id, cost: s.cost, amount: s.amount || 1 };
-      if (s.first_cost != null) svc.first_cost = s.first_cost;
-      return svc;
-    }),
-    client: clientObj,
-    datetime: current.datetime,
-    comment: fields.comment !== undefined ? fields.comment : (current.comment || ''),
-    custom_fields: customFieldsObj,
-  };
   console.log('updateRecord payload for', recordId, ':', JSON.stringify(payload));
   return yclientsRequestPost(`/record/${companyId}/${recordId}`, 'PUT', payload);
 }
@@ -545,44 +500,17 @@ async function getClientDetails(companyId, clientId) {
 }
 
 async function updateClientCustomFields(companyId, clientId, customFields) {
-  // Fetch current client AND field definitions in parallel
-  const [current, fieldDefsRaw] = await Promise.all([
-    yclientsRequest(`/client/${companyId}/${clientId}`),
-    yclientsRequest(`/custom_fields/client/${companyId}`).catch(() => []),
-  ]);
+  // GET current client — name and phone are required by YClients PUT /client
+  const current = await yclientsRequest(`/client/${companyId}/${clientId}`);
 
-  console.log('updateClientCustomFields current.custom_fields raw:', JSON.stringify(current.custom_fields));
-  console.log('updateClientCustomFields fieldDefsRaw[0]:', JSON.stringify(fieldDefsRaw?.[0]));
-
-  // Build id → api_key map from field definitions
-  const idToApiKey = new Map();
-  const defs = Array.isArray(fieldDefsRaw) ? fieldDefsRaw : [];
-  for (const def of defs) {
-    const apiKey = def.custom_field?.api_key || def.api_key || String(def.id);
-    idToApiKey.set(def.id, apiKey);
-  }
-
-  // Also extract api_key from client's existing custom_fields if they carry it
-  const existingFields = toFieldsArray(current.custom_fields);
-  for (const f of existingFields) {
-    if (f.api_key && !idToApiKey.has(f.id)) idToApiKey.set(f.id, f.api_key);
-  }
-
-  // Build custom_fields as object {api_key: value} (format required by YClients PUT)
+  // Build custom_fields as object {code: value} — only the changed fields
   const customFieldsObj = {};
-  // Start with existing values
-  for (const f of existingFields) {
-    const apiKey = idToApiKey.get(f.id) || String(f.id);
-    customFieldsObj[apiKey] = f.value ?? '';
-  }
-  // Override with changed values
   for (const changed of customFields) {
-    // Prefer explicit code (passed from frontend), then id-based lookup, then numeric string
-    const apiKey = changed.code || idToApiKey.get(changed.id) || String(changed.id);
+    const apiKey = changed.code || String(changed.id);
     customFieldsObj[apiKey] = changed.value;
   }
 
-  console.log('updateClientCustomFields client', clientId, 'payload custom_fields:', JSON.stringify(customFieldsObj));
+  console.log('updateClientCustomFields client', clientId, 'payload:', JSON.stringify({ name: current.name, phone: current.phone, custom_fields: customFieldsObj }));
   return yclientsRequestPost(`/client/${companyId}/${clientId}`, 'PUT', {
     name: current.name || '',
     phone: current.phone || '',
