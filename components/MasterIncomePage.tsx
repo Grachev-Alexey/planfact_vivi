@@ -255,7 +255,7 @@ export const MasterIncomePage: React.FC = () => {
   interface YcFormSettings {
     commentEnabled: boolean;
     commentEditable: boolean;
-    fields: { id: string; label: string; ycFieldId: string; target: 'record' | 'client'; enabled: boolean; editable: boolean }[];
+    fields: { id: string; label: string; ycFieldId: string; ycFieldCode?: string; target: 'record' | 'client'; enabled: boolean; editable: boolean }[];
   }
   interface YcRecordData {
     comment: string;
@@ -451,8 +451,8 @@ export const MasterIncomePage: React.FC = () => {
         const originalComment = ycRecordData.comment || '';
         const commentChanged = ycFormSettings.commentEditable && ycComment !== originalComment;
 
-        const recordFields: { id: number; value: string }[] = [];
-        const clientFields: { id: number; value: string }[] = [];
+        const recordFields: { id: number; code?: string; value: string }[] = [];
+        const clientFields: { id: number; code?: string; value: string }[] = [];
         ycFormSettings.fields.filter(f => f.enabled && f.editable).forEach(f => {
           const numId = parseInt(f.ycFieldId);
           if (!numId) return;
@@ -462,8 +462,10 @@ export const MasterIncomePage: React.FC = () => {
             ? (ycRecordData.recordCustomFields.find(x => x.id === numId)?.value || '')
             : (ycRecordData.clientCustomFields.find(x => x.id === numId)?.value || '');
           if (newVal !== original) {
-            if (f.target === 'record') recordFields.push({ id: numId, value: newVal });
-            else clientFields.push({ id: numId, value: newVal });
+            const entry: { id: number; code?: string; value: string } = { id: numId, value: newVal };
+            if (f.ycFieldCode) entry.code = f.ycFieldCode;
+            if (f.target === 'record') recordFields.push(entry);
+            else clientFields.push(entry);
           }
         });
 

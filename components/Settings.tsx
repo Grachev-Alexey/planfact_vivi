@@ -10,6 +10,7 @@ interface YcField {
   id: string;
   label: string;
   ycFieldId: string;
+  ycFieldCode?: string;
   target: 'record' | 'client';
   enabled: boolean;
   editable: boolean;
@@ -18,6 +19,7 @@ interface YcField {
 interface YcApiField {
   id: number;
   name: string;
+  code?: string;
   field_type?: string;
   required?: boolean;
 }
@@ -158,6 +160,7 @@ export const Settings: React.FC = () => {
       id: Date.now().toString(),
       label: apiField.name,
       ycFieldId: String(apiField.id),
+      ycFieldCode: apiField.code || undefined,
       target,
       enabled: true,
       editable: true,

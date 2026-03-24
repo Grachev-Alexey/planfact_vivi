@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs');
-const { verifyTransaction, verifyBatch, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields } = require('../services/yclients.cjs');
+const { verifyTransaction, verifyBatch, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap } = require('../services/yclients.cjs');
 
 router.get('/yclients/search-by-phone', async (req, res) => {
   const userId = req.headers['x-user-id'];
@@ -175,6 +175,15 @@ router.get('/yclients/available-fields', async (req, res) => {
   }
 });
 
+function enrichFieldsWithCode(fields, codeMap) {
+  if (!fields || fields.length === 0) return fields;
+  return fields.map(f => {
+    if (f.code) return f; // already has code
+    const code = codeMap.get(f.id);
+    return code ? { ...f, code } : f;
+  });
+}
+
 router.put('/yclients/update-record', async (req, res) => {
   const userId = req.headers['x-user-id'];
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -190,15 +199,28 @@ router.put('/yclients/update-record', async (req, res) => {
     const { recordId, clientId, comment, recordCustomFields, clientCustomFields } = req.body;
     const results = {};
 
-    if (recordId && (comment !== undefined || (recordCustomFields && recordCustomFields.length > 0))) {
+    // Fetch all YClients company IDs from DB for cross-company field code resolution
+    const allStudiosRes = await db.query('SELECT DISTINCT yclients_id FROM studios WHERE yclients_id IS NOT NULL');
+    const allCompanyIds = allStudiosRes.rows.map(r => r.yclients_id);
+
+    // Build global id→code maps so fields configured from any company are resolved correctly
+    const [recordCodeMap, clientCodeMap] = await Promise.all([
+      (recordCustomFields && recordCustomFields.length > 0) ? buildGlobalFieldCodeMap('record', allCompanyIds) : Promise.resolve(new Map()),
+      (clientCustomFields && clientCustomFields.length > 0) ? buildGlobalFieldCodeMap('client', allCompanyIds) : Promise.resolve(new Map()),
+    ]);
+
+    const enrichedRecordFields = enrichFieldsWithCode(recordCustomFields, recordCodeMap);
+    const enrichedClientFields = enrichFieldsWithCode(clientCustomFields, clientCodeMap);
+
+    if (recordId && (comment !== undefined || (enrichedRecordFields && enrichedRecordFields.length > 0))) {
       const payload = {};
       if (comment !== undefined) payload.comment = comment;
-      if (recordCustomFields && recordCustomFields.length > 0) payload.custom_fields = recordCustomFields;
+      if (enrichedRecordFields && enrichedRecordFields.length > 0) payload.custom_fields = enrichedRecordFields;
       results.record = await updateRecord(companyId, recordId, payload);
     }
 
-    if (clientId && clientCustomFields && clientCustomFields.length > 0) {
-      results.client = await updateClientCustomFields(companyId, clientId, clientCustomFields);
+    if (clientId && enrichedClientFields && enrichedClientFields.length > 0) {
+      results.client = await updateClientCustomFields(companyId, clientId, enrichedClientFields);
     }
 
     res.json({ success: true, results });

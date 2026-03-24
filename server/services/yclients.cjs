@@ -504,7 +504,8 @@ async function updateRecord(companyId, recordId, fields) {
   // Override with changed values
   if (fields.custom_fields && fields.custom_fields.length > 0) {
     for (const changed of fields.custom_fields) {
-      const apiKey = idToApiKey.get(changed.id) || String(changed.id);
+      // Prefer explicit code (passed from frontend), then id-based lookup, then numeric string
+      const apiKey = changed.code || idToApiKey.get(changed.id) || String(changed.id);
       customFieldsObj[apiKey] = changed.value;
     }
   }
@@ -576,7 +577,8 @@ async function updateClientCustomFields(companyId, clientId, customFields) {
   }
   // Override with changed values
   for (const changed of customFields) {
-    const apiKey = idToApiKey.get(changed.id) || String(changed.id);
+    // Prefer explicit code (passed from frontend), then id-based lookup, then numeric string
+    const apiKey = changed.code || idToApiKey.get(changed.id) || String(changed.id);
     customFieldsObj[apiKey] = changed.value;
   }
 
@@ -595,7 +597,8 @@ async function getAvailableCustomFields(companyId) {
     return data.map(item => {
       const cf = item.custom_field || {};
       const name = cf.name || cf.title || cf.label || item.name || item.title || `Поле ${item.id}`;
-      return { id: item.id, name };
+      const code = cf.code || cf.api_key || null;
+      return { id: item.id, name, code };
     });
   };
 
@@ -629,4 +632,22 @@ async function getVisitsByPhone(companyId, date, phone) {
   });
 }
 
-module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields };
+// Build a global id→code map for a given field category across multiple company IDs.
+// This resolves the case where field outer IDs differ between companies for the same field.
+async function buildGlobalFieldCodeMap(category, companyIds) {
+  const map = new Map();
+  await Promise.allSettled((companyIds || []).map(async (companyId) => {
+    try {
+      const defs = await yclientsRequest(`/custom_fields/${category}/${companyId}`);
+      if (Array.isArray(defs)) {
+        for (const def of defs) {
+          const code = def.custom_field?.code || def.custom_field?.api_key || null;
+          if (code) map.set(def.id, code);
+        }
+      }
+    } catch (_) {}
+  }));
+  return map;
+}
+
+module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap };
