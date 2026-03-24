@@ -139,10 +139,16 @@ router.get('/yclients/record-details', async (req, res) => {
       recordId ? getRecord(companyId, recordId) : null,
       clientId ? getClientDetails(companyId, clientId) : null,
     ]);
+    // YClients may return custom_fields as array or as object keyed by id — normalise to array
+    const toArray = (fields) => {
+      if (!fields) return [];
+      if (Array.isArray(fields)) return fields;
+      return Object.values(fields);
+    };
     res.json({
       comment: record?.comment || '',
-      recordCustomFields: record?.custom_fields || [],
-      clientCustomFields: client?.custom_fields || [],
+      recordCustomFields: toArray(record?.custom_fields),
+      clientCustomFields: toArray(client?.custom_fields),
     });
   } catch (err) {
     console.error('record-details error:', err);

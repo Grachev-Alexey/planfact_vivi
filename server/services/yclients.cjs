@@ -409,6 +409,13 @@ async function verifyBatch(studioId, dateFrom, dateTo) {
 }
 
 async function updateClientInfo(companyId, clientId, fields) {
+  const current = await yclientsRequest(`/client/${companyId}/${clientId}`);
+  const payload = {
+    name: current.name || '',
+    phone: current.phone || '',
+    ...fields,
+  };
+  console.log('updateClientInfo payload:', JSON.stringify(payload));
   const url = `${BASE_URL}/client/${companyId}/${clientId}`;
   const res = await fetch(url, {
     method: 'PUT',
@@ -417,7 +424,7 @@ async function updateClientInfo(companyId, clientId, fields) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${YCLIENTS_PARTNER_TOKEN}, User ${YCLIENTS_USER_TOKEN}`,
     },
-    body: JSON.stringify(fields),
+    body: JSON.stringify(payload),
   });
   const data = await res.json();
   if (!data.success) {
@@ -454,8 +461,36 @@ async function getRecord(companyId, recordId) {
   }
 }
 
+function toFieldsArray(fields) {
+  if (!fields) return [];
+  if (Array.isArray(fields)) return fields;
+  return Object.values(fields);
+}
+
 async function updateRecord(companyId, recordId, fields) {
-  return yclientsRequestPost(`/record/${companyId}/${recordId}`, 'PUT', fields);
+  const current = await yclientsRequest(`/record/${companyId}/${recordId}`);
+  const staff = Array.isArray(current.staff) ? current.staff[0] : current.staff;
+
+  // Merge custom_fields: keep existing, override changed ones by id
+  const mergedCustomFields = [...toFieldsArray(current.custom_fields)];
+  if (fields.custom_fields && fields.custom_fields.length > 0) {
+    for (const changed of fields.custom_fields) {
+      const idx = mergedCustomFields.findIndex(f => f.id === changed.id);
+      if (idx >= 0) mergedCustomFields[idx] = { ...mergedCustomFields[idx], value: changed.value };
+      else mergedCustomFields.push(changed);
+    }
+  }
+
+  const payload = {
+    staff_id: staff?.id,
+    services: (current.services || []).map(s => ({ id: s.id, cost: s.cost, amount: s.amount || 1 })),
+    client: current.client ? { id: current.client.id } : {},
+    datetime: current.datetime,
+    comment: fields.comment !== undefined ? fields.comment : (current.comment || ''),
+    custom_fields: mergedCustomFields,
+  };
+  console.log('updateRecord payload for', recordId, ':', JSON.stringify(payload));
+  return yclientsRequestPost(`/record/${companyId}/${recordId}`, 'PUT', payload);
 }
 
 async function getClientDetails(companyId, clientId) {
@@ -468,7 +503,22 @@ async function getClientDetails(companyId, clientId) {
 }
 
 async function updateClientCustomFields(companyId, clientId, customFields) {
-  return yclientsRequestPost(`/client/${companyId}/${clientId}`, 'PUT', { custom_fields: customFields });
+  const current = await yclientsRequest(`/client/${companyId}/${clientId}`);
+
+  // Merge custom_fields: keep existing, override changed ones by id
+  const mergedCustomFields = [...toFieldsArray(current.custom_fields)];
+  for (const changed of customFields) {
+    const idx = mergedCustomFields.findIndex(f => f.id === changed.id);
+    if (idx >= 0) mergedCustomFields[idx] = { ...mergedCustomFields[idx], value: changed.value };
+    else mergedCustomFields.push(changed);
+  }
+
+  console.log('updateClientCustomFields client', clientId, ':', JSON.stringify(mergedCustomFields));
+  return yclientsRequestPost(`/client/${companyId}/${clientId}`, 'PUT', {
+    name: current.name || '',
+    phone: current.phone || '',
+    custom_fields: mergedCustomFields,
+  });
 }
 
 async function getVisitsByPhone(companyId, date, phone) {
