@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs');
-const { verifyTransaction, verifyBatch, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap, checkClientAbonement } = require('../services/yclients.cjs');
+const { verifyTransaction, verifyBatch, getVisitsByPhone, getTodaySchedule, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap, checkClientAbonement } = require('../services/yclients.cjs');
 
 router.get('/yclients/client-type', async (req, res) => {
   const userId = req.headers['x-user-id'];
@@ -74,10 +74,27 @@ router.get('/yclients/today-schedule', async (req, res) => {
     }
 
     const companyId = studioRes.rows[0].yclients_id;
-    const today = new Date().toISOString().split('T')[0];
+    const visits = await getTodaySchedule(companyId);
 
-    const visits = await getVisitsByPhone(companyId, today, null);
-    res.json({ visits });
+    const today = new Date().toISOString().split('T')[0];
+    const incomesRes = await db.query(
+      `SELECT SUM(amount) as total, 
+              array_agg(yclients_data) as yc_data_arr
+       FROM master_incomes 
+       WHERE user_id = $1 AND DATE(created_at) = $2`,
+      [userId, today]
+    );
+    const todayTotal = parseFloat(incomesRes.rows[0]?.total) || 0;
+    const recordedIds = [];
+    for (const ycData of (incomesRes.rows[0]?.yc_data_arr || [])) {
+      if (ycData && ycData.recordIds) {
+        for (const rid of ycData.recordIds) {
+          if (rid && !recordedIds.includes(String(rid))) recordedIds.push(String(rid));
+        }
+      }
+    }
+
+    res.json({ visits, todayTotal, recordedIds });
   } catch (err) {
     console.error('YClients today-schedule error:', err);
     res.status(500).json({ error: err.message });

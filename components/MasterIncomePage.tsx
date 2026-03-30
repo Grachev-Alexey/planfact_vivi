@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
-import { IMaskInput } from 'react-imask';
+
 import {
   LogOut, Send, Search, ChevronDown, Check, Plus, Clock,
   User, Phone, Edit2, Trash2, X, AlertCircle, ArrowLeft,
@@ -214,7 +214,7 @@ const ARTICLE_BUTTONS = [
   { id: 'surcharge', label: 'Доплата', categoryId: '11', visibility: 'regular' },
 ] as const;
 
-type Step = 'phone' | 'visit' | 'entries';
+type Step = 'schedule' | 'entries';
 
 let entryCounter = 0;
 function newEntry(): IncomeEntry {
@@ -240,7 +240,7 @@ export const MasterIncomePage: React.FC = () => {
   const [incomes, setIncomes] = useState<MasterIncome[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const [step, setStep] = useState<Step>('phone');
+  const [step, setStep] = useState<Step>('schedule');
 
   const [clientPhone, setClientPhone] = useState('');
   const [clientFirstName, setClientFirstName] = useState('');
@@ -250,10 +250,12 @@ export const MasterIncomePage: React.FC = () => {
   const [ycClientId, setYcClientId] = useState<number | null>(null);
   const [lastNameWasEmpty, setLastNameWasEmpty] = useState(false);
 
-  const [ycVisits, setYcVisits] = useState<YCVisit[]>([]);
-  const [ycLoading, setYcLoading] = useState(false);
-  const [ycError, setYcError] = useState<string | null>(null);
-  const [ycSearched, setYcSearched] = useState(false);
+  const [scheduleVisits, setScheduleVisits] = useState<YCVisit[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [todayTotal, setTodayTotal] = useState(0);
+  const [recordedIds, setRecordedIds] = useState<string[]>([]);
+
 
   const [entries, setEntries] = useState<IncomeEntry[]>([newEntry()]);
   const [submitting, setSubmitting] = useState(false);
@@ -307,7 +309,27 @@ export const MasterIncomePage: React.FC = () => {
     }
   }, [user]);
 
-  useEffect(() => { fetchIncomes(); }, [fetchIncomes]);
+  const fetchSchedule = useCallback(async () => {
+    if (!user) return;
+    setScheduleLoading(true);
+    setScheduleError(null);
+    try {
+      const res = await fetch('/api/yclients/today-schedule', {
+        headers: { 'x-user-id': String(user.id) },
+      });
+      if (!res.ok) throw new Error('Ошибка загрузки');
+      const data = await res.json();
+      setScheduleVisits(data.visits || []);
+      setTodayTotal(data.todayTotal || 0);
+      setRecordedIds(data.recordedIds || []);
+    } catch {
+      setScheduleError('Не удалось загрузить расписание');
+    } finally {
+      setScheduleLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => { fetchIncomes(); fetchSchedule(); }, [fetchIncomes, fetchSchedule]);
 
   useEffect(() => {
     fetch('/api/yclients/form-settings')
@@ -382,42 +404,22 @@ export const MasterIncomePage: React.FC = () => {
     return result;
   }, [categories]);
 
-  const searchYclients = useCallback(async (phone: string) => {
-    setYcLoading(true);
-    setYcError(null);
-    setYcSearched(false);
-    try {
-      const res = await fetch(`/api/yclients/search-by-phone?phone=${encodeURIComponent(phone)}`, {
-        headers: { 'x-user-id': String(user?.id || '') },
-      });
-      if (!res.ok) throw new Error('Ошибка запроса');
-      const data = await res.json();
-      setYcVisits(data.visits || []);
-      setYcSearched(true);
-    } catch (e) {
-      setYcError('Не удалось загрузить данные YClients');
-      setYcVisits([]);
-      setYcSearched(true);
-    } finally {
-      setYcLoading(false);
-    }
-  }, [user]);
-
-  const handlePhoneComplete = useCallback((phone: string) => {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length >= 11) {
-      searchYclients(phone);
-      setStep('visit');
-    }
-  }, [searchYclients]);
 
   const handleSelectVisit = (visit: YCVisit) => {
     setSelectedVisit(visit);
     setYcClientId(visit.clientId);
+    setClientPhone(visit.clientPhone || '');
     setClientFirstName(visit.clientFirstName || '');
     setClientLastName(visit.clientLastName || '');
     setLastNameWasEmpty(!visit.clientLastName);
     setClientType('primary');
+    setEntries([newEntry()]);
+    setDone(false);
+    setSubmitResults([]);
+    setGlobalError(null);
+    setYcRecordData(null);
+    setYcComment('');
+    setYcFieldValues({});
     setStep('entries');
     if (ycFormSettings && (ycFormSettings.commentEnabled || (ycFormSettings.fields ?? []).some(f => f.enabled))) {
       fetchYcRecordData(visit.recordIds[0], visit.clientId);
@@ -438,27 +440,22 @@ export const MasterIncomePage: React.FC = () => {
     setSelectedVisit(null);
     setYcClientId(null);
     setLastNameWasEmpty(false);
+    setClientPhone('');
+    setClientFirstName('');
+    setClientLastName('');
     setStep('entries');
   };
 
-  const handleBackToPhone = () => {
-    setStep('phone');
-    setYcVisits([]);
-    setYcSearched(false);
-    setYcError(null);
-    setSelectedVisit(null);
-    setYcClientId(null);
-    setLastNameWasEmpty(false);
-  };
-
-  const handleBackToVisit = () => {
-    setStep('visit');
+  const handleBackToSchedule = () => {
+    setStep('schedule');
     setSelectedVisit(null);
     setYcClientId(null);
     setLastNameWasEmpty(false);
     setDone(false);
     setSubmitResults([]);
     setGlobalError(null);
+    setEntries([newEntry()]);
+    fetchSchedule();
   };
 
   const addEntry = () => setEntries(prev => [...prev, newEntry()]);
@@ -596,7 +593,7 @@ export const MasterIncomePage: React.FC = () => {
   };
 
   const handleStartNew = () => {
-    setStep('phone');
+    setStep('schedule');
     setClientPhone('');
     setClientFirstName('');
     setClientLastName('');
@@ -604,9 +601,6 @@ export const MasterIncomePage: React.FC = () => {
     setSelectedVisit(null);
     setYcClientId(null);
     setLastNameWasEmpty(false);
-    setYcVisits([]);
-    setYcSearched(false);
-    setYcError(null);
     setEntries([newEntry()]);
     setSubmitResults([]);
     setGlobalError(null);
@@ -614,6 +608,7 @@ export const MasterIncomePage: React.FC = () => {
     setYcRecordData(null);
     setYcComment('');
     setYcFieldValues({});
+    fetchSchedule();
   };
 
   const handleEdit = (inc: MasterIncome) => {
@@ -678,9 +673,6 @@ export const MasterIncomePage: React.FC = () => {
     const now = new Date();
     return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   };
-
-  const phoneDigits = clientPhone.replace(/\D/g, '');
-  const phoneComplete = phoneDigits.length >= 11;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -839,9 +831,9 @@ export const MasterIncomePage: React.FC = () => {
               ))}
             </div>
             <div className="p-4 flex gap-2">
-              <button onClick={handleBackToVisit}
+              <button onClick={handleBackToSchedule}
                 className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1">
-                <Plus size={14} /> Ещё для этого клиента
+                <Plus size={14} /> Ещё запись
               </button>
               <button onClick={handleStartNew}
                 className="flex-1 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors">
@@ -849,163 +841,99 @@ export const MasterIncomePage: React.FC = () => {
               </button>
             </div>
           </div>
-        ) : step === 'phone' ? (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-            <div>
-              <h1 className="text-lg font-bold text-slate-800">Новое поступление</h1>
-              <p className="text-xs text-slate-500 mt-0.5">Введите номер телефона клиента</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-1.5">
-                <Phone size={14} /> Телефон клиента *
-              </label>
-              <IMaskInput
-                mask="+7 (000) 000-00-00"
-                value={clientPhone}
-                unmask={false}
-                onAccept={(value: string) => setClientPhone(value)}
-                className="w-full px-3 py-3 border border-slate-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono tracking-wide"
-                placeholder="+7 (___) ___-__-__"
-                autoFocus
-              />
-            </div>
-            <button
-              onClick={() => handlePhoneComplete(clientPhone)}
-              disabled={!phoneComplete}
-              className="w-full py-3 bg-teal-600 text-white rounded-lg font-semibold text-sm hover:bg-teal-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              Найти запись в YClients <ChevronRight size={16} />
-            </button>
-            <button
-              onClick={handleSkipVisit}
-              className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              Создать без поиска в YClients
-            </button>
-          </div>
-        ) : step === 'visit' ? (
+        ) : step === 'schedule' ? (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-              <button onClick={handleBackToPhone} className="text-slate-400 hover:text-slate-700 transition-colors">
-                <ArrowLeft size={16} />
-              </button>
-              <div>
-                <div className="text-sm font-semibold text-slate-800">Запись в YClients</div>
-                <div className="text-xs text-slate-500 font-mono">{formatPhoneDisplay(clientPhone)}</div>
+            <div className="px-4 py-3 border-b border-slate-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-lg font-bold text-slate-800">Записи на сегодня</h1>
+                  <p className="text-xs text-slate-500 mt-0.5">{new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                </div>
+                {todayTotal > 0 && (
+                  <div className="text-right">
+                    <div className="text-xs text-slate-500">Итого за день</div>
+                    <div className="text-sm font-bold text-teal-600">{formatCurrency(todayTotal)}</div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {ycLoading ? (
-              <div className="flex items-center justify-center gap-2 py-10 text-slate-400">
-                <Loader2 size={18} className="animate-spin" /> Поиск в YClients...
+            {scheduleLoading ? (
+              <div className="flex items-center justify-center gap-2 py-12 text-slate-400">
+                <Loader2 size={18} className="animate-spin" /> Загрузка расписания...
               </div>
-            ) : ycError ? (
+            ) : scheduleError ? (
               <div className="p-4">
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2 text-sm text-amber-700">
-                  <AlertCircle size={15} /> {ycError}
+                  <AlertCircle size={15} /> {scheduleError}
                 </div>
-                <button onClick={handleSkipVisit} className="mt-3 w-full py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                  Продолжить без привязки
+                <button onClick={fetchSchedule} className="mt-3 w-full py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  Повторить
                 </button>
               </div>
-            ) : ycSearched && ycVisits.length === 0 ? (
-              <div className="p-4 space-y-3">
-                <div className="text-slate-400 text-sm py-2 text-center">
-                  <Calendar size={28} className="mx-auto mb-2 opacity-40" />
-                  Записей на сегодня не найдено
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Имя</label>
-                    <input
-                      type="text" value={clientFirstName} onChange={e => setClientFirstName(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      placeholder="Иван"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Фамилия</label>
-                    <input
-                      type="text" value={clientLastName} onChange={e => setClientLastName(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      placeholder="Иванов"
-                    />
-                  </div>
-                </div>
-                <button onClick={handleSkipVisit}
-                  className="w-full py-2.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors">
-                  Продолжить без привязки
-                </button>
+            ) : scheduleVisits.length === 0 ? (
+              <div className="p-6 text-center">
+                <Calendar size={32} className="mx-auto mb-2 text-slate-300" />
+                <div className="text-slate-400 text-sm">Записей на сегодня нет</div>
               </div>
             ) : (
-              <div>
-                <div className="divide-y divide-slate-100">
-                  {ycVisits.map((visit, i) => {
-                    const allItems = [...visit.services, ...visit.goods];
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleSelectVisit(visit)}
-                        className="w-full text-left px-4 py-3.5 hover:bg-teal-50 transition-colors flex items-start justify-between gap-3 group"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
-                            <User size={13} className="text-teal-500 shrink-0" />
-                            {visit.clientName || 'Без имени'}
-                          </div>
-                          {visit.clientPhone && (
-                            <div className="text-xs text-slate-400 mt-0.5 font-mono">{formatPhoneDisplay(visit.clientPhone)}</div>
+              <div className="divide-y divide-slate-100">
+                {scheduleVisits.map((visit, i) => {
+                  const isRecorded = visit.recordIds.some(rid => recordedIds.includes(rid));
+                  const allItems = [...visit.services, ...visit.goods];
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleSelectVisit(visit)}
+                      className={`w-full text-left px-4 py-3.5 transition-colors flex items-start gap-3 group ${isRecorded ? 'bg-green-50/50' : 'hover:bg-teal-50'}`}
+                    >
+                      <div className="shrink-0 pt-0.5">
+                        <div className="text-sm font-bold text-slate-700 tabular-nums">{visit.time || '—'}</div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
+                          <User size={13} className="text-teal-500 shrink-0" />
+                          {visit.clientName || 'Без имени'}
+                          {isRecorded && <CheckCircle2 size={14} className="text-green-500 shrink-0" />}
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {allItems.slice(0, 3).map((s, si) => (
+                            <span key={si} className="text-[11px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
+                              {s.title}
+                            </span>
+                          ))}
+                          {allItems.length > 3 && (
+                            <span className="text-[11px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded">
+                              +{allItems.length - 3}
+                            </span>
                           )}
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {allItems.map((s, si) => (
-                              <span key={si} className="text-[11px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
-                                {s.title} {s.amount > 0 ? `(${formatCurrency(s.amount)})` : ''}
-                              </span>
-                            ))}
-                          </div>
                         </div>
-                        <div className="shrink-0 text-right">
-                          <div className="text-sm font-bold text-teal-600">{formatCurrency(visit.totalAmount)}</div>
-                          <div className="w-6 h-6 rounded-full border-2 border-slate-300 group-hover:border-teal-500 mt-1 ml-auto transition-colors" />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="p-3 border-t border-slate-100 space-y-2">
-                  <div className="text-xs font-medium text-slate-500 mb-1">Не нашли нужную запись?</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Имя</label>
-                      <input
-                        type="text" value={clientFirstName} onChange={e => setClientFirstName(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="Иван"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Фамилия</label>
-                      <input
-                        type="text" value={clientLastName} onChange={e => setClientLastName(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        placeholder="Иванов"
-                      />
-                    </div>
-                  </div>
-                  <button onClick={handleSkipVisit}
-                    className="w-full py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                    Продолжить без привязки к записи
-                  </button>
-                </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-sm font-bold text-teal-600">{formatCurrency(visit.totalAmount)}</div>
+                        {!isRecorded && (
+                          <ChevronRight size={16} className="text-slate-300 group-hover:text-teal-500 mt-1 ml-auto transition-colors" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
+
+            <div className="p-3 border-t border-slate-100">
+              <button onClick={handleSkipVisit}
+                className="w-full py-2.5 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition-colors flex items-center justify-center gap-1.5">
+                <Plus size={14} /> Создать без привязки к записи
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-4 py-3 flex items-center gap-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
-                <button onClick={handleBackToVisit} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+                <button onClick={handleBackToSchedule} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
                   <ArrowLeft size={18} />
                 </button>
                 <div className="flex-1 min-w-0">

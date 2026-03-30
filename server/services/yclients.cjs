@@ -574,6 +574,65 @@ async function getVisitsByPhone(companyId, date, phone) {
   });
 }
 
+function groupRecordsByVisitAll(records) {
+  const visits = new Map();
+  for (const rec of records) {
+    if (rec.deleted) continue;
+    const key = rec.visit_id || rec.id;
+    const recDate = (rec.date || '').split(' ')[0];
+    const timeStr = (rec.date || '').split(' ')[1] || '';
+    if (!visits.has(key)) {
+      const rawName = rec.client?.name || rec.client?.display_name || '';
+      const rawSurname = rec.client?.surname || '';
+      visits.set(key, {
+        visitId: rec.visit_id || null,
+        recordIds: [],
+        clientId: rec.client?.id || null,
+        clientFirstName: rawName,
+        clientLastName: rawSurname,
+        clientName: [rawSurname, rawName].filter(Boolean).join(' ') || rawName,
+        clientPhone: rec.client?.phone || '',
+        services: [],
+        goods: [],
+        totalAmount: 0,
+        goodsAmount: 0,
+        date: recDate,
+        time: timeStr ? timeStr.slice(0, 5) : '',
+        staffName: rec.staff?.name || '',
+        attendance: rec.attendance,
+      });
+    }
+    const visit = visits.get(key);
+    visit.recordIds.push(String(rec.id));
+    if (rec.services) {
+      for (const s of rec.services) {
+        const amount = parseFloat(s.cost_to_pay) || 0;
+        visit.services.push({ title: s.title, amount });
+        visit.totalAmount += amount;
+      }
+    }
+    if (rec.goods_transactions) {
+      for (const g of rec.goods_transactions) {
+        const amount = parseFloat(g.cost_to_pay) || parseFloat(g.cost) || 0;
+        if (amount > 0) {
+          visit.goods.push({ title: g.title, amount });
+          visit.goodsAmount += amount;
+          visit.totalAmount += amount;
+        }
+      }
+    }
+  }
+  const result = [...visits.values()];
+  result.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  return result;
+}
+
+async function getTodaySchedule(companyId) {
+  const today = new Date().toISOString().split('T')[0];
+  const records = await getRecords(companyId, today, today);
+  return groupRecordsByVisitAll(records);
+}
+
 // Build a global id→code map for a given field category across multiple company IDs.
 // This resolves the case where field outer IDs differ between companies for the same field.
 async function checkClientAbonement(companyId, clientId) {
@@ -643,4 +702,4 @@ async function buildGlobalFieldCodeMap(category, companyIds) {
   return map;
 }
 
-module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap, checkClientAbonement };
+module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, getTodaySchedule, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap, checkClientAbonement };
