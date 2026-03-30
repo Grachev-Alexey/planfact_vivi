@@ -1,7 +1,30 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs');
-const { verifyTransaction, verifyBatch, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap } = require('../services/yclients.cjs');
+const { verifyTransaction, verifyBatch, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap, checkClientAbonement } = require('../services/yclients.cjs');
+
+router.get('/yclients/client-type', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const userRes = await db.query('SELECT id, role, studio_id FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0 || userRes.rows[0].role !== 'master') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const { clientId } = req.query;
+    if (!clientId) return res.status(400).json({ error: 'clientId required' });
+    const studioRes = await db.query('SELECT yclients_id FROM studios WHERE id = $1', [userRes.rows[0].studio_id]);
+    if (studioRes.rows.length === 0 || !studioRes.rows[0].yclients_id) {
+      return res.json({ clientType: 'primary' });
+    }
+    const companyId = studioRes.rows[0].yclients_id;
+    const hasAbonement = await checkClientAbonement(companyId, clientId);
+    res.json({ clientType: hasAbonement ? 'regular' : 'primary' });
+  } catch (err) {
+    console.error('client-type error:', err);
+    res.json({ clientType: 'primary' });
+  }
+});
 
 router.get('/yclients/search-by-phone', async (req, res) => {
   const userId = req.headers['x-user-id'];

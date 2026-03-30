@@ -29,6 +29,7 @@ const PAYMENT_TYPE_SUFFIXES = {
   card: 'Карта',
   sbp: 'СБП',
   ukassa: 'Ю-Касса',
+  installment: 'Рассрочка',
 };
 
 async function requireMaster(req, res) {

@@ -573,6 +573,31 @@ async function getVisitsByPhone(companyId, date, phone) {
 
 // Build a global id→code map for a given field category across multiple company IDs.
 // This resolves the case where field outer IDs differ between companies for the same field.
+async function checkClientAbonement(companyId, clientId) {
+  try {
+    const today = new Date();
+    const yesterday = new Date(today - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const oneYearAgo = new Date(today - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const records = await yclientsRequest(
+      `/records/${companyId}?start_date=${oneYearAgo}&end_date=${yesterday}&client_id=${clientId}&count=200`
+    );
+
+    if (!Array.isArray(records)) return false;
+
+    for (const rec of records) {
+      const goods = rec.goods_transactions || [];
+      const services = rec.services || [];
+      for (const item of [...goods, ...services]) {
+        if (item.title && item.title.toLowerCase().includes('абонемент')) return true;
+      }
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function buildGlobalFieldCodeMap(category, companyIds) {
   const map = new Map();
   await Promise.allSettled((companyIds || []).map(async (companyId) => {
@@ -589,4 +614,4 @@ async function buildGlobalFieldCodeMap(category, companyIds) {
   return map;
 }
 
-module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap };
+module.exports = { verifyTransaction, verifyBatch, getRecords, getVisitsByPhone, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap, checkClientAbonement };

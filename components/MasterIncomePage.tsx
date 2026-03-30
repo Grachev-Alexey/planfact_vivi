@@ -195,6 +195,7 @@ const PAYMENT_TYPES = [
   { id: 'card', label: 'Карта' },
   { id: 'sbp', label: 'СБП' },
   { id: 'ukassa', label: 'Ю-Касса' },
+  { id: 'installment', label: 'Рассрочка' },
 ];
 
 const CLIENT_TYPES = [
@@ -270,6 +271,7 @@ export const MasterIncomePage: React.FC = () => {
   const [ycFieldValues, setYcFieldValues] = useState<Record<string, string>>({});
   const [ycSectionOpen, setYcSectionOpen] = useState(true);
   const ycSectionRef = useRef<HTMLDivElement>(null);
+  const [ycClientTypeLoading, setYcClientTypeLoading] = useState(false);
 
   const [editingIncome, setEditingIncome] = useState<MasterIncome | null>(null);
   const [editAmount, setEditAmount] = useState('');
@@ -404,9 +406,20 @@ export const MasterIncomePage: React.FC = () => {
     setClientFirstName(visit.clientFirstName || '');
     setClientLastName(visit.clientLastName || '');
     setLastNameWasEmpty(!visit.clientLastName);
+    setClientType('primary');
     setStep('entries');
     if (ycFormSettings && (ycFormSettings.commentEnabled || (ycFormSettings.fields ?? []).some(f => f.enabled))) {
       fetchYcRecordData(visit.recordIds[0], visit.clientId);
+    }
+    if (visit.clientId) {
+      setYcClientTypeLoading(true);
+      fetch(`/api/yclients/client-type?clientId=${visit.clientId}`, {
+        headers: { 'x-user-id': String(user?.id || '') },
+      })
+        .then(r => r.json())
+        .then(d => { if (d.clientType) setClientType(d.clientType); })
+        .catch(() => {})
+        .finally(() => setYcClientTypeLoading(false));
     }
   };
 
@@ -988,14 +1001,22 @@ export const MasterIncomePage: React.FC = () => {
                 )}
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1.5">Тип клиента</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {CLIENT_TYPES.map(ct => (
-                      <button key={ct.id} type="button" onClick={() => setClientType(ct.id as 'primary' | 'regular')}
-                        className={`py-2 rounded-lg text-sm font-medium border transition-all ${clientType === ct.id ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
-                        {ct.label}
+                  {ycClientTypeLoading ? (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-400">
+                      <Loader2 size={12} className="animate-spin" /> Определяем...
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${clientType === 'regular' ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                        {CLIENT_TYPES.find(ct => ct.id === clientType)?.label ?? 'Первичный'}
+                      </span>
+                      <button type="button"
+                        onClick={() => setClientType(prev => prev === 'regular' ? 'primary' : 'regular')}
+                        className="text-xs text-slate-400 hover:text-slate-600 underline underline-offset-2">
+                        изменить
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
