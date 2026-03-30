@@ -575,6 +575,32 @@ async function getVisitsByPhone(companyId, date, phone) {
 // This resolves the case where field outer IDs differ between companies for the same field.
 async function checkClientAbonement(companyId, clientId) {
   try {
+    // 1. Check client details for loyalty/abonement data
+    const client = await yclientsRequest(`/client/${companyId}/${clientId}`);
+    if (client) {
+      // Log all keys containing "loyal", "abon", "card", "visit"
+      const relevantKeys = Object.keys(client).filter(k =>
+        /loyal|abon|card|visit|subscr/i.test(k)
+      );
+      console.log('[client-type] Client relevant keys:', relevantKeys.map(k => `${k}=${JSON.stringify(client[k])}`).join(', '));
+
+      // Check various loyalty-related arrays
+      for (const key of Object.keys(client)) {
+        const val = client[key];
+        if (Array.isArray(val) && val.length > 0 && /loyal|abon|card/i.test(key)) {
+          console.log('[client-type] Has', key, ':', val.length);
+          return true;
+        }
+      }
+
+      // Check visits_count > 1 (means they've visited before today)
+      if ((client.visits_count || 0) > 1) {
+        console.log('[client-type] visits_count:', client.visits_count);
+        return true;
+      }
+    }
+
+    // 2. Check past records for abonement indicators
     const today = new Date();
     const yesterday = new Date(today - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const oneYearAgo = new Date(today - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -583,17 +609,35 @@ async function checkClientAbonement(companyId, clientId) {
       `/records/${companyId}?start_date=${oneYearAgo}&end_date=${yesterday}&client_id=${clientId}&count=200`
     );
 
-    if (!Array.isArray(records)) return false;
+    if (!Array.isArray(records) || records.length === 0) return false;
 
     for (const rec of records) {
-      const goods = rec.goods_transactions || [];
-      const services = rec.services || [];
-      for (const item of [...goods, ...services]) {
-        if (item.title && item.title.toLowerCase().includes('абонемент')) return true;
+      // Check services for abonement indicators
+      for (const s of (rec.services || [])) {
+        const title = (s.title || '').toLowerCase();
+        if (title.includes('абонемент') || title.includes('взнос')) {
+          console.log('[client-type] Found abonement service:', s.title);
+          return true;
+        }
+        // Check if service was paid by abonement (loyalty_abonement_visit_id)
+        if (s.loyalty_abonement_visit_id || s.abonement_id || s.loyalty_transaction_id) {
+          console.log('[client-type] Service has abonement ref:', s.title);
+          return true;
+        }
+      }
+      // Check goods for abonement
+      for (const g of (rec.goods_transactions || [])) {
+        const title = (g.title || '').toLowerCase();
+        if (title.includes('абонемент') || title.includes('взнос')) {
+          console.log('[client-type] Found abonement goods:', g.title);
+          return true;
+        }
       }
     }
+
     return false;
-  } catch (_) {
+  } catch (err) {
+    console.error('[client-type] error:', err.message);
     return false;
   }
 }
