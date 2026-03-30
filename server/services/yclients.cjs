@@ -575,67 +575,76 @@ async function getVisitsByPhone(companyId, date, phone) {
 // This resolves the case where field outer IDs differ between companies for the same field.
 async function checkClientAbonement(companyId, clientId) {
   try {
-    // 1. Check client details for loyalty/abonement data
-    const client = await yclientsRequest(`/client/${companyId}/${clientId}`);
-    if (client) {
-      // Log all keys containing "loyal", "abon", "card", "visit"
-      const relevantKeys = Object.keys(client).filter(k =>
-        /loyal|abon|card|visit|subscr/i.test(k)
+    // 1. Try YClients loyalty abonements API
+    try {
+      const abonements = await yclientsRequest(
+        `/loyalty/abonements/${companyId}?client_id=${clientId}`
       );
-      console.log('[client-type] Client relevant keys:', relevantKeys.map(k => `${k}=${JSON.stringify(client[k])}`).join(', '));
-
-      // Check various loyalty-related arrays
-      for (const key of Object.keys(client)) {
-        const val = client[key];
-        if (Array.isArray(val) && val.length > 0 && /loyal|abon|card/i.test(key)) {
-          console.log('[client-type] Has', key, ':', val.length);
-          return true;
-        }
-      }
-
-      // Check visits > 1 (more than just today's visit means returning client)
-      const visitCount = client.visits || client.visits_count || 0;
-      if (visitCount > 1) {
-        console.log('[client-type] visits:', visitCount);
+      console.log('[client-type] Loyalty abonements response type:', typeof abonements,
+        Array.isArray(abonements) ? `length=${abonements.length}` : '');
+      if (Array.isArray(abonements) && abonements.length > 0) {
+        console.log('[client-type] Has active abonements:', abonements.length);
         return true;
       }
+      if (abonements && typeof abonements === 'object' && !Array.isArray(abonements)) {
+        const keys = Object.keys(abonements);
+        console.log('[client-type] Abonements object keys:', keys.join(', '));
+        if (keys.length > 0) return true;
+      }
+    } catch (loyaltyErr) {
+      console.log('[client-type] Loyalty API error (trying fallback):', loyaltyErr.message);
     }
 
-    // 2. Check past records for abonement indicators
+    // 2. Check past records for abonement indicators in services/goods
     const today = new Date();
     const yesterday = new Date(today - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const oneYearAgo = new Date(today - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const twoYearsAgo = new Date(today - 730 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const records = await yclientsRequest(
-      `/records/${companyId}?start_date=${oneYearAgo}&end_date=${yesterday}&client_id=${clientId}&count=200`
+      `/records/${companyId}?start_date=${twoYearsAgo}&end_date=${yesterday}&client_id=${clientId}&count=200`
     );
 
-    if (!Array.isArray(records) || records.length === 0) return false;
+    if (!Array.isArray(records) || records.length === 0) {
+      console.log('[client-type] No past records found');
+      return false;
+    }
+
+    // Log first record's service details to understand the structure
+    if (records[0]?.services?.length > 0) {
+      const sampleSvc = records[0].services[0];
+      console.log('[client-type] Sample service keys:', Object.keys(sampleSvc).join(', '));
+      console.log('[client-type] Sample service data:', JSON.stringify(sampleSvc));
+    }
 
     for (const rec of records) {
-      // Check services for abonement indicators
       for (const s of (rec.services || [])) {
         const title = (s.title || '').toLowerCase();
         if (title.includes('абонемент') || title.includes('взнос')) {
-          console.log('[client-type] Found abonement service:', s.title);
+          console.log('[client-type] Found abonement in service title:', s.title);
           return true;
         }
-        // Check if service was paid by abonement (loyalty_abonement_visit_id)
-        if (s.loyalty_abonement_visit_id || s.abonement_id || s.loyalty_transaction_id) {
-          console.log('[client-type] Service has abonement ref:', s.title);
+        // Check all possible abonement reference fields
+        if (s.loyalty_abonement_visit_id || s.abonement_id ||
+            s.loyalty_transaction_id || s.abonement_visit_id ||
+            s.loyalty_card_id || s.card_id) {
+          console.log('[client-type] Service has abonement ref:', s.title,
+            JSON.stringify({ loyalty_abonement_visit_id: s.loyalty_abonement_visit_id,
+              abonement_id: s.abonement_id, loyalty_transaction_id: s.loyalty_transaction_id,
+              abonement_visit_id: s.abonement_visit_id,
+              loyalty_card_id: s.loyalty_card_id, card_id: s.card_id }));
           return true;
         }
       }
-      // Check goods for abonement
       for (const g of (rec.goods_transactions || [])) {
         const title = (g.title || '').toLowerCase();
         if (title.includes('абонемент') || title.includes('взнос')) {
-          console.log('[client-type] Found abonement goods:', g.title);
+          console.log('[client-type] Found abonement in goods title:', g.title);
           return true;
         }
       }
     }
 
+    console.log('[client-type] No abonement found in', records.length, 'records');
     return false;
   } catch (err) {
     console.error('[client-type] error:', err.message);
