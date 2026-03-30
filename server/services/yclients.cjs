@@ -585,7 +585,7 @@ async function checkClientAbonement(companyId, clientId) {
       from: twoYearsAgo,
       to: yesterday,
       payment_statuses: [],
-      attendance: 1,
+      attendance: null,
     };
 
     const result = await yclientsRequestPost(
@@ -604,9 +604,13 @@ async function checkClientAbonement(companyId, clientId) {
 
     for (const rec of records) {
       for (const s of (rec.services || [])) {
+        if (s.paid_abonements_count > 0) {
+          console.log('[client-type] Service paid by abonement:', s.title);
+          return true;
+        }
         const title = (s.title || '').toLowerCase();
         if (title.includes('абонемент') || title.includes('взнос')) {
-          console.log('[client-type] Found abonement in service:', s.title);
+          console.log('[client-type] Found abonement in service title:', s.title);
           return true;
         }
       }
