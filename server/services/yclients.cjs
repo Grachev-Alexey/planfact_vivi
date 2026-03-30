@@ -109,6 +109,7 @@ function groupRecordsByVisit(records, txDate) {
     if (!visits.has(key)) {
       const rawName = rec.client?.name || rec.client?.display_name || '';
       const rawSurname = rec.client?.surname || '';
+      const timeStr = (rec.date || '').split(' ')[1] || '';
       visits.set(key, {
         visitId: rec.visit_id || null,
         recordIds: [],
@@ -122,6 +123,8 @@ function groupRecordsByVisit(records, txDate) {
         totalAmount: 0,
         goodsAmount: 0,
         date: recDate,
+        time: timeStr ? timeStr.slice(0, 5) : '',
+        staffName: rec.staff?.name || '',
       });
     }
     const visit = visits.get(key);

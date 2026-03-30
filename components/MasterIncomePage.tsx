@@ -36,6 +36,8 @@ interface YCVisit {
   goods: { title: string; amount: number }[];
   totalAmount: number;
   date: string;
+  time?: string;
+  staffName?: string;
 }
 
 interface IncomeEntry {

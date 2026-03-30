@@ -56,6 +56,34 @@ router.get('/yclients/search-by-phone', async (req, res) => {
   }
 });
 
+router.get('/yclients/today-schedule', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const userRes = await db.query('SELECT id, role, studio_id FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0 || userRes.rows[0].role !== 'master') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const user = userRes.rows[0];
+    if (!user.studio_id) return res.json({ visits: [] });
+
+    const studioRes = await db.query('SELECT yclients_id FROM studios WHERE id = $1', [user.studio_id]);
+    if (studioRes.rows.length === 0 || !studioRes.rows[0].yclients_id) {
+      return res.json({ visits: [] });
+    }
+
+    const companyId = studioRes.rows[0].yclients_id;
+    const today = new Date().toISOString().split('T')[0];
+
+    const visits = await getVisitsByPhone(companyId, today, null);
+    res.json({ visits });
+  } catch (err) {
+    console.error('YClients today-schedule error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.put('/yclients/update-client', async (req, res) => {
   const userId = req.headers['x-user-id'];
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
