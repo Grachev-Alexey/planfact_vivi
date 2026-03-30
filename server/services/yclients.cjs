@@ -593,9 +593,10 @@ async function checkClientAbonement(companyId, clientId) {
         }
       }
 
-      // Check visits_count > 1 (means they've visited before today)
-      if ((client.visits_count || 0) > 1) {
-        console.log('[client-type] visits_count:', client.visits_count);
+      // Check visits > 1 (more than just today's visit means returning client)
+      const visitCount = client.visits || client.visits_count || 0;
+      if (visitCount > 1) {
+        console.log('[client-type] visits:', visitCount);
         return true;
       }
     }
