@@ -79,22 +79,36 @@ router.get('/yclients/today-schedule', async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const incomesRes = await db.query(
       `SELECT SUM(amount) as total, 
+              array_agg(client_phone) as phones,
               array_agg(yclients_data) as yc_data_arr
        FROM master_incomes 
        WHERE user_id = $1 AND DATE(created_at) = $2`,
       [userId, today]
     );
     const todayTotal = parseFloat(incomesRes.rows[0]?.total) || 0;
-    const recordedIds = [];
+
+    const recordedPhones = [];
+    for (const phone of (incomesRes.rows[0]?.phones || [])) {
+      if (phone) {
+        const digits = phone.replace(/\D/g, '').slice(-10);
+        if (digits.length >= 10 && !recordedPhones.includes(digits)) recordedPhones.push(digits);
+      }
+    }
+
+    const recordedRecordIds = [];
     for (const ycData of (incomesRes.rows[0]?.yc_data_arr || [])) {
+      if (ycData && ycData.recordId) {
+        const rid = String(ycData.recordId);
+        if (!recordedRecordIds.includes(rid)) recordedRecordIds.push(rid);
+      }
       if (ycData && ycData.recordIds) {
         for (const rid of ycData.recordIds) {
-          if (rid && !recordedIds.includes(String(rid))) recordedIds.push(String(rid));
+          if (rid && !recordedRecordIds.includes(String(rid))) recordedRecordIds.push(String(rid));
         }
       }
     }
 
-    res.json({ visits, todayTotal, recordedIds });
+    res.json({ visits, todayTotal, recordedPhones, recordedRecordIds });
   } catch (err) {
     console.error('YClients today-schedule error:', err);
     res.status(500).json({ error: err.message });

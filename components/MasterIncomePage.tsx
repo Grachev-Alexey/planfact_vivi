@@ -254,7 +254,8 @@ export const MasterIncomePage: React.FC = () => {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [todayTotal, setTodayTotal] = useState(0);
-  const [recordedIds, setRecordedIds] = useState<string[]>([]);
+  const [recordedPhones, setRecordedPhones] = useState<string[]>([]);
+  const [recordedRecordIds, setRecordedRecordIds] = useState<string[]>([]);
 
 
   const [entries, setEntries] = useState<IncomeEntry[]>([newEntry()]);
@@ -321,7 +322,8 @@ export const MasterIncomePage: React.FC = () => {
       const data = await res.json();
       setScheduleVisits(data.visits || []);
       setTodayTotal(data.todayTotal || 0);
-      setRecordedIds(data.recordedIds || []);
+      setRecordedPhones(data.recordedPhones || []);
+      setRecordedRecordIds(data.recordedRecordIds || []);
     } catch {
       setScheduleError('Не удалось загрузить расписание');
     } finally {
@@ -488,8 +490,14 @@ export const MasterIncomePage: React.FC = () => {
       }
     }
 
-    // Build YClients data snapshot for DB storage (all current field values)
     let yclientsDataSnapshot: Record<string, unknown> | null = null;
+    if (selectedVisit) {
+      yclientsDataSnapshot = {
+        recordIds: selectedVisit.recordIds,
+        visitId: selectedVisit.visitId,
+        clientId: selectedVisit.clientId,
+      };
+    }
     if (selectedVisit && ycRecordData !== null && ycFormSettings) {
       try {
         const recordId = selectedVisit.recordIds[0];
@@ -538,6 +546,7 @@ export const MasterIncomePage: React.FC = () => {
           return { label: f.label, id: f.ycFieldId, target: f.target, value: ycFieldValues[key] ?? '' };
         });
         yclientsDataSnapshot = {
+          ...yclientsDataSnapshot,
           recordId,
           comment: ycFormSettings.commentEnabled ? ycComment : undefined,
           fields: fieldSnapshot,
@@ -879,7 +888,9 @@ export const MasterIncomePage: React.FC = () => {
             ) : (
               <div className="divide-y divide-slate-100">
                 {scheduleVisits.map((visit, i) => {
-                  const isRecorded = visit.recordIds.some(rid => recordedIds.includes(rid));
+                  const visitPhone = (visit.clientPhone || '').replace(/\D/g, '').slice(-10);
+                  const isRecorded = visit.recordIds.some(rid => recordedRecordIds.includes(rid)) ||
+                    (visitPhone.length >= 10 && recordedPhones.includes(visitPhone));
                   const allItems = [...visit.services, ...visit.goods];
                   return (
                     <button
