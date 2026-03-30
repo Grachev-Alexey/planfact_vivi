@@ -203,6 +203,15 @@ const CLIENT_TYPES = [
   { id: 'regular', label: 'Постоянный' },
 ];
 
+const ARTICLE_BUTTONS = [
+  { id: 'promo', label: 'По акции', categoryId: '4', visibility: 'all' },
+  { id: 'price', label: 'По прайсу', categoryId: '5', visibility: 'all' },
+  { id: 'prepay', label: 'Предоплата', categoryId: '6', visibility: 'all' },
+  { id: 'sale', label: 'Продажа', categoryId: null, visibility: 'primary' },
+  { id: 'upsale', label: 'Допродажа', categoryId: null, visibility: 'regular' },
+  { id: 'surcharge', label: 'Доплата', categoryId: '11', visibility: 'regular' },
+] as const;
+
 type Step = 'phone' | 'visit' | 'entries';
 
 let entryCounter = 0;
@@ -734,7 +743,47 @@ export const MasterIncomePage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Статья</label>
-                <SearchableSelect value={editCategoryId} onChange={setEditCategoryId} placeholder="Выберите статью" options={categoryOptions} />
+                <div className="grid grid-cols-3 gap-1.5">
+                  {ARTICLE_BUTTONS
+                    .filter(ab => ab.visibility === 'all' || ab.visibility === (editingIncome?.clientType || clientType))
+                    .map(ab => {
+                      const isSelected = editCategoryId && (
+                        ab.categoryId === editCategoryId ||
+                        (ab.id === 'sale' && ['9', '10'].includes(editCategoryId)) ||
+                        (ab.id === 'upsale' && ['9', '10'].includes(editCategoryId))
+                      );
+                      return (
+                        <button key={ab.id} type="button"
+                          onClick={() => {
+                            if (ab.categoryId) {
+                              setEditCategoryId(ab.categoryId);
+                            } else if (ab.id === 'sale' || ab.id === 'upsale') {
+                              setEditCategoryId(editCategoryId === '9' ? '10' : editCategoryId === '10' ? '9' : '9');
+                            }
+                          }}
+                          className={`py-2 rounded-lg text-xs font-medium border transition-all ${isSelected ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
+                          {ab.label}
+                        </button>
+                      );
+                    })}
+                </div>
+                {(editCategoryId === '9' || editCategoryId === '10') && (
+                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                    <button type="button" onClick={() => setEditCategoryId('9')}
+                      className={`py-1.5 rounded-lg text-xs font-medium border transition-all ${editCategoryId === '9' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400'}`}>
+                      Первый платёж
+                    </button>
+                    <button type="button" onClick={() => setEditCategoryId('10')}
+                      className={`py-1.5 rounded-lg text-xs font-medium border transition-all ${editCategoryId === '10' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400'}`}>
+                      Полная оплата
+                    </button>
+                  </div>
+                )}
+                {editCategoryId && (
+                  <p className="mt-1 text-xs text-slate-400">
+                    Статья: {categoryOptions.find(c => c.id === editCategoryId)?.label?.trim() || editCategoryId}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Комментарий</label>
@@ -1198,7 +1247,47 @@ export const MasterIncomePage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1.5">Статья</label>
-                    <SearchableSelect value={entry.categoryId} onChange={v => updateEntry(entry.tempId, 'categoryId', v)} placeholder="Выберите статью" options={categoryOptions} />
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {ARTICLE_BUTTONS
+                        .filter(ab => ab.visibility === 'all' || ab.visibility === clientType)
+                        .map(ab => {
+                          const isSelected = entry.categoryId && (
+                            ab.categoryId === entry.categoryId ||
+                            (ab.id === 'sale' && ['9', '10'].includes(entry.categoryId)) ||
+                            (ab.id === 'upsale' && ['9', '10'].includes(entry.categoryId))
+                          );
+                          return (
+                            <button key={ab.id} type="button"
+                              onClick={() => {
+                                if (ab.categoryId) {
+                                  updateEntry(entry.tempId, 'categoryId', ab.categoryId);
+                                } else if (ab.id === 'sale' || ab.id === 'upsale') {
+                                  updateEntry(entry.tempId, 'categoryId', entry.categoryId === '9' ? '10' : entry.categoryId === '10' ? '9' : '9');
+                                }
+                              }}
+                              className={`py-2 rounded-lg text-xs font-medium border transition-all ${isSelected ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
+                              {ab.label}
+                            </button>
+                          );
+                        })}
+                    </div>
+                    {(entry.categoryId === '9' || entry.categoryId === '10') && (
+                      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                        <button type="button" onClick={() => updateEntry(entry.tempId, 'categoryId', '9')}
+                          className={`py-1.5 rounded-lg text-xs font-medium border transition-all ${entry.categoryId === '9' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400'}`}>
+                          Первый платёж
+                        </button>
+                        <button type="button" onClick={() => updateEntry(entry.tempId, 'categoryId', '10')}
+                          className={`py-1.5 rounded-lg text-xs font-medium border transition-all ${entry.categoryId === '10' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400'}`}>
+                          Полная оплата
+                        </button>
+                      </div>
+                    )}
+                    {entry.categoryId && (
+                      <p className="mt-1 text-xs text-slate-400">
+                        Статья: {categoryOptions.find(c => c.id === entry.categoryId)?.label?.trim() || entry.categoryId}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1.5">Комментарий</label>
