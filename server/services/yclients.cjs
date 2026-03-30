@@ -576,14 +576,14 @@ async function getVisitsByPhone(companyId, date, phone) {
 async function checkClientAbonement(companyId, clientId) {
   try {
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const yesterday = new Date(today - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const twoYearsAgo = new Date(today - 730 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const body = {
       client_id: Number(clientId),
       client_phone: null,
       from: twoYearsAgo,
-      to: todayStr,
+      to: yesterday,
       payment_statuses: [],
       attendance: 1,
     };
