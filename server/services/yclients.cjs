@@ -575,76 +575,49 @@ async function getVisitsByPhone(companyId, date, phone) {
 // This resolves the case where field outer IDs differ between companies for the same field.
 async function checkClientAbonement(companyId, clientId) {
   try {
-    // 1. Try YClients loyalty abonements API
-    try {
-      const abonements = await yclientsRequest(
-        `/loyalty/abonements/${companyId}?client_id=${clientId}`
-      );
-      console.log('[client-type] Loyalty abonements response type:', typeof abonements,
-        Array.isArray(abonements) ? `length=${abonements.length}` : '');
-      if (Array.isArray(abonements) && abonements.length > 0) {
-        console.log('[client-type] Has active abonements:', abonements.length);
-        return true;
-      }
-      if (abonements && typeof abonements === 'object' && !Array.isArray(abonements)) {
-        const keys = Object.keys(abonements);
-        console.log('[client-type] Abonements object keys:', keys.join(', '));
-        if (keys.length > 0) return true;
-      }
-    } catch (loyaltyErr) {
-      console.log('[client-type] Loyalty API error (trying fallback):', loyaltyErr.message);
-    }
-
-    // 2. Check past records for abonement indicators in services/goods
     const today = new Date();
-    const yesterday = new Date(today - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
     const twoYearsAgo = new Date(today - 730 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    const records = await yclientsRequest(
-      `/records/${companyId}?start_date=${twoYearsAgo}&end_date=${yesterday}&client_id=${clientId}&count=200`
+    const body = {
+      client_id: Number(clientId),
+      client_phone: null,
+      from: twoYearsAgo,
+      to: todayStr,
+      payment_statuses: [],
+      attendance: 1,
+    };
+
+    const result = await yclientsRequestPost(
+      `/company/${companyId}/clients/visits/search`, 'POST', body
     );
 
-    if (!Array.isArray(records) || records.length === 0) {
-      console.log('[client-type] No past records found');
-      return false;
-    }
+    const goodsTxs = result?.goods_transactions || [];
+    const records = result?.records || [];
 
-    // Log first record's service details to understand the structure
-    if (records[0]?.services?.length > 0) {
-      const sampleSvc = records[0].services[0];
-      console.log('[client-type] Sample service keys:', Object.keys(sampleSvc).join(', '));
-      console.log('[client-type] Sample service data:', JSON.stringify(sampleSvc));
+    console.log('[client-type] Visits search: goods_transactions=', goodsTxs.length, 'records=', records.length);
+
+    for (const gt of goodsTxs) {
+      for (const g of (gt.goods || [])) {
+        const title = (g.title || '').toLowerCase();
+        if (title.includes('абонемент') || title.includes('взнос')) {
+          console.log('[client-type] Found abonement in goods:', g.title);
+          return true;
+        }
+      }
     }
 
     for (const rec of records) {
       for (const s of (rec.services || [])) {
         const title = (s.title || '').toLowerCase();
         if (title.includes('абонемент') || title.includes('взнос')) {
-          console.log('[client-type] Found abonement in service title:', s.title);
-          return true;
-        }
-        // Check all possible abonement reference fields
-        if (s.loyalty_abonement_visit_id || s.abonement_id ||
-            s.loyalty_transaction_id || s.abonement_visit_id ||
-            s.loyalty_card_id || s.card_id) {
-          console.log('[client-type] Service has abonement ref:', s.title,
-            JSON.stringify({ loyalty_abonement_visit_id: s.loyalty_abonement_visit_id,
-              abonement_id: s.abonement_id, loyalty_transaction_id: s.loyalty_transaction_id,
-              abonement_visit_id: s.abonement_visit_id,
-              loyalty_card_id: s.loyalty_card_id, card_id: s.card_id }));
-          return true;
-        }
-      }
-      for (const g of (rec.goods_transactions || [])) {
-        const title = (g.title || '').toLowerCase();
-        if (title.includes('абонемент') || title.includes('взнос')) {
-          console.log('[client-type] Found abonement in goods title:', g.title);
+          console.log('[client-type] Found abonement in service:', s.title);
           return true;
         }
       }
     }
 
-    console.log('[client-type] No abonement found in', records.length, 'records');
+    console.log('[client-type] No abonement found');
     return false;
   } catch (err) {
     console.error('[client-type] error:', err.message);
