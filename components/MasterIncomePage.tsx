@@ -710,43 +710,45 @@ export const MasterIncomePage: React.FC = () => {
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
 
         {editingIncome ? (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="font-semibold text-slate-800 text-sm">Редактирование</h2>
-              <button onClick={() => setEditingIncome(null)} className="text-slate-400 hover:text-slate-600">
-                <X size={16} />
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 flex items-center gap-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+              <button onClick={() => setEditingIncome(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+                <ArrowLeft size={18} />
               </button>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-slate-700">{editingIncome.clientName || '—'}</div>
+                <div className="text-xs text-slate-400 font-mono">{formatPhoneDisplay(editingIncome.clientPhone || '')}</div>
+              </div>
+              <span className={`px-3 py-1.5 rounded-full text-xs font-medium border ${editingIncome.clientType === 'regular' ? 'bg-teal-50 text-teal-700 border-teal-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                {editingIncome.clientType === 'regular' ? 'Постоянный' : 'Первичный'}
+              </span>
             </div>
-            <form onSubmit={handleEditSubmit} className="p-4 space-y-3">
+            <form onSubmit={handleEditSubmit} className="px-4 py-3 space-y-3">
               {editError && (
                 <div className="bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-sm text-rose-600">{editError}</div>
               )}
-              <div className="text-xs text-slate-500 bg-slate-50 rounded-lg p-2 flex items-center gap-2">
-                <User size={12} /> <span>{editingIncome.clientName || '—'}</span>
-                <Phone size={12} className="ml-2" /> <span>{editingIncome.clientPhone || '—'}</span>
-              </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Сумма *</label>
                 <input
                   type="number" step="0.01" value={editAmount} onChange={e => setEditAmount(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  placeholder="0.00"
+                  className="w-full px-3 py-3 border border-slate-300 rounded-xl text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="0"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Тип оплаты *</label>
-                <div className="grid grid-cols-4 gap-2">
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Тип оплаты *</label>
+                <div className="flex flex-wrap gap-1.5">
                   {PAYMENT_TYPES.map(pt => (
                     <button key={pt.id} type="button" onClick={() => setEditPaymentType(pt.id)}
-                      className={`px-2 py-2 rounded-lg text-xs font-medium border transition-all ${editPaymentType === pt.id ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
+                      className={`px-3 py-2 rounded-full text-xs font-medium border transition-all ${editPaymentType === pt.id ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
                       {pt.label}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Статья</label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Статья</label>
+                <div className="flex flex-wrap gap-1.5">
                   {ARTICLE_BUTTONS
                     .filter(ab => ab.visibility === 'all' || ab.visibility === (editingIncome?.clientType || clientType))
                     .map(ab => {
@@ -764,20 +766,20 @@ export const MasterIncomePage: React.FC = () => {
                               setEditCategoryId(editCategoryId === '9' ? '10' : editCategoryId === '10' ? '9' : '9');
                             }
                           }}
-                          className={`py-2 rounded-lg text-xs font-medium border transition-all ${isSelected ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
+                          className={`px-3 py-2 rounded-full text-xs font-medium border transition-all ${isSelected ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
                           {ab.label}
                         </button>
                       );
                     })}
                 </div>
                 {(editCategoryId === '9' || editCategoryId === '10') && (
-                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                  <div className="mt-1.5 flex gap-1.5">
                     <button type="button" onClick={() => setEditCategoryId('9')}
-                      className={`py-1.5 rounded-lg text-xs font-medium border transition-all ${editCategoryId === '9' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400'}`}>
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${editCategoryId === '9' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400'}`}>
                       Первый платёж
                     </button>
                     <button type="button" onClick={() => setEditCategoryId('10')}
-                      className={`py-1.5 rounded-lg text-xs font-medium border transition-all ${editCategoryId === '10' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400'}`}>
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${editCategoryId === '10' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400'}`}>
                       Полная оплата
                     </button>
                   </div>
@@ -791,15 +793,15 @@ export const MasterIncomePage: React.FC = () => {
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Комментарий</label>
                 <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none" rows={2} placeholder="Примечание..." />
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none" rows={2} placeholder="Примечание..." />
               </div>
               <div className="flex gap-2 pt-1">
                 <button type="button" onClick={() => setEditingIncome(null)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                  className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-colors">
                   Отмена
                 </button>
                 <button type="submit" disabled={editSubmitting}
-                  className="flex-1 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-50">
+                  className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-50 shadow-md shadow-teal-600/20">
                   {editSubmitting ? 'Сохранение...' : 'Сохранить'}
                 </button>
               </div>
