@@ -1001,72 +1001,62 @@ export const MasterIncomePage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-                <button onClick={handleBackToVisit} className="text-slate-400 hover:text-slate-700 transition-colors">
-                  <ArrowLeft size={16} />
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 flex items-center gap-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                <button onClick={handleBackToVisit} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+                  <ArrowLeft size={18} />
                 </button>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs text-slate-500 font-mono">{formatPhoneDisplay(clientPhone)}</div>
+                  <div className="text-sm font-medium text-slate-700">{formatPhoneDisplay(clientPhone)}</div>
                   {selectedVisit && (
-                    <div className="text-[10px] text-teal-600 font-medium flex items-center gap-1 mt-0.5">
-                      <Check size={10} /> Привязано к записи YClients
+                    <div className="text-[11px] text-teal-600 flex items-center gap-1 mt-0.5">
+                      <Check size={10} /> Привязано к YClients
                     </div>
                   )}
                 </div>
+                {ycClientTypeLoading ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-400">
+                    <Loader2 size={11} className="animate-spin" /> ...
+                  </div>
+                ) : (
+                  <button type="button"
+                    onClick={() => setClientType(prev => prev === 'regular' ? 'primary' : 'regular')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${clientType === 'regular' ? 'bg-teal-50 text-teal-700 border-teal-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                    {CLIENT_TYPES.find(ct => ct.id === clientType)?.label ?? 'Первичный'}
+                  </button>
+                )}
               </div>
 
               <div className="px-4 py-3 space-y-3">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1">
-                      <User size={12} /> Имя *
-                    </label>
+                    <label className="block text-xs text-slate-500 mb-1">Имя</label>
                     <input
                       type="text" value={clientFirstName} onChange={e => setClientFirstName(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      placeholder="Иван"
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white transition-colors"
+                      placeholder="Имя"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1.5">
-                      Фамилия *
+                    <label className="block text-xs text-slate-500 mb-1">
+                      Фамилия
                       {lastNameWasEmpty && !clientLastName.trim() && (
-                        <span className="text-[10px] text-amber-600 font-medium">не в YClients</span>
+                        <span className="text-amber-500 ml-1">*</span>
                       )}
                     </label>
                     <input
                       type="text" value={clientLastName} onChange={e => setClientLastName(e.target.value)}
-                      className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 ${lastNameWasEmpty && !clientLastName.trim() ? 'border-amber-400 bg-amber-50' : 'border-slate-300'}`}
-                      placeholder="Иванов"
+                      className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors ${lastNameWasEmpty && !clientLastName.trim() ? 'border-amber-300 bg-amber-50/50' : 'border-slate-200 bg-slate-50 focus:bg-white'}`}
+                      placeholder="Фамилия"
                       autoFocus={lastNameWasEmpty}
                     />
                   </div>
                 </div>
                 {lastNameWasEmpty && clientLastName.trim() && ycClientId && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-teal-600 bg-teal-50 rounded-lg px-2.5 py-1.5">
-                    <Check size={11} /> Фамилия будет добавлена в YClients при сохранении
+                  <div className="text-[11px] text-teal-600 flex items-center gap-1">
+                    <Check size={10} /> Фамилия сохранится в YClients
                   </div>
                 )}
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Тип клиента</label>
-                  {ycClientTypeLoading ? (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-400">
-                      <Loader2 size={12} className="animate-spin" /> Определяем...
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${clientType === 'regular' ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                        {CLIENT_TYPES.find(ct => ct.id === clientType)?.label ?? 'Первичный'}
-                      </span>
-                      <button type="button"
-                        onClick={() => setClientType(prev => prev === 'regular' ? 'primary' : 'regular')}
-                        className="text-xs text-slate-400 hover:text-slate-600 underline underline-offset-2">
-                        изменить
-                      </button>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -1213,41 +1203,41 @@ export const MasterIncomePage: React.FC = () => {
             )}
 
             {entries.map((entry, idx) => (
-              <div key={entry.tempId} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                    <Banknote size={13} /> Поступление {idx + 1}
-                  </span>
-                  {entries.length > 1 && (
-                    <button onClick={() => removeEntry(entry.tempId)} className="text-slate-300 hover:text-rose-500 transition-colors">
-                      <X size={15} />
+              <div key={entry.tempId} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                {entries.length > 1 && (
+                  <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-400">Оплата {idx + 1}</span>
+                    <button onClick={() => removeEntry(entry.tempId)} className="text-slate-300 hover:text-rose-500 transition-colors p-1">
+                      <X size={14} />
                     </button>
-                  )}
-                </div>
-                <div className="p-4 space-y-3">
+                  </div>
+                )}
+                <div className="p-4 space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Сумма *</label>
+                    <label className="block text-xs text-slate-500 mb-1">Сумма</label>
                     <input
                       type="number" step="0.01" value={entry.amount}
                       onChange={e => updateEntry(entry.tempId, 'amount', e.target.value)}
-                      className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      placeholder="0.00" autoFocus={idx === entries.length - 1 && idx > 0}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-lg font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white transition-colors placeholder:text-slate-300 placeholder:font-normal"
+                      placeholder="0" autoFocus={idx === entries.length - 1 && idx > 0}
                     />
                   </div>
+
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Тип оплаты *</label>
-                    <div className="grid grid-cols-4 gap-1.5">
+                    <label className="block text-xs text-slate-500 mb-1.5">Способ оплаты</label>
+                    <div className="flex flex-wrap gap-1.5">
                       {PAYMENT_TYPES.map(pt => (
                         <button key={pt.id} type="button" onClick={() => updateEntry(entry.tempId, 'paymentType', pt.id)}
-                          className={`py-2 rounded-lg text-xs font-medium border transition-all ${entry.paymentType === pt.id ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
+                          className={`px-3.5 py-2 rounded-xl text-xs font-medium border transition-all ${entry.paymentType === pt.id ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-teal-300 hover:bg-teal-50'}`}>
                           {pt.label}
                         </button>
                       ))}
                     </div>
                   </div>
+
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Статья</label>
-                    <div className="grid grid-cols-3 gap-1.5">
+                    <label className="block text-xs text-slate-500 mb-1.5">Статья</label>
+                    <div className="flex flex-wrap gap-1.5">
                       {ARTICLE_BUTTONS
                         .filter(ab => ab.visibility === 'all' || ab.visibility === clientType)
                         .map(ab => {
@@ -1265,37 +1255,38 @@ export const MasterIncomePage: React.FC = () => {
                                   updateEntry(entry.tempId, 'categoryId', entry.categoryId === '9' ? '10' : entry.categoryId === '10' ? '9' : '9');
                                 }
                               }}
-                              className={`py-2 rounded-lg text-xs font-medium border transition-all ${isSelected ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
+                              className={`px-3.5 py-2 rounded-xl text-xs font-medium border transition-all ${isSelected ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-teal-300 hover:bg-teal-50'}`}>
                               {ab.label}
                             </button>
                           );
                         })}
                     </div>
                     {(entry.categoryId === '9' || entry.categoryId === '10') && (
-                      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                      <div className="mt-2 flex gap-1.5">
                         <button type="button" onClick={() => updateEntry(entry.tempId, 'categoryId', '9')}
-                          className={`py-1.5 rounded-lg text-xs font-medium border transition-all ${entry.categoryId === '9' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400'}`}>
+                          className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-all ${entry.categoryId === '9' ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-300'}`}>
                           Первый платёж
                         </button>
                         <button type="button" onClick={() => updateEntry(entry.tempId, 'categoryId', '10')}
-                          className={`py-1.5 rounded-lg text-xs font-medium border transition-all ${entry.categoryId === '10' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400'}`}>
+                          className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-all ${entry.categoryId === '10' ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-300'}`}>
                           Полная оплата
                         </button>
                       </div>
                     )}
                     {entry.categoryId && (
-                      <p className="mt-1 text-xs text-slate-400">
-                        Статья: {categoryOptions.find(c => c.id === entry.categoryId)?.label?.trim() || entry.categoryId}
+                      <p className="mt-1.5 text-[11px] text-slate-400">
+                        {categoryOptions.find(c => c.id === entry.categoryId)?.label?.trim() || ''}
                       </p>
                     )}
                   </div>
+
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Комментарий</label>
+                    <label className="block text-xs text-slate-500 mb-1">Комментарий</label>
                     <input
                       type="text" value={entry.description}
                       onChange={e => updateEntry(entry.tempId, 'description', e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      placeholder="Например: По акции, АБ-Первый платёж..."
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white transition-colors"
+                      placeholder="Необязательно"
                     />
                   </div>
                 </div>
@@ -1304,20 +1295,20 @@ export const MasterIncomePage: React.FC = () => {
 
             <button
               onClick={addEntry}
-              className="w-full py-2.5 border-2 border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:border-teal-400 hover:text-teal-600 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-sm text-slate-400 hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50/50 transition-all flex items-center justify-center gap-2"
             >
-              <Plus size={15} /> Добавить ещё поступление
+              <Plus size={15} /> Ещё оплата
             </button>
 
             <button
               onClick={handleSubmitAll}
               disabled={submitting}
-              className="w-full py-3.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+              className="w-full py-4 bg-teal-600 text-white rounded-2xl font-bold text-base hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20"
             >
               {submitting ? (
-                <><Loader2 size={16} className="animate-spin" /> Сохранение...</>
+                <><Loader2 size={18} className="animate-spin" /> Сохраняем...</>
               ) : (
-                <><Send size={16} /> Сохранить {entries.length > 1 ? `${entries.length} поступления` : 'поступление'}</>
+                <>Сохранить</>
               )}
             </button>
           </div>
