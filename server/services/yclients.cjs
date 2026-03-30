@@ -597,14 +597,9 @@ async function checkClientAbonement(companyId, clientId) {
 
     console.log('[client-type] Visits search: goods_transactions=', goodsTxs.length, 'records=', records.length);
 
-    for (const gt of goodsTxs) {
-      for (const g of (gt.goods || [])) {
-        const title = (g.title || '').toLowerCase();
-        if (title.includes('абонемент') || title.includes('взнос')) {
-          console.log('[client-type] Found abonement in goods:', g.title);
-          return true;
-        }
-      }
+    if (goodsTxs.length > 0) {
+      console.log('[client-type] Has goods_transactions → abonement client');
+      return true;
     }
 
     for (const rec of records) {
