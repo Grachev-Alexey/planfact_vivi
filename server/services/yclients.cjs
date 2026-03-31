@@ -109,14 +109,15 @@ function groupRecordsByVisit(records, txDate) {
     if (!visits.has(key)) {
       const rawName = rec.client?.name || rec.client?.display_name || '';
       const rawSurname = rec.client?.surname || '';
+      const { firstName, lastName } = splitNameSurname(rawName, rawSurname);
       const timeStr = (rec.date || '').split(' ')[1] || '';
       visits.set(key, {
         visitId: rec.visit_id || null,
         recordIds: [],
         clientId: rec.client?.id || null,
-        clientFirstName: rawName,
-        clientLastName: rawSurname,
-        clientName: [rawSurname, rawName].filter(Boolean).join(' ') || rawName,
+        clientFirstName: firstName,
+        clientLastName: lastName,
+        clientName: [lastName, firstName].filter(Boolean).join(' ') || firstName,
         clientPhone: rec.client?.phone || '',
         services: [],
         goods: [],
@@ -574,6 +575,19 @@ async function getVisitsByPhone(companyId, date, phone) {
   });
 }
 
+function splitNameSurname(rawName, rawSurname) {
+  let firstName = rawName || '';
+  let lastName = rawSurname || '';
+  if (!lastName && firstName) {
+    const parts = firstName.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      firstName = parts.slice(0, -1).join(' ');
+      lastName = parts[parts.length - 1];
+    }
+  }
+  return { firstName, lastName };
+}
+
 function groupRecordsByVisitAll(records) {
   const visits = new Map();
   for (const rec of records) {
@@ -584,13 +598,14 @@ function groupRecordsByVisitAll(records) {
     if (!visits.has(key)) {
       const rawName = rec.client?.name || rec.client?.display_name || '';
       const rawSurname = rec.client?.surname || '';
+      const { firstName, lastName } = splitNameSurname(rawName, rawSurname);
       visits.set(key, {
         visitId: rec.visit_id || null,
         recordIds: [],
         clientId: rec.client?.id || null,
-        clientFirstName: rawName,
-        clientLastName: rawSurname,
-        clientName: [rawSurname, rawName].filter(Boolean).join(' ') || rawName,
+        clientFirstName: firstName,
+        clientLastName: lastName,
+        clientName: [lastName, firstName].filter(Boolean).join(' ') || firstName,
         clientPhone: rec.client?.phone || '',
         services: [],
         goods: [],
