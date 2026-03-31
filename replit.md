@@ -127,4 +127,6 @@ A finance management application (Russian language UI) built with React + Vite f
   - Frontend shows matched signals as tags, all visit services/goods, and matched subset
   - Contractors have phone field used as high-priority matching signal (score 150)
   - Master income account resolution returns error if account not found
-- Master Dashboard: tab-based navigation (Записи / Дашборд) with KPI cards (revenue, clients, avg check, entries), primary/regular client split bar, daily revenue chart (recharts), payment type breakdown, category breakdown, period selector (today/week/month/custom range)
+- Master Dashboard: tab-based navigation (Записи / Показатели) with KPI cards (Выручка, Клиенты, Средний чек, Визитов), primary/regular client split bar, daily revenue chart (recharts), payment type breakdown, category breakdown, custom calendar period picker (month view, click range selection), period buttons (Сегодня/Неделя/Месяц/Период)
+- Zero-amount visits: visits with totalAmount=0 (abonement or free procedure) show "Отметить визит" button, save master_income with amount=0 and payment_type='visit_only', no transaction created. Dashboard shows totalVisits (unique visit count) and zeroVisits subtext.
+- Abonement data: services with paid_abonements_count > 0 are tagged paidByAbonement. goods_transactions always included with cost field. Schedule view shows colored tags: violet for abonement-paid services, teal for goods/abonements. Visit counts use DISTINCT on visitId/recordIds to avoid double-counting multi-payment visits.

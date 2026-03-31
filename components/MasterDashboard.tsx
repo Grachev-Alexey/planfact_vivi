@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Loader2, TrendingUp, Users, Receipt, CreditCard, Banknote, ChevronDown } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Receipt, CreditCard, Banknote, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 
 interface StatsData {
@@ -14,6 +14,8 @@ interface StatsData {
     regularAmount: number;
     primaryCount: number;
     regularCount: number;
+    totalVisits: number;
+    zeroVisits: number;
   };
   daily: { date: string; amount: number; entries: number }[];
   byPayment: { type: string; amount: number; count: number }[];
@@ -37,10 +39,17 @@ const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
   { key: 'custom', label: 'Период' },
 ];
 
+const MONTH_NAMES = [
+  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+];
+
+const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+function fmt(d: Date) { return d.toISOString().split('T')[0]; }
+
 function getDateRange(period: PeriodKey, customStart?: string, customEnd?: string): { startDate: string; endDate: string } {
   const today = new Date();
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
-
   switch (period) {
     case 'today':
       return { startDate: fmt(today), endDate: fmt(today) };
@@ -65,6 +74,132 @@ function formatShortDate(dateStr: string) {
 }
 
 const CHART_COLORS = ['#0d9488', '#14b8a6', '#5eead4', '#99f6e4', '#ccfbf1'];
+
+const CustomCalendar: React.FC<{
+  startDate: string;
+  endDate: string;
+  onSelect: (start: string, end: string) => void;
+}> = ({ startDate, endDate, onSelect }) => {
+  const [viewMonth, setViewMonth] = useState(() => {
+    const d = startDate ? new Date(startDate + 'T00:00:00') : new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const [selecting, setSelecting] = useState<'start' | 'end' | null>(null);
+  const [tempStart, setTempStart] = useState(startDate);
+  const [tempEnd, setTempEnd] = useState(endDate);
+
+  const daysInMonth = new Date(viewMonth.year, viewMonth.month + 1, 0).getDate();
+  const firstDayOfWeek = (new Date(viewMonth.year, viewMonth.month, 1).getDay() + 6) % 7;
+
+  const prevMonth = () => {
+    setViewMonth(v => v.month === 0 ? { year: v.year - 1, month: 11 } : { year: v.year, month: v.month - 1 });
+  };
+  const nextMonth = () => {
+    setViewMonth(v => v.month === 11 ? { year: v.year + 1, month: 0 } : { year: v.year, month: v.month + 1 });
+  };
+
+  const handleDayClick = (day: number) => {
+    const dateStr = `${viewMonth.year}-${String(viewMonth.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    if (!selecting || selecting === 'start') {
+      setTempStart(dateStr);
+      setTempEnd('');
+      setSelecting('end');
+    } else {
+      let s = tempStart, e = dateStr;
+      if (s > e) [s, e] = [e, s];
+      setTempStart(s);
+      setTempEnd(e);
+      setSelecting(null);
+      onSelect(s, e);
+    }
+  };
+
+  const isInRange = (day: number) => {
+    const dateStr = `${viewMonth.year}-${String(viewMonth.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const s = tempStart || startDate;
+    const e = tempEnd || endDate;
+    if (!s || !e) return false;
+    return dateStr >= s && dateStr <= e;
+  };
+
+  const isStart = (day: number) => {
+    const dateStr = `${viewMonth.year}-${String(viewMonth.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return dateStr === (tempStart || startDate);
+  };
+
+  const isEnd = (day: number) => {
+    const dateStr = `${viewMonth.year}-${String(viewMonth.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return dateStr === (tempEnd || endDate);
+  };
+
+  const isToday = (day: number) => {
+    const today = new Date();
+    return day === today.getDate() && viewMonth.month === today.getMonth() && viewMonth.year === today.getFullYear();
+  };
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDayOfWeek; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
+          <ChevronLeft size={16} />
+        </button>
+        <span className="text-sm font-semibold text-slate-700">{MONTH_NAMES[viewMonth.month]} {viewMonth.year}</span>
+        <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-0 mb-1">
+        {WEEKDAY_SHORT.map(wd => (
+          <div key={wd} className="text-center text-[10px] font-medium text-slate-400 py-1">{wd}</div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-0">
+        {cells.map((day, i) => {
+          if (day === null) return <div key={i} />;
+          const inRange = isInRange(day);
+          const start = isStart(day);
+          const end = isEnd(day);
+          const td = isToday(day);
+
+          return (
+            <button
+              key={i}
+              onClick={() => handleDayClick(day)}
+              className={`
+                h-9 text-xs font-medium relative flex items-center justify-center transition-all
+                ${inRange && !start && !end ? 'bg-teal-50 text-teal-700' : ''}
+                ${start || end ? 'bg-teal-600 text-white rounded-full z-10' : ''}
+                ${!inRange && !start && !end ? 'text-slate-600 hover:bg-slate-50 rounded-full' : ''}
+                ${td && !start && !end && !inRange ? 'ring-1 ring-teal-400 rounded-full' : ''}
+              `}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+
+      {selecting === 'end' && (
+        <div className="mt-2 text-center text-xs text-teal-600 font-medium">
+          Выберите конечную дату
+        </div>
+      )}
+
+      {(tempStart || startDate) && (tempEnd || endDate) && !selecting && (
+        <div className="mt-2 text-center text-xs text-slate-500">
+          {formatShortDate(tempStart || startDate)} — {formatShortDate(tempEnd || endDate)}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const MasterDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -102,12 +237,17 @@ export const MasterDashboard: React.FC = () => {
         const today = new Date();
         const monthAgo = new Date(today);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
-        setCustomStart(monthAgo.toISOString().split('T')[0]);
-        setCustomEnd(today.toISOString().split('T')[0]);
+        setCustomStart(fmt(monthAgo));
+        setCustomEnd(fmt(today));
       }
     } else {
       setShowCustom(false);
     }
+  };
+
+  const handleCalendarSelect = (start: string, end: string) => {
+    setCustomStart(start);
+    setCustomEnd(end);
   };
 
   const s = stats?.summary;
@@ -124,24 +264,16 @@ export const MasterDashboard: React.FC = () => {
             className={`px-3 py-2 rounded-full text-xs font-medium border transition-all ${period === opt.key ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}
           >
             {opt.label}
-            {opt.key === 'custom' && period === 'custom' && <ChevronDown size={12} className="inline ml-1" />}
           </button>
         ))}
       </div>
 
       {showCustom && (
-        <div className="flex gap-2 items-end">
-          <div className="flex-1">
-            <label className="block text-xs text-slate-500 mb-1">С</label>
-            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-              className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
-          </div>
-          <div className="flex-1">
-            <label className="block text-xs text-slate-500 mb-1">По</label>
-            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-              className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
-          </div>
-        </div>
+        <CustomCalendar
+          startDate={customStart}
+          endDate={customEnd}
+          onSelect={handleCalendarSelect}
+        />
       )}
 
       {loading ? (
@@ -185,9 +317,12 @@ export const MasterDashboard: React.FC = () => {
                 <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
                   <Banknote size={14} className="text-violet-600" />
                 </div>
-                <span className="text-xs text-slate-500">Записей</span>
+                <span className="text-xs text-slate-500">Визитов</span>
               </div>
-              <div className="text-lg font-bold text-slate-800">{s?.totalEntries || 0}</div>
+              <div className="text-lg font-bold text-slate-800">{s?.totalVisits || 0}</div>
+              {(s?.zeroVisits || 0) > 0 && (
+                <div className="text-[10px] text-slate-400 mt-0.5">без оплаты: {s?.zeroVisits}</div>
+              )}
             </div>
           </div>
 

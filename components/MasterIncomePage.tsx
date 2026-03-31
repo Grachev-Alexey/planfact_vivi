@@ -34,8 +34,8 @@ interface YCVisit {
   clientLastName: string;
   clientName: string;
   clientPhone: string;
-  services: { title: string; amount: number }[];
-  goods: { title: string; amount: number }[];
+  services: { title: string; amount: number; paidByAbonement?: boolean }[];
+  goods: { title: string; amount: number; cost?: number }[];
   totalAmount: number;
   date: string;
   time?: string;
@@ -470,6 +470,60 @@ export const MasterIncomePage: React.FC = () => {
   };
 
   const clientFullName = [clientLastName.trim(), clientFirstName.trim()].filter(Boolean).join(' ');
+  const isZeroAmountVisit = selectedVisit && selectedVisit.totalAmount === 0;
+
+  const handleMarkVisitOnly = async () => {
+    setGlobalError(null);
+    setSubmitting(true);
+
+    if (ycClientId && lastNameWasEmpty && clientLastName.trim()) {
+      try {
+        await fetch('/api/yclients/update-client', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+          body: JSON.stringify({ clientId: ycClientId, name: clientFirstName.trim(), surname: clientLastName.trim() }),
+        });
+      } catch {}
+    }
+
+    let yclientsDataSnapshot: Record<string, unknown> | null = null;
+    if (selectedVisit) {
+      yclientsDataSnapshot = {
+        recordIds: selectedVisit.recordIds,
+        visitId: selectedVisit.visitId,
+        clientId: selectedVisit.clientId,
+      };
+    }
+
+    try {
+      const res = await fetch('/api/master-incomes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+        body: JSON.stringify({
+          amount: 0,
+          paymentType: 'visit_only',
+          clientName: clientFullName || clientFirstName.trim(),
+          clientPhone,
+          clientType,
+          description: 'Визит без оплаты',
+          visitOnly: true,
+          ...(yclientsDataSnapshot ? { yclientsData: yclientsDataSnapshot } : {}),
+        }),
+      });
+      if (res.ok) {
+        setSubmitResults([{ success: true, msg: 'Визит отмечен' }]);
+      } else {
+        const data = await res.json().catch(() => null);
+        setSubmitResults([{ success: false, msg: data?.error || 'Ошибка' }]);
+      }
+    } catch {
+      setSubmitResults([{ success: false, msg: 'Ошибка сети' }]);
+    }
+    setSubmitting(false);
+    setDone(true);
+    setHistoryPage(1);
+    fetchIncomes();
+  };
 
   const handleSubmitAll = async () => {
     const errs: string[] = [];
@@ -721,7 +775,7 @@ export const MasterIncomePage: React.FC = () => {
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors ${mainTab === 'dashboard' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
           >
             <BarChart3 size={14} />
-            Дашборд
+            Показатели
           </button>
         </div>
       </div>
@@ -915,6 +969,7 @@ export const MasterIncomePage: React.FC = () => {
                   const isRecorded = visit.recordIds.some(rid => recordedRecordIds.includes(rid)) ||
                     (visitPhone.length >= 10 && recordedPhones.includes(visitPhone));
                   const allItems = [...visit.services, ...visit.goods];
+                  const isZeroAmount = visit.totalAmount === 0;
                   return (
                     <button
                       key={i}
@@ -933,8 +988,8 @@ export const MasterIncomePage: React.FC = () => {
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {allItems.slice(0, 3).map((s, si) => (
-                            <span key={si} className="text-[11px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
-                              {s.title}
+                            <span key={si} className={`text-[11px] px-1.5 py-0.5 rounded ${('paidByAbonement' in s && s.paidByAbonement) ? 'bg-violet-50 text-violet-600' : ('cost' in s ? 'bg-teal-50 text-teal-600' : 'bg-slate-100 text-slate-500')}`}>
+                              {'cost' in s && '🎫 '}{s.title}
                             </span>
                           ))}
                           {allItems.length > 3 && (
@@ -945,7 +1000,11 @@ export const MasterIncomePage: React.FC = () => {
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <div className="text-sm font-bold text-teal-600">{formatCurrency(visit.totalAmount)}</div>
+                        {isZeroAmount ? (
+                          <div className="text-xs font-medium text-slate-400">0 ₽</div>
+                        ) : (
+                          <div className="text-sm font-bold text-teal-600">{formatCurrency(visit.totalAmount)}</div>
+                        )}
                         {!isRecorded && (
                           <ChevronRight size={16} className="text-slate-300 group-hover:text-teal-500 mt-1 ml-auto transition-colors" />
                         )}
@@ -1166,115 +1225,156 @@ export const MasterIncomePage: React.FC = () => {
               </div>
             )}
 
-            {entries.map((entry, idx) => (
-              <div key={entry.tempId} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                {entries.length > 1 && (
-                  <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-400">Оплата {idx + 1}</span>
-                    <button onClick={() => removeEntry(entry.tempId)} className="text-slate-300 hover:text-rose-500 transition-colors p-1">
-                      <X size={14} />
-                    </button>
+            {isZeroAmountVisit ? (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto">
+                    <User size={20} className="text-slate-400" />
                   </div>
-                )}
-                <div className="p-4 space-y-4">
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1">Сумма</label>
-                    <input
-                      type="number" step="0.01" value={entry.amount}
-                      onChange={e => updateEntry(entry.tempId, 'amount', e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-lg font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white transition-colors placeholder:text-slate-300 placeholder:font-normal"
-                      placeholder="0" autoFocus={idx === entries.length - 1 && idx > 0}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1.5">Способ оплаты</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PAYMENT_TYPES.map(pt => (
-                        <button key={pt.id} type="button" onClick={() => updateEntry(entry.tempId, 'paymentType', pt.id)}
-                          className={`px-3.5 py-2 rounded-xl text-xs font-medium border transition-all ${entry.paymentType === pt.id ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-teal-300 hover:bg-teal-50'}`}>
-                          {pt.label}
-                        </button>
+                    <div className="text-sm font-semibold text-slate-700">Визит без оплаты</div>
+                    <div className="text-xs text-slate-500 mt-1 space-y-0.5">
+                      {selectedVisit && selectedVisit.services.map((s, i) => (
+                        <span key={i} className={`inline-block mr-1 px-1.5 py-0.5 rounded ${s.paidByAbonement ? 'bg-violet-50 text-violet-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {s.paidByAbonement ? '📋 ' : ''}{s.title}
+                        </span>
+                      ))}
+                      {selectedVisit && selectedVisit.goods.map((g, i) => (
+                        <span key={`g${i}`} className="inline-block mr-1 px-1.5 py-0.5 rounded bg-teal-50 text-teal-600">
+                          🎫 {g.title}
+                        </span>
                       ))}
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1.5">Статья</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {ARTICLE_BUTTONS
-                        .filter(ab => ab.visibility === 'all' || ab.visibility === clientType)
-                        .map(ab => {
-                          const isSelected = entry.categoryId && (
-                            ab.categoryId === entry.categoryId ||
-                            (ab.id === 'sale' && ['9', '10'].includes(entry.categoryId)) ||
-                            (ab.id === 'upsale' && ['9', '10'].includes(entry.categoryId))
-                          );
-                          return (
-                            <button key={ab.id} type="button"
-                              onClick={() => {
-                                if (ab.categoryId) {
-                                  updateEntry(entry.tempId, 'categoryId', ab.categoryId);
-                                } else if (ab.id === 'sale' || ab.id === 'upsale') {
-                                  updateEntry(entry.tempId, 'categoryId', entry.categoryId === '9' ? '10' : entry.categoryId === '10' ? '9' : '9');
-                                }
-                              }}
-                              className={`px-3.5 py-2 rounded-xl text-xs font-medium border transition-all ${isSelected ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-teal-300 hover:bg-teal-50'}`}>
-                              {ab.label}
-                            </button>
-                          );
-                        })}
+                    <div className="text-xs text-slate-400 mt-1">
+                      {selectedVisit?.services.some(s => s.paidByAbonement) ? 'Оплачено абонементом' : 'Бесплатная процедура'}
                     </div>
-                    {(entry.categoryId === '9' || entry.categoryId === '10') && (
-                      <div className="mt-2 flex gap-1.5">
-                        <button type="button" onClick={() => updateEntry(entry.tempId, 'categoryId', '9')}
-                          className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-all ${entry.categoryId === '9' ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-300'}`}>
-                          Первый платёж
-                        </button>
-                        <button type="button" onClick={() => updateEntry(entry.tempId, 'categoryId', '10')}
-                          className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-all ${entry.categoryId === '10' ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-300'}`}>
-                          Полная оплата
+                  </div>
+                  <button
+                    onClick={handleMarkVisitOnly}
+                    disabled={submitting}
+                    className="w-full py-3.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20"
+                  >
+                    {submitting ? (
+                      <><Loader2 size={16} className="animate-spin" /> Отмечаем...</>
+                    ) : (
+                      <><CheckCircle2 size={16} /> Отметить визит</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {entries.map((entry, idx) => (
+                  <div key={entry.tempId} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    {entries.length > 1 && (
+                      <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-400">Оплата {idx + 1}</span>
+                        <button onClick={() => removeEntry(entry.tempId)} className="text-slate-300 hover:text-rose-500 transition-colors p-1">
+                          <X size={14} />
                         </button>
                       </div>
                     )}
-                    {entry.categoryId && (
-                      <p className="mt-1.5 text-[11px] text-slate-400">
-                        {categoryOptions.find(c => c.id === entry.categoryId)?.label?.trim() || ''}
-                      </p>
-                    )}
+                    <div className="p-4 space-y-4">
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">Сумма</label>
+                        <input
+                          type="number" step="0.01" value={entry.amount}
+                          onChange={e => updateEntry(entry.tempId, 'amount', e.target.value)}
+                          className="w-full px-4 py-3 border border-slate-200 rounded-xl text-lg font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white transition-colors placeholder:text-slate-300 placeholder:font-normal"
+                          placeholder="0" autoFocus={idx === entries.length - 1 && idx > 0}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1.5">Способ оплаты</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {PAYMENT_TYPES.map(pt => (
+                            <button key={pt.id} type="button" onClick={() => updateEntry(entry.tempId, 'paymentType', pt.id)}
+                              className={`px-3.5 py-2 rounded-xl text-xs font-medium border transition-all ${entry.paymentType === pt.id ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-teal-300 hover:bg-teal-50'}`}>
+                              {pt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1.5">Статья</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ARTICLE_BUTTONS
+                            .filter(ab => ab.visibility === 'all' || ab.visibility === clientType)
+                            .map(ab => {
+                              const isSelected = entry.categoryId && (
+                                ab.categoryId === entry.categoryId ||
+                                (ab.id === 'sale' && ['9', '10'].includes(entry.categoryId)) ||
+                                (ab.id === 'upsale' && ['9', '10'].includes(entry.categoryId))
+                              );
+                              return (
+                                <button key={ab.id} type="button"
+                                  onClick={() => {
+                                    if (ab.categoryId) {
+                                      updateEntry(entry.tempId, 'categoryId', ab.categoryId);
+                                    } else if (ab.id === 'sale' || ab.id === 'upsale') {
+                                      updateEntry(entry.tempId, 'categoryId', entry.categoryId === '9' ? '10' : entry.categoryId === '10' ? '9' : '9');
+                                    }
+                                  }}
+                                  className={`px-3.5 py-2 rounded-xl text-xs font-medium border transition-all ${isSelected ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-teal-300 hover:bg-teal-50'}`}>
+                                  {ab.label}
+                                </button>
+                              );
+                            })}
+                        </div>
+                        {(entry.categoryId === '9' || entry.categoryId === '10') && (
+                          <div className="mt-2 flex gap-1.5">
+                            <button type="button" onClick={() => updateEntry(entry.tempId, 'categoryId', '9')}
+                              className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-all ${entry.categoryId === '9' ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-300'}`}>
+                              Первый платёж
+                            </button>
+                            <button type="button" onClick={() => updateEntry(entry.tempId, 'categoryId', '10')}
+                              className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-all ${entry.categoryId === '10' ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-300'}`}>
+                              Полная оплата
+                            </button>
+                          </div>
+                        )}
+                        {entry.categoryId && (
+                          <p className="mt-1.5 text-[11px] text-slate-400">
+                            {categoryOptions.find(c => c.id === entry.categoryId)?.label?.trim() || ''}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">Комментарий</label>
+                        <input
+                          type="text" value={entry.description}
+                          onChange={e => updateEntry(entry.tempId, 'description', e.target.value)}
+                          className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white transition-colors"
+                          placeholder="Необязательно"
+                        />
+                      </div>
+                    </div>
                   </div>
+                ))}
 
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Комментарий</label>
-                    <input
-                      type="text" value={entry.description}
-                      onChange={e => updateEntry(entry.tempId, 'description', e.target.value)}
-                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white transition-colors"
-                      placeholder="Необязательно"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
+                <button
+                  onClick={addEntry}
+                  className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-sm text-slate-400 hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50/50 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus size={15} /> Ещё оплата
+                </button>
 
-            <button
-              onClick={addEntry}
-              className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-sm text-slate-400 hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50/50 transition-all flex items-center justify-center gap-2"
-            >
-              <Plus size={15} /> Ещё оплата
-            </button>
-
-            <button
-              onClick={handleSubmitAll}
-              disabled={submitting}
-              className="w-full py-4 bg-teal-600 text-white rounded-2xl font-bold text-base hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20"
-            >
-              {submitting ? (
-                <><Loader2 size={18} className="animate-spin" /> Сохраняем...</>
-              ) : (
-                <>Сохранить</>
-              )}
-            </button>
+                <button
+                  onClick={handleSubmitAll}
+                  disabled={submitting}
+                  className="w-full py-4 bg-teal-600 text-white rounded-2xl font-bold text-base hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20"
+                >
+                  {submitting ? (
+                    <><Loader2 size={18} className="animate-spin" /> Сохраняем...</>
+                  ) : (
+                    <>Сохранить</>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         )}
 

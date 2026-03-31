@@ -133,18 +133,22 @@ function groupRecordsByVisit(records, txDate) {
     if (rec.services) {
       for (const s of rec.services) {
         const amount = parseFloat(s.cost_to_pay) || 0;
-        visit.services.push({ title: s.title, amount });
+        const svcEntry = { title: s.title, amount };
+        if (s.paid_abonements_count > 0) {
+          svcEntry.paidByAbonement = true;
+        }
+        visit.services.push(svcEntry);
         visit.totalAmount += amount;
       }
     }
     if (rec.goods_transactions) {
       for (const g of rec.goods_transactions) {
         const amount = parseFloat(g.cost_to_pay) || parseFloat(g.cost) || 0;
-        if (amount > 0) {
-          visit.goods.push({ title: g.title, amount });
-          visit.goodsAmount += amount;
-          visit.totalAmount += amount;
-        }
+        const goodsCost = parseFloat(g.cost) || 0;
+        const goodsEntry = { title: g.title, amount, cost: goodsCost };
+        visit.goods.push(goodsEntry);
+        visit.goodsAmount += amount;
+        visit.totalAmount += amount;
       }
     }
   }
@@ -622,18 +626,22 @@ function groupRecordsByVisitAll(records) {
     if (rec.services) {
       for (const s of rec.services) {
         const amount = parseFloat(s.cost_to_pay) || 0;
-        visit.services.push({ title: s.title, amount });
+        const svcEntry = { title: s.title, amount };
+        if (s.paid_abonements_count > 0) {
+          svcEntry.paidByAbonement = true;
+        }
+        visit.services.push(svcEntry);
         visit.totalAmount += amount;
       }
     }
     if (rec.goods_transactions) {
       for (const g of rec.goods_transactions) {
         const amount = parseFloat(g.cost_to_pay) || parseFloat(g.cost) || 0;
-        if (amount > 0) {
-          visit.goods.push({ title: g.title, amount });
-          visit.goodsAmount += amount;
-          visit.totalAmount += amount;
-        }
+        const goodsCost = parseFloat(g.cost) || 0;
+        const goodsEntry = { title: g.title, amount, cost: goodsCost };
+        visit.goods.push(goodsEntry);
+        visit.goodsAmount += amount;
+        visit.totalAmount += amount;
       }
     }
   }

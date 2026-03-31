@@ -61,8 +61,10 @@ router.get('/master-incomes/stats', async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
-    const baseWhere = 'WHERE mi.user_id = $1 AND DATE(mi.created_at) >= $2 AND DATE(mi.created_at) <= $3';
+    const baseWhere = 'WHERE mi.user_id = $1 AND DATE(mi.created_at) >= $2 AND DATE(mi.created_at) <= $3 AND mi.payment_type != \'visit_only\'';
     const params = [master.id, startDate, endDate];
+
+    const allVisitsWhere = 'WHERE mi.user_id = $1 AND DATE(mi.created_at) >= $2 AND DATE(mi.created_at) <= $3';
 
     const summaryRes = await db.query(
       `SELECT 
@@ -74,6 +76,14 @@ router.get('/master-incomes/stats', async (req, res) => {
         COUNT(*) FILTER (WHERE mi.client_type = 'primary') as primary_count,
         COUNT(*) FILTER (WHERE mi.client_type = 'regular') as regular_count
       FROM master_incomes mi ${baseWhere}`,
+      params
+    );
+
+    const visitCountRes = await db.query(
+      `SELECT 
+        COUNT(DISTINCT COALESCE(mi.yclients_data->>'visitId', mi.yclients_data->'recordIds'->>0, mi.id::text)) as total_visits,
+        COUNT(DISTINCT COALESCE(mi.yclients_data->>'visitId', mi.yclients_data->'recordIds'->>0, mi.id::text)) FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits
+      FROM master_incomes mi ${allVisitsWhere}`,
       params
     );
 
@@ -103,6 +113,7 @@ router.get('/master-incomes/stats', async (req, res) => {
     );
 
     const summary = summaryRes.rows[0];
+    const vcRow = visitCountRes.rows[0];
     const totalEntries = parseInt(summary.total_entries) || 0;
     const totalAmount = parseFloat(summary.total_amount) || 0;
 
@@ -116,6 +127,8 @@ router.get('/master-incomes/stats', async (req, res) => {
         regularAmount: parseFloat(summary.regular_amount) || 0,
         primaryCount: parseInt(summary.primary_count) || 0,
         regularCount: parseInt(summary.regular_count) || 0,
+        totalVisits: parseInt(vcRow.total_visits) || 0,
+        zeroVisits: parseInt(vcRow.zero_visits) || 0,
       },
       daily: dailyRes.rows.map(r => ({
         date: r.date,
@@ -167,25 +180,30 @@ router.post('/master-incomes', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;
 
-  const { amount, paymentType, categoryId, clientName, clientType, description, yclientsData } = req.body;
+  const { amount, paymentType, categoryId, clientName, clientType, description, yclientsData, visitOnly } = req.body;
   const clientPhone = normalizePhone(req.body.clientPhone);
 
-  if (!amount || !paymentType) {
-    return res.status(400).json({ error: 'amount and paymentType required' });
-  }
+  const isVisitOnly = visitOnly === true && parseFloat(amount) === 0;
 
-  if (!PAYMENT_TYPE_SUFFIXES[paymentType]) {
-    return res.status(400).json({ error: 'Invalid paymentType' });
+  if (!isVisitOnly) {
+    if (!amount || !paymentType) {
+      return res.status(400).json({ error: 'amount and paymentType required' });
+    }
+    if (!PAYMENT_TYPE_SUFFIXES[paymentType]) {
+      return res.status(400).json({ error: 'Invalid paymentType' });
+    }
   }
 
   const studioId = master.studio_id;
-  const accountId = await resolveAccountId(studioId, paymentType);
-
-  if (!accountId) {
-    const suffix = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
-    const studioRes = await db.query('SELECT name FROM studios WHERE id = $1', [studioId]);
-    const studioName = studioRes.rows.length > 0 ? studioRes.rows[0].name : '?';
-    return res.status(400).json({ error: `Счёт "${studioName} ${suffix}" не найден. Обратитесь к администратору.` });
+  let accountId = null;
+  if (!isVisitOnly) {
+    accountId = await resolveAccountId(studioId, paymentType);
+    if (!accountId) {
+      const suffix = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
+      const studioRes = await db.query('SELECT name FROM studios WHERE id = $1', [studioId]);
+      const studioName = studioRes.rows.length > 0 ? studioRes.rows[0].name : '?';
+      return res.status(400).json({ error: `Счёт "${studioName} ${suffix}" не найден. Обратитесь к администратору.` });
+    }
   }
 
   let contractorId = null;
@@ -222,56 +240,59 @@ router.post('/master-incomes', async (req, res) => {
 
   try {
     const ycDataVal = yclientsData ? JSON.stringify(yclientsData) : null;
+    const effectivePaymentType = isVisitOnly ? 'visit_only' : paymentType;
     const result = await db.query(
       `INSERT INTO master_incomes (user_id, studio_id, amount, payment_type, category_id, client_name, client_phone, client_type, description, account_id, yclients_data)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-      [master.id, studioId, amount, paymentType, categoryId || null, clientName || '', clientPhone || '', clientType || 'primary', description || '', accountId, ycDataVal]
+      [master.id, studioId, isVisitOnly ? 0 : amount, effectivePaymentType, categoryId || null, clientName || '', clientPhone || '', clientType || 'primary', description || '', accountId, ycDataVal]
     );
 
     const mi = result.rows[0];
-
-    const useExtId = await hasExternalIdColumn();
-    const extCols = useExtId ? ['external_id'] : [];
-    const extVals = useExtId ? [`mi-${mi.id}`] : [];
-
-    const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id', 'client_type'];
-    const paymentLabel = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
-    const baseVals = [
-      new Date().toISOString().split('T')[0], 
-      amount, 
-      'income', 
-      accountId, 
-      studioId, 
-      categoryId || null,
-      `${paymentLabel}${description ? ' | ' + description : ''}`, 
-      false,
-      contractorId,
-      clientType || 'primary'
-    ];
-
-    const allCols = [...baseCols, ...extCols];
-    const allVals = [...baseVals, ...extVals];
-    const placeholders = allVals.map((_, i) => `$${i + 1}`).join(', ');
-
-    console.log('Inserting transaction for master income:', { allCols, allVals });
-
-    const txResult = await db.query(
-      `INSERT INTO transactions (${allCols.join(', ')}) VALUES (${placeholders}) RETURNING id`,
-      allVals
-    );
-    const txId = txResult.rows[0].id;
-
-    // YClients verification
     let yclientsResult = null;
-    try {
-      const { verifyTransaction } = require('../services/yclients.cjs');
-      yclientsResult = await verifyTransaction(txId);
-    } catch (ycErr) {
-      console.error('YClients verification failed during creation:', ycErr);
+
+    if (!isVisitOnly) {
+      const useExtId = await hasExternalIdColumn();
+      const extCols = useExtId ? ['external_id'] : [];
+      const extVals = useExtId ? [`mi-${mi.id}`] : [];
+
+      const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id', 'client_type'];
+      const paymentLabel = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
+      const baseVals = [
+        new Date().toISOString().split('T')[0], 
+        amount, 
+        'income', 
+        accountId, 
+        studioId, 
+        categoryId || null,
+        `${paymentLabel}${description ? ' | ' + description : ''}`, 
+        false,
+        contractorId,
+        clientType || 'primary'
+      ];
+
+      const allCols = [...baseCols, ...extCols];
+      const allVals = [...baseVals, ...extVals];
+      const placeholders = allVals.map((_, i) => `$${i + 1}`).join(', ');
+
+      console.log('Inserting transaction for master income:', { allCols, allVals });
+
+      const txResult = await db.query(
+        `INSERT INTO transactions (${allCols.join(', ')}) VALUES (${placeholders}) RETURNING id`,
+        allVals
+      );
+      const txId = txResult.rows[0].id;
+
+      try {
+        const { verifyTransaction } = require('../services/yclients.cjs');
+        yclientsResult = await verifyTransaction(txId);
+      } catch (ycErr) {
+        console.error('YClients verification failed during creation:', ycErr);
+      }
     }
 
+    const paymentLabel = isVisitOnly ? 'Визит (0₽)' : (PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType);
     await logAction(master.id, 'create', 'master_income', mi.id, {
-      amount: parseFloat(amount),
+      amount: parseFloat(isVisitOnly ? '0' : amount),
       paymentType: paymentLabel,
       clientName: clientName || '',
     });
