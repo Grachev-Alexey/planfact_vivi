@@ -6,9 +6,11 @@ import { useFinance } from '../context/FinanceContext';
 import {
   LogOut, Send, Search, ChevronDown, Check, Plus, Clock,
   User, Phone, Edit2, Trash2, X, AlertCircle, ArrowLeft,
-  CheckCircle2, Loader2, Calendar, Banknote, ChevronRight, ChevronLeft
+  CheckCircle2, Loader2, Calendar, Banknote, ChevronRight, ChevronLeft,
+  BarChart3
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
+import { MasterDashboard } from './MasterDashboard';
 
 interface MasterIncome {
   id: number;
@@ -240,6 +242,7 @@ export const MasterIncomePage: React.FC = () => {
   const [incomes, setIncomes] = useState<MasterIncome[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const [mainTab, setMainTab] = useState<'income' | 'dashboard'>('income');
   const [step, setStep] = useState<Step>('schedule');
 
   const [clientPhone, setClientPhone] = useState('');
@@ -705,11 +708,29 @@ export const MasterIncomePage: React.FC = () => {
             </button>
           </div>
         </div>
+        <div className="max-w-2xl mx-auto flex border-t border-slate-100">
+          <button
+            onClick={() => setMainTab('income')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors ${mainTab === 'income' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+          >
+            <Calendar size={14} />
+            Записи
+          </button>
+          <button
+            onClick={() => setMainTab('dashboard')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors ${mainTab === 'dashboard' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+          >
+            <BarChart3 size={14} />
+            Дашборд
+          </button>
+        </div>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
 
-        {editingIncome ? (
+        {mainTab === 'dashboard' ? (
+          <MasterDashboard />
+        ) : editingIncome ? (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-4 py-3 flex items-center gap-3 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
               <button onClick={() => setEditingIncome(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">

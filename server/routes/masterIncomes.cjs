@@ -53,6 +53,93 @@ async function resolveAccountId(studioId, paymentType) {
   return accRes.rows[0].id;
 }
 
+router.get('/master-incomes/stats', async (req, res) => {
+  const master = await requireMaster(req, res);
+  if (!master) return;
+
+  try {
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
+
+    const baseWhere = 'WHERE mi.user_id = $1 AND DATE(mi.created_at) >= $2 AND DATE(mi.created_at) <= $3';
+    const params = [master.id, startDate, endDate];
+
+    const summaryRes = await db.query(
+      `SELECT 
+        COALESCE(SUM(mi.amount), 0) as total_amount,
+        COUNT(*) as total_entries,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != '') as unique_clients,
+        COALESCE(SUM(mi.amount) FILTER (WHERE mi.client_type = 'primary'), 0) as primary_amount,
+        COALESCE(SUM(mi.amount) FILTER (WHERE mi.client_type = 'regular'), 0) as regular_amount,
+        COUNT(*) FILTER (WHERE mi.client_type = 'primary') as primary_count,
+        COUNT(*) FILTER (WHERE mi.client_type = 'regular') as regular_count
+      FROM master_incomes mi ${baseWhere}`,
+      params
+    );
+
+    const dailyRes = await db.query(
+      `SELECT DATE(mi.created_at) as date, 
+              SUM(mi.amount) as amount, 
+              COUNT(*) as entries
+       FROM master_incomes mi ${baseWhere}
+       GROUP BY DATE(mi.created_at) ORDER BY date`,
+      params
+    );
+
+    const paymentRes = await db.query(
+      `SELECT mi.payment_type, SUM(mi.amount) as amount, COUNT(*) as count
+       FROM master_incomes mi ${baseWhere}
+       GROUP BY mi.payment_type ORDER BY amount DESC`,
+      params
+    );
+
+    const categoryRes = await db.query(
+      `SELECT mi.category_id, c.name as category_name, SUM(mi.amount) as amount, COUNT(*) as count
+       FROM master_incomes mi 
+       LEFT JOIN categories c ON mi.category_id = c.id
+       ${baseWhere}
+       GROUP BY mi.category_id, c.name ORDER BY amount DESC`,
+      params
+    );
+
+    const summary = summaryRes.rows[0];
+    const totalEntries = parseInt(summary.total_entries) || 0;
+    const totalAmount = parseFloat(summary.total_amount) || 0;
+
+    res.json({
+      summary: {
+        totalAmount,
+        totalEntries,
+        uniqueClients: parseInt(summary.unique_clients) || 0,
+        avgCheck: totalEntries > 0 ? Math.round(totalAmount / totalEntries) : 0,
+        primaryAmount: parseFloat(summary.primary_amount) || 0,
+        regularAmount: parseFloat(summary.regular_amount) || 0,
+        primaryCount: parseInt(summary.primary_count) || 0,
+        regularCount: parseInt(summary.regular_count) || 0,
+      },
+      daily: dailyRes.rows.map(r => ({
+        date: r.date,
+        amount: parseFloat(r.amount) || 0,
+        entries: parseInt(r.entries) || 0,
+      })),
+      byPayment: paymentRes.rows.map(r => ({
+        type: r.payment_type,
+        amount: parseFloat(r.amount) || 0,
+        count: parseInt(r.count) || 0,
+      })),
+      byCategory: categoryRes.rows.map(r => ({
+        id: r.category_id,
+        name: r.category_name || 'Без статьи',
+        amount: parseFloat(r.amount) || 0,
+        count: parseInt(r.count) || 0,
+      })),
+    });
+  } catch (err) {
+    console.error('Error fetching master stats:', err);
+    res.status(500).json({ error: 'Error fetching master stats' });
+  }
+});
+
 router.get('/master-incomes', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;

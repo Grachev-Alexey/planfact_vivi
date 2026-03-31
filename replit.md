@@ -47,14 +47,14 @@ A finance management application (Russian language UI) built with React + Vite f
 - Transactions: POST/PUT/DELETE /api/transactions
 - Dictionaries: POST/PUT/DELETE for categories, contractors, accounts, studios, legal_entities
 - Payment Requests: GET/POST/PUT/DELETE /api/payment-requests
-- Master Incomes: GET/POST /api/master-incomes
+- Master Incomes: GET/POST /api/master-incomes, GET /api/master-incomes/stats
 - Init data: GET /api/init
 
 ### User Roles
 - admin: full access to all features
 - user: full access to all features
 - requester: can only create payment requests and view their own request history
-- master: tied to a specific studio, can only create income entries via standalone page (/master)
+- master: tied to a specific studio, can only create income entries via standalone page (/master), has dashboard with KPIs
 
 ### Payment Requests
 - Table: payment_requests (user_id, amount, category_id, studio_id, contractor_id, description, status, payment_date, accrual_date, account_id, paid_at)
@@ -127,3 +127,4 @@ A finance management application (Russian language UI) built with React + Vite f
   - Frontend shows matched signals as tags, all visit services/goods, and matched subset
   - Contractors have phone field used as high-priority matching signal (score 150)
   - Master income account resolution returns error if account not found
+- Master Dashboard: tab-based navigation (Записи / Дашборд) with KPI cards (revenue, clients, avg check, entries), primary/regular client split bar, daily revenue chart (recharts), payment type breakdown, category breakdown, period selector (today/week/month/custom range)
