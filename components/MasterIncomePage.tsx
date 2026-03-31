@@ -492,6 +492,8 @@ export const MasterIncomePage: React.FC = () => {
         recordIds: selectedVisit.recordIds,
         visitId: selectedVisit.visitId,
         clientId: selectedVisit.clientId,
+        services: selectedVisit.services,
+        goods: selectedVisit.goods,
       };
     }
 
@@ -553,6 +555,8 @@ export const MasterIncomePage: React.FC = () => {
         recordIds: selectedVisit.recordIds,
         visitId: selectedVisit.visitId,
         clientId: selectedVisit.clientId,
+        services: selectedVisit.services,
+        goods: selectedVisit.goods,
       };
     }
     if (selectedVisit && ycRecordData !== null && ycFormSettings) {
@@ -987,11 +991,15 @@ export const MasterIncomePage: React.FC = () => {
                           {isRecorded && <CheckCircle2 size={14} className="text-green-500 shrink-0" />}
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
-                          {allItems.slice(0, 3).map((s, si) => (
-                            <span key={si} className={`text-[11px] px-1.5 py-0.5 rounded ${('paidByAbonement' in s && s.paidByAbonement) ? 'bg-violet-50 text-violet-600' : ('cost' in s ? 'bg-teal-50 text-teal-600' : 'bg-slate-100 text-slate-500')}`}>
-                              {'cost' in s && '🎫 '}{s.title}
-                            </span>
-                          ))}
+                          {allItems.slice(0, 3).map((s, si) => {
+                            const isAbonement = 'paidByAbonement' in s && s.paidByAbonement;
+                            const isGoods = 'cost' in s;
+                            return (
+                              <span key={si} className={`text-[11px] px-1.5 py-0.5 rounded ${isAbonement ? 'bg-violet-50 text-violet-600' : isGoods ? 'bg-violet-50 text-violet-600' : 'bg-slate-100 text-slate-500'}`}>
+                                {(isAbonement || isGoods) ? 'АБ ' : ''}{s.title}
+                              </span>
+                            );
+                          })}
                           {allItems.length > 3 && (
                             <span className="text-[11px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded">
                               +{allItems.length - 3}

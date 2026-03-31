@@ -73,8 +73,8 @@ router.get('/master-incomes/stats', async (req, res) => {
         COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != '') as unique_clients,
         COALESCE(SUM(mi.amount) FILTER (WHERE mi.client_type = 'primary'), 0) as primary_amount,
         COALESCE(SUM(mi.amount) FILTER (WHERE mi.client_type = 'regular'), 0) as regular_amount,
-        COUNT(*) FILTER (WHERE mi.client_type = 'primary') as primary_count,
-        COUNT(*) FILTER (WHERE mi.client_type = 'regular') as regular_count
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'primary' AND mi.client_phone != '') as primary_count,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'regular' AND mi.client_phone != '') as regular_count
       FROM master_incomes mi ${baseWhere}`,
       params
     );
@@ -112,8 +112,18 @@ router.get('/master-incomes/stats', async (req, res) => {
       params
     );
 
+    const abonementCategoryIds = [9, 10, 11];
+    const abonementRes = await db.query(
+      `SELECT 
+        COALESCE(SUM(mi.amount), 0) as abonement_amount,
+        COUNT(*) as abonement_count
+      FROM master_incomes mi ${baseWhere} AND mi.category_id = ANY($4)`,
+      [...params, abonementCategoryIds]
+    );
+
     const summary = summaryRes.rows[0];
     const vcRow = visitCountRes.rows[0];
+    const abRow = abonementRes.rows[0];
     const totalEntries = parseInt(summary.total_entries) || 0;
     const totalAmount = parseFloat(summary.total_amount) || 0;
 
@@ -129,6 +139,8 @@ router.get('/master-incomes/stats', async (req, res) => {
         regularCount: parseInt(summary.regular_count) || 0,
         totalVisits: parseInt(vcRow.total_visits) || 0,
         zeroVisits: parseInt(vcRow.zero_visits) || 0,
+        abonementAmount: parseFloat(abRow.abonement_amount) || 0,
+        abonementCount: parseInt(abRow.abonement_count) || 0,
       },
       daily: dailyRes.rows.map(r => ({
         date: r.date,

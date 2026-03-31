@@ -16,6 +16,8 @@ interface StatsData {
     regularCount: number;
     totalVisits: number;
     zeroVisits: number;
+    abonementAmount: number;
+    abonementCount: number;
   };
   daily: { date: string; amount: number; entries: number }[];
   byPayment: { type: string; amount: number; count: number }[];
@@ -339,6 +341,29 @@ export const MasterDashboard: React.FC = () => {
                 <span className="text-orange-600 font-medium">{s?.primaryCount || 0} перв. · {formatCurrency(s?.primaryAmount || 0)}</span>
                 <span className="text-teal-600 font-medium">{s?.regularCount || 0} пост. · {formatCurrency(s?.regularAmount || 0)}</span>
               </div>
+            </div>
+          )}
+
+          {(s?.abonementCount || 0) > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <Receipt size={14} className="text-violet-600" />
+                </div>
+                <span className="text-xs font-medium text-slate-500">Продажи абонементов</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-bold text-violet-700">{formatCurrency(s?.abonementAmount || 0)}</span>
+                <span className="text-xs text-slate-400">{s?.abonementCount} {(s?.abonementCount || 0) === 1 ? 'продажа' : (s?.abonementCount || 0) < 5 ? 'продажи' : 'продаж'}</span>
+              </div>
+              {s?.totalAmount ? (
+                <div className="mt-2">
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-violet-400 rounded-full transition-all" style={{ width: `${Math.round(((s?.abonementAmount || 0) / s.totalAmount) * 100)}%` }} />
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-1">{Math.round(((s?.abonementAmount || 0) / s.totalAmount) * 100)}% от общей выручки</div>
+                </div>
+              ) : null}
             </div>
           )}
 
