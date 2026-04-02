@@ -247,10 +247,10 @@ export const PaymentCalendar: React.FC = () => {
                 days={days}
                 values={data.incomePlan}
                 todayDay={todayDay}
-                textClass="text-emerald-500"
-                rowBg="#f0fdf4"
-                todayBg="#bbf7d0"
-                accentColor="#4ade80"
+                textClass="text-emerald-600"
+                rowBg="#ffffff"
+                todayBg="#ecfdf5"
+                accentColor="#86efac"
                 isPast={isPast}
                 isFuture={isFuture}
                 labelW={LABEL_W}
@@ -263,10 +263,10 @@ export const PaymentCalendar: React.FC = () => {
                 values={data.incomeFact}
                 todayDay={todayDay}
                 textClass="text-emerald-700"
-                rowBg="#dcfce7"
-                todayBg="#86efac"
+                rowBg="#f7fef9"
+                todayBg="#d1fae5"
                 bold
-                accentColor="#16a34a"
+                accentColor="#22c55e"
                 isPast={isPast}
                 isFuture={isFuture}
                 labelW={LABEL_W}
@@ -281,10 +281,10 @@ export const PaymentCalendar: React.FC = () => {
                 days={days}
                 values={data.expensePlan}
                 todayDay={todayDay}
-                textClass="text-rose-400"
-                rowBg="#fff1f2"
-                todayBg="#fecdd3"
-                accentColor="#f87171"
+                textClass="text-rose-500"
+                rowBg="#ffffff"
+                todayBg="#fff1f2"
+                accentColor="#fca5a5"
                 isPast={isPast}
                 isFuture={isFuture}
                 labelW={LABEL_W}
@@ -297,10 +297,10 @@ export const PaymentCalendar: React.FC = () => {
                 values={data.expenseFact}
                 todayDay={todayDay}
                 textClass="text-rose-700"
-                rowBg="#ffe4e6"
-                todayBg="#fda4af"
+                rowBg="#fff9f9"
+                todayBg="#ffe4e6"
                 bold
-                accentColor="#dc2626"
+                accentColor="#f43f5e"
                 isPast={isPast}
                 isFuture={isFuture}
                 labelW={LABEL_W}
@@ -316,9 +316,9 @@ export const PaymentCalendar: React.FC = () => {
                 todayDay={todayDay}
                 labelW={LABEL_W}
                 totalW={TOTAL_W}
-                rowBg="#f0f9ff"
-                todayBg="#bae6fd"
-                accentColor="#0ea5e9"
+                rowBg="#ffffff"
+                todayBg="#eff6ff"
+                accentColor="#93c5fd"
               />
               <BalanceRow
                 label="Факт"
@@ -328,9 +328,9 @@ export const PaymentCalendar: React.FC = () => {
                 todayDay={todayDay}
                 labelW={LABEL_W}
                 totalW={TOTAL_W}
-                rowBg="#e0f2fe"
-                todayBg="#7dd3fc"
-                accentColor="#0284c7"
+                rowBg="#f7fbff"
+                todayBg="#dbeafe"
+                accentColor="#3b82f6"
                 bold
               />
 
@@ -504,22 +504,30 @@ interface GroupHeaderProps {
   accent: 'emerald' | 'rose' | 'sky';
 }
 const GROUP_ACCENT = {
-  emerald: { label: 'bg-emerald-600 text-white border-emerald-700', fill: 'bg-emerald-600 border-emerald-700' },
-  rose:    { label: 'bg-rose-600 text-white border-rose-700',       fill: 'bg-rose-600 border-rose-700' },
-  sky:     { label: 'bg-sky-600 text-white border-sky-700',         fill: 'bg-sky-600 border-sky-700' },
+  emerald: { color: '#34d399' },
+  rose:    { color: '#fb7185' },
+  sky:     { color: '#60a5fa' },
 };
 const GroupHeader: React.FC<GroupHeaderProps> = ({ label, icon, colSpan, accent }) => (
   <tr>
     <td
       colSpan={2}
-      className={`border-b border-t px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest ${GROUP_ACCENT[accent].label}`}
-      style={{ position: 'sticky', left: 0, zIndex: 10 }}
+      className="text-[10px] font-bold uppercase tracking-widest"
+      style={{
+        position: 'sticky', left: 0, zIndex: 10,
+        background: '#253447',
+        borderLeft: `3px solid ${GROUP_ACCENT[accent].color}`,
+        borderBottom: '1px solid #1e2a38',
+        borderTop: '1px solid #1e2a38',
+        padding: '5px 10px',
+        color: '#94a3b8',
+      }}
     >
-      {icon} {label}
+      <span style={{ color: GROUP_ACCENT[accent].color, marginRight: 4 }}>{icon}</span>{label}
     </td>
     <td
       colSpan={colSpan - 2}
-      className={`border-b border-t ${GROUP_ACCENT[accent].fill}`}
+      style={{ background: '#253447', borderBottom: '1px solid #1e2a38', borderTop: '1px solid #1e2a38' }}
     />
   </tr>
 );
@@ -545,13 +553,13 @@ const SummaryRow: React.FC<SummaryRowProps> = ({
 }) => (
   <tr className="border-b border-slate-100" style={{ background: rowBg }}>
     <td
-      className="px-3 py-2 border-r border-slate-200 text-slate-600"
+      className="px-3 py-1.5 border-r border-slate-200 text-slate-600"
       style={{ position: 'sticky', left: 0, zIndex: 10, width: labelW, minWidth: labelW, fontWeight: bold ? 600 : 400, background: rowBg, borderLeft: `3px solid ${accentColor}` }}
     >
       {label}
     </td>
     <td
-      className="border-r border-slate-200 text-right px-2 py-2"
+      className="border-r border-slate-200 text-right px-2 py-1.5"
       style={{ position: 'sticky', left: labelW, zIndex: 10, width: totalW, minWidth: totalW, background: rowBg }}
     >
       <span className={`${textClass} ${bold ? 'font-bold' : 'font-medium'}`}>
@@ -598,13 +606,13 @@ const BalanceRow: React.FC<BalanceRowProps> = ({
 }) => (
   <tr className="border-b border-slate-200" style={{ background: rowBg }}>
     <td
-      className="px-3 py-2 border-r border-slate-200 text-slate-700"
+      className="px-3 py-1.5 border-r border-slate-200 text-slate-700"
       style={{ position: 'sticky', left: 0, zIndex: 10, width: labelW, minWidth: labelW, background: rowBg, fontWeight: bold ? 700 : 400, borderLeft: `3px solid ${accentColor}` }}
     >
       {label}
     </td>
     <td
-      className="border-r border-slate-200 text-right px-2 py-2"
+      className="border-r border-slate-200 text-right px-2 py-1.5"
       style={{ position: 'sticky', left: labelW, zIndex: 10, width: totalW, minWidth: totalW, background: rowBg, fontWeight: bold ? 700 : 600 }}
     >
       <span className={total >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
