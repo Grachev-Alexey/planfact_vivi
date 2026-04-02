@@ -95,14 +95,22 @@ router.get('/admin-stats', async (req, res) => {
     // 1b. Unique clients per master including visit_only (abonement) visits
     const uniqueClientsAllRes = await db.query(
       `SELECT mi.user_id,
-        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != '') as unique_clients_all
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != '') as unique_clients_all,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'primary' AND mi.client_phone != '') as primary_count_all,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'regular' AND mi.client_phone != '') as regular_count_all
        FROM master_incomes mi
        WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2
        GROUP BY mi.user_id`,
       [startDate, endDate]
     );
     const uniqueClientsAllMap = {};
-    for (const r of uniqueClientsAllRes.rows) uniqueClientsAllMap[r.user_id] = parseInt(r.unique_clients_all) || 0;
+    for (const r of uniqueClientsAllRes.rows) {
+      uniqueClientsAllMap[r.user_id] = {
+        uniqueClients: parseInt(r.unique_clients_all) || 0,
+        primaryCount: parseInt(r.primary_count_all) || 0,
+        regularCount: parseInt(r.regular_count_all) || 0,
+      };
+    }
 
     // 2. Per-master visit count
     const visitRes = await db.query(
@@ -237,9 +245,10 @@ router.get('/admin-stats', async (req, res) => {
       const totalEntries = parseInt(r.total_entries) || 0;
       const vc = visitMap[r.user_id] || {};
       const ab = abonementMap[r.user_id] || { amount: 0, count: 0, primaryAmount: 0, primaryCount: 0, regularAmount: 0, regularCount: 0 };
-      const primaryCount = parseInt(r.primary_count) || 0;
-      const regularCount = parseInt(r.regular_count) || 0;
-      const uniqueClients = uniqueClientsAllMap[r.user_id] ?? 0;
+      const allCounts = uniqueClientsAllMap[r.user_id] || { uniqueClients: 0, primaryCount: 0, regularCount: 0 };
+      const uniqueClients = allCounts.uniqueClients;
+      const primaryCount = allCounts.primaryCount;
+      const regularCount = allCounts.regularCount;
 
       const master = {
         id: r.user_id, name: r.master_name,
@@ -340,7 +349,10 @@ router.get('/master-incomes/stats', async (req, res) => {
     );
 
     const uniqueClientsAllRes = await db.query(
-      `SELECT COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != '') as unique_clients_all
+      `SELECT
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != '') as unique_clients_all,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'primary' AND mi.client_phone != '') as primary_count_all,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'regular' AND mi.client_phone != '') as regular_count_all
        FROM master_incomes mi ${allVisitsWhere}`,
       params
     );
@@ -554,7 +566,10 @@ router.get('/master-incomes/stats', async (req, res) => {
 
     const totalEntries = parseInt(summary.total_entries) || 0;
     const totalAmount = parseFloat(summary.total_amount) || 0;
-    const uniqueClients = parseInt(uniqueClientsAllRes.rows[0]?.unique_clients_all) || 0;
+    const allRow = uniqueClientsAllRes.rows[0] || {};
+    const uniqueClients = parseInt(allRow.unique_clients_all) || 0;
+    const primaryCount = parseInt(allRow.primary_count_all) || 0;
+    const regularCount = parseInt(allRow.regular_count_all) || 0;
 
     res.json({
       summary: {
@@ -564,8 +579,8 @@ router.get('/master-incomes/stats', async (req, res) => {
         avgCheck: totalEntries > 0 ? Math.round(totalAmount / totalEntries) : 0,
         primaryAmount: parseFloat(summary.primary_amount) || 0,
         regularAmount: parseFloat(summary.regular_amount) || 0,
-        primaryCount: parseInt(summary.primary_count) || 0,
-        regularCount: parseInt(summary.regular_count) || 0,
+        primaryCount,
+        regularCount,
         totalVisits: parseInt(vcRow.total_visits) || 0,
         zeroVisits: parseInt(vcRow.zero_visits) || 0,
         abonementAmount,
