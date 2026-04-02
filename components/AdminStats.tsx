@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import {
   Loader2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-  Building2, User, TrendingUp, Users, Calendar, CreditCard, Tag, Sparkles, RefreshCw
+  Building2, User, TrendingUp, Users, Calendar, CreditCard, Tag, Sparkles, RefreshCw, Wallet
 } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 
@@ -53,6 +53,12 @@ function pluralClients(n: number) {
   if (n % 10 === 1 && n % 100 !== 11) return `${n} клиент`;
   if ([2,3,4].includes(n % 10) && ![12,13,14].includes(n % 100)) return `${n} клиента`;
   return `${n} клиентов`;
+}
+
+function pluralSales(n: number) {
+  if (n === 1) return '1 продажа';
+  if (n >= 2 && n <= 4) return `${n} продажи`;
+  return `${n} продаж`;
 }
 
 interface Summary {
@@ -117,23 +123,139 @@ const MiniCalendar: React.FC<{ startDate: string; endDate: string; onSelect: (s:
           const isS = d === s, isE = d === e;
           const isToday = (() => { const t = new Date(); return day === t.getDate() && viewMonth.month === t.getMonth() && viewMonth.year === t.getFullYear(); })();
           return (
-            <button key={i} onClick={() => handleDay(day)} className={`h-8 text-xs font-medium flex items-center justify-center transition-all ${inRange && !isS && !isE ? 'bg-slate-100 text-slate-700' : ''} ${isS || isE ? 'bg-slate-700 text-white rounded' : ''} ${!inRange && !isS && !isE ? 'text-slate-600 hover:bg-slate-50 rounded' : ''} ${isToday && !isS && !isE && !inRange ? 'ring-1 ring-slate-400 rounded' : ''}`}>{day}</button>
+            <button key={i} onClick={() => handleDay(day)} className={`h-8 text-xs font-medium flex items-center justify-center transition-all ${inRange && !isS && !isE ? 'bg-teal-50 text-teal-700' : ''} ${isS || isE ? 'bg-teal-500 text-white rounded' : ''} ${!inRange && !isS && !isE ? 'text-slate-600 hover:bg-slate-50 rounded' : ''} ${isToday && !isS && !isE && !inRange ? 'ring-1 ring-teal-400 rounded' : ''}`}>{day}</button>
           );
         })}
       </div>
-      {selecting === 'end' && <div className="mt-2 text-center text-xs text-slate-500">Выберите конечную дату</div>}
+      {selecting === 'end' && <div className="mt-2 text-center text-xs text-teal-600 font-medium">Выберите конечную дату</div>}
       {(tempStart || startDate) && (tempEnd || endDate) && !selecting && <div className="mt-2 text-center text-xs text-slate-500 font-medium">{formatShortDate(tempStart || startDate)} — {formatShortDate(tempEnd || endDate)}</div>}
     </div>
   );
 };
 
-const MetricCell: React.FC<{ label: string; value: string | number; sub?: string; accent?: boolean }> = ({ label, value, sub, accent }) => (
-  <div className={`px-4 py-3 ${accent ? 'bg-slate-50' : ''}`}>
-    <div className={`text-sm font-bold tabular-nums ${accent ? 'text-slate-900' : 'text-slate-800'}`}>{value}</div>
-    <div className="text-[11px] text-slate-400 mt-0.5">{label}</div>
-    {sub && <div className="text-[10px] text-slate-400">{sub}</div>}
-  </div>
-);
+const OverallSummary: React.FC<{ o: Summary; periodLabel: string }> = ({ o, periodLabel }) => {
+  const totalClients = o.primaryCount + o.regularCount;
+  const primaryPct = totalClients > 0 ? Math.round((o.primaryCount / totalClients) * 100) : 0;
+  const convTotal = o.uniqueClients > 0 ? Math.round((o.abonementCount / o.uniqueClients) * 100) : 0;
+  const convPrimary = o.primaryCount > 0 ? Math.round((o.abonementPrimaryCount / o.primaryCount) * 100) : 0;
+  const convRegular = o.regularCount > 0 ? Math.round((o.abonementRegularCount / o.regularCount) * 100) : 0;
+  const abAvg = o.abonementCount > 0 ? Math.round(o.abonementAmount / o.abonementCount) : 0;
+  const abPrimaryAvg = o.abonementPrimaryCount > 0 ? Math.round(o.abonementPrimaryAmount / o.abonementPrimaryCount) : 0;
+  const abRegularAvg = o.abonementRegularCount > 0 ? Math.round(o.abonementRegularAmount / o.abonementRegularCount) : 0;
+
+  return (
+    <div className="space-y-3">
+      {/* Hero revenue card */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-teal-600 to-teal-700 p-5 shadow-lg">
+        <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-12 translate-x-12" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-8 -translate-x-8" />
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-1">
+            <Wallet size={13} className="text-teal-200" />
+            <span className="text-teal-100 text-xs font-medium">Общая выручка {periodLabel}</span>
+          </div>
+          <div className="text-3xl font-bold text-white tracking-tight">{formatCurrency(o.totalAmount)}</div>
+          <div className="flex flex-wrap gap-4 mt-3">
+            <span className="text-teal-100 text-xs">{o.uniqueClients} клиентов</span>
+            <span className="text-teal-100 text-xs">{o.totalVisits} визитов</span>
+            <span className="text-teal-100 text-xs">ср. чек {formatCurrency(o.avgCheck)}</span>
+            <span className="text-teal-100 text-xs">{o.totalEntries} записей</span>
+          </div>
+        </div>
+      </div>
+
+      {/* New / Regular split */}
+      {totalClients > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Users size={11} /> Клиенты: новые и постоянные
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-orange-50 rounded-lg p-3 border border-orange-100">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-orange-500 font-semibold">🌱 Новые</span>
+                <span className="text-[11px] font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">{primaryPct}%</span>
+              </div>
+              <div className="text-xl font-bold text-orange-700">{o.primaryCount}</div>
+              <div className="text-xs text-orange-400 mt-0.5">{formatCurrency(o.primaryAmount)}</div>
+            </div>
+            <div className="bg-teal-50 rounded-lg p-3 border border-teal-100">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-teal-600 font-semibold">💎 Постоянные</span>
+                <span className="text-[11px] font-bold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full">{100 - primaryPct}%</span>
+              </div>
+              <div className="text-xl font-bold text-teal-700">{o.regularCount}</div>
+              <div className="text-xs text-teal-500 mt-0.5">{formatCurrency(o.regularAmount)}</div>
+            </div>
+          </div>
+          <div className="h-2 bg-slate-100 rounded-full overflow-hidden flex">
+            <div className="h-full bg-orange-400 rounded-l-full transition-all" style={{ width: `${primaryPct}%` }} />
+            <div className="h-full bg-teal-400 rounded-r-full transition-all" style={{ width: `${100 - primaryPct}%` }} />
+          </div>
+        </div>
+      )}
+
+      {/* Abonements block */}
+      {o.abonementCount > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles size={11} className="text-violet-400" /> Абонементы — итого
+            </div>
+            {convTotal > 0 && (
+              <span className="text-[11px] font-bold text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full">{convTotal}% конверсия</span>
+            )}
+          </div>
+
+          {/* Total ab row */}
+          <div className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100 rounded-lg p-3 mb-3">
+            <div className="flex items-baseline justify-between">
+              <div>
+                <div className="text-2xl font-bold text-violet-700">{formatCurrency(o.abonementAmount)}</div>
+                <div className="text-xs text-violet-400 mt-0.5">
+                  {pluralSales(o.abonementCount)}
+                  {abAvg > 0 ? ` · ср. чек ${formatCurrency(abAvg)}` : ''}
+                </div>
+              </div>
+              {convTotal > 0 && (
+                <div className="text-right">
+                  <div className="text-[11px] text-violet-400">из {o.uniqueClients} клиентов</div>
+                  <div className="text-[11px] text-violet-400">купили {o.abonementCount}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Breakdown by new/regular */}
+          <div className="grid grid-cols-2 gap-2">
+            {o.abonementPrimaryCount > 0 && (
+              <div className="bg-orange-50 border border-orange-100 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] text-orange-500 font-semibold">🌱 Новым</span>
+                  {convPrimary > 0 && <span className="text-[10px] font-bold text-orange-500 bg-orange-100 px-1.5 py-0.5 rounded-full">{convPrimary}%</span>}
+                </div>
+                <div className="text-base font-bold text-orange-700">{formatCurrency(o.abonementPrimaryAmount)}</div>
+                <div className="text-[11px] text-orange-400 mt-0.5">{pluralSales(o.abonementPrimaryCount)}</div>
+                {abPrimaryAvg > 0 && <div className="text-[11px] text-orange-400">ср. {formatCurrency(abPrimaryAvg)}</div>}
+              </div>
+            )}
+            {o.abonementRegularCount > 0 && (
+              <div className="bg-teal-50 border border-teal-100 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] text-teal-600 font-semibold">💎 Постоянным</span>
+                  {convRegular > 0 && <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-1.5 py-0.5 rounded-full">{convRegular}%</span>}
+                </div>
+                <div className="text-base font-bold text-teal-700">{formatCurrency(o.abonementRegularAmount)}</div>
+                <div className="text-[11px] text-teal-400 mt-0.5">{pluralSales(o.abonementRegularCount)}</div>
+                {abRegularAvg > 0 && <div className="text-[11px] text-teal-400">ср. {formatCurrency(abRegularAvg)}</div>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
   const s = master.summary;
@@ -147,43 +269,55 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
   const abRegularAvg = s.abonementRegularCount > 0 ? Math.round(s.abonementRegularAmount / s.abonementRegularCount) : 0;
 
   return (
-    <div className="bg-slate-50/60 border-t border-slate-100">
+    <div className="border-t border-slate-100 bg-slate-50/40">
 
       {/* Key metrics row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-100 border-b border-slate-100">
-        <MetricCell label="Выручка" value={formatCurrency(s.totalAmount)} accent />
-        <MetricCell label="Средний чек" value={formatCurrency(s.avgCheck)} />
-        <MetricCell label="Клиентов" value={s.uniqueClients} sub={`${s.totalVisits} визитов`} accent />
-        <MetricCell label="Записей" value={s.totalEntries} sub={s.zeroVisits > 0 ? `${s.zeroVisits} без оплаты` : undefined} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-100 border-b border-slate-100 bg-white">
+        <div className="px-4 py-3 bg-teal-50/50">
+          <div className="text-base font-bold text-teal-700 tabular-nums">{formatCurrency(s.totalAmount)}</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Выручка</div>
+        </div>
+        <div className="px-4 py-3">
+          <div className="text-base font-bold text-slate-800 tabular-nums">{formatCurrency(s.avgCheck)}</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Средний чек</div>
+        </div>
+        <div className="px-4 py-3 bg-blue-50/40">
+          <div className="text-base font-bold text-slate-800">{s.uniqueClients}</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Клиентов · {s.totalVisits} визитов</div>
+        </div>
+        <div className="px-4 py-3">
+          <div className="text-base font-bold text-slate-800">{s.totalEntries}</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Записей{s.zeroVisits > 0 ? ` · ${s.zeroVisits} без опл.` : ''}</div>
+        </div>
       </div>
 
       <div className="p-4 space-y-4">
 
-        {/* New / Regular clients */}
+        {/* New / Regular */}
         {totalClients > 0 && (
           <div>
-            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Новые и постоянные клиенты</div>
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Новые и постоянные</div>
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white border border-slate-100 rounded-lg p-3">
+              <div className="bg-orange-50 border border-orange-100 rounded-lg p-3">
                 <div className="flex justify-between items-start mb-1">
-                  <span className="text-[11px] text-slate-500 font-medium">Новые</span>
-                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{primaryPct}%</span>
+                  <span className="text-[11px] text-orange-500 font-semibold">🌱 Новые</span>
+                  <span className="text-[10px] font-bold text-orange-400 bg-orange-100 px-1.5 py-0.5 rounded-full">{primaryPct}%</span>
                 </div>
-                <div className="text-base font-bold text-slate-800">{s.primaryCount}</div>
-                <div className="text-xs text-slate-400 mt-0.5">{formatCurrency(s.primaryAmount)}</div>
+                <div className="text-base font-bold text-orange-700">{s.primaryCount}</div>
+                <div className="text-xs text-orange-400 mt-0.5">{formatCurrency(s.primaryAmount)}</div>
               </div>
-              <div className="bg-white border border-slate-100 rounded-lg p-3">
+              <div className="bg-teal-50 border border-teal-100 rounded-lg p-3">
                 <div className="flex justify-between items-start mb-1">
-                  <span className="text-[11px] text-slate-500 font-medium">Постоянные</span>
-                  <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded">{100 - primaryPct}%</span>
+                  <span className="text-[11px] text-teal-600 font-semibold">💎 Постоянные</span>
+                  <span className="text-[10px] font-bold text-teal-600 bg-teal-100 px-1.5 py-0.5 rounded-full">{100 - primaryPct}%</span>
                 </div>
-                <div className="text-base font-bold text-slate-800">{s.regularCount}</div>
-                <div className="text-xs text-slate-400 mt-0.5">{formatCurrency(s.regularAmount)}</div>
+                <div className="text-base font-bold text-teal-700">{s.regularCount}</div>
+                <div className="text-xs text-teal-500 mt-0.5">{formatCurrency(s.regularAmount)}</div>
               </div>
             </div>
-            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden flex">
-              <div className="h-full bg-slate-500 transition-all" style={{ width: `${primaryPct}%` }} />
-              <div className="h-full bg-teal-500 transition-all" style={{ width: `${100 - primaryPct}%` }} />
+            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
+              <div className="h-full bg-orange-400 rounded-l-full transition-all" style={{ width: `${primaryPct}%` }} />
+              <div className="h-full bg-teal-400 rounded-r-full transition-all" style={{ width: `${100 - primaryPct}%` }} />
             </div>
           </div>
         )}
@@ -191,35 +325,37 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
         {/* Abonements */}
         {s.abonementCount > 0 && (
           <div>
-            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Sparkles size={11} className="text-violet-400" /> Абонементы
-              {conversionTotal > 0 && <span className="ml-auto text-[10px] font-bold text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded">{conversionTotal}% конв.</span>}
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles size={11} className="text-violet-400" /> Абонементы
+              </div>
+              {conversionTotal > 0 && <span className="text-[10px] font-bold text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full">{conversionTotal}% конв.</span>}
             </div>
-            <div className="bg-white border border-slate-100 rounded-lg overflow-hidden">
-              <div className="px-3 py-2.5 border-b border-slate-50">
-                <span className="text-sm font-bold text-slate-800">{formatCurrency(s.abonementAmount)}</span>
-                <span className="text-xs text-slate-400 ml-2">{s.abonementCount} шт.{abAvg > 0 ? ` · ср. ${formatCurrency(abAvg)}` : ''}</span>
+            <div className="bg-violet-50 border border-violet-100 rounded-lg overflow-hidden">
+              <div className="px-3 py-2.5 border-b border-violet-100">
+                <span className="text-sm font-bold text-violet-700">{formatCurrency(s.abonementAmount)}</span>
+                <span className="text-xs text-violet-400 ml-2">{s.abonementCount} шт.{abAvg > 0 ? ` · ср. ${formatCurrency(abAvg)}` : ''}</span>
               </div>
               {(s.abonementPrimaryCount > 0 || s.abonementRegularCount > 0) && (
-                <div className="grid grid-cols-2 divide-x divide-slate-50">
+                <div className="grid grid-cols-2 divide-x divide-violet-100">
                   {s.abonementPrimaryCount > 0 && (
                     <div className="px-3 py-2">
                       <div className="flex justify-between items-center mb-0.5">
-                        <span className="text-[10px] text-slate-500">Новым</span>
-                        {convPrimary > 0 && <span className="text-[10px] font-bold text-slate-500">{convPrimary}%</span>}
+                        <span className="text-[10px] text-orange-500 font-semibold">🌱 Новым</span>
+                        {convPrimary > 0 && <span className="text-[10px] font-bold text-orange-400">{convPrimary}%</span>}
                       </div>
-                      <div className="text-xs font-bold text-slate-700">{formatCurrency(s.abonementPrimaryAmount)}</div>
-                      {abPrimaryAvg > 0 && <div className="text-[10px] text-slate-400">ср. {formatCurrency(abPrimaryAvg)}</div>}
+                      <div className="text-xs font-bold text-orange-700">{formatCurrency(s.abonementPrimaryAmount)}</div>
+                      {abPrimaryAvg > 0 && <div className="text-[10px] text-orange-400">ср. {formatCurrency(abPrimaryAvg)}</div>}
                     </div>
                   )}
                   {s.abonementRegularCount > 0 && (
                     <div className="px-3 py-2">
                       <div className="flex justify-between items-center mb-0.5">
-                        <span className="text-[10px] text-slate-500">Постоянным</span>
+                        <span className="text-[10px] text-teal-600 font-semibold">💎 Постоянным</span>
                         {convRegular > 0 && <span className="text-[10px] font-bold text-teal-600">{convRegular}%</span>}
                       </div>
-                      <div className="text-xs font-bold text-slate-700">{formatCurrency(s.abonementRegularAmount)}</div>
-                      {abRegularAvg > 0 && <div className="text-[10px] text-slate-400">ср. {formatCurrency(abRegularAvg)}</div>}
+                      <div className="text-xs font-bold text-teal-700">{formatCurrency(s.abonementRegularAmount)}</div>
+                      {abRegularAvg > 0 && <div className="text-[10px] text-teal-400">ср. {formatCurrency(abRegularAvg)}</div>}
                     </div>
                   )}
                 </div>
@@ -269,12 +405,18 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
             <div className="bg-white border border-slate-100 rounded-lg overflow-hidden divide-y divide-slate-50">
               {master.byCategory.map((cat, i) => {
                 const pct = s.totalAmount > 0 ? Math.round((cat.amount / s.totalAmount) * 100) : 0;
+                const barColors = ['#14b8a6','#f97316','#8b5cf6','#0ea5e9','#f59e0b','#10b981'];
                 return (
-                  <div key={i} className="flex items-center justify-between px-3 py-2">
-                    <span className="text-xs text-slate-700 flex-1 min-w-0 truncate">{cat.name}</span>
-                    <div className="flex items-center gap-2 text-xs ml-3 shrink-0">
-                      <span className="font-semibold text-slate-700 tabular-nums">{formatCurrency(cat.amount)}</span>
-                      <span className="text-slate-400 w-7 text-right">{pct}%</span>
+                  <div key={i} className="px-3 py-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-700 flex-1 min-w-0 truncate">{cat.name}</span>
+                      <div className="flex items-center gap-2 text-xs ml-3 shrink-0">
+                        <span className="font-semibold text-slate-700 tabular-nums">{formatCurrency(cat.amount)}</span>
+                        <span className="text-slate-400 w-7 text-right">{pct}%</span>
+                      </div>
+                    </div>
+                    <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: barColors[i % barColors.length] }} />
                     </div>
                   </div>
                 );
@@ -295,7 +437,7 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
                 <YAxis tickFormatter={(v: number) => v >= 1000 ? `${Math.round(v/1000)}к` : String(v)} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <Tooltip formatter={(v: number) => [formatCurrency(v), 'Выручка']} labelFormatter={(l: string) => formatShortDate(l)} contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
                 <Bar dataKey="amount" radius={[3, 3, 0, 0]} maxBarSize={20}>
-                  {master.daily.map((_, i) => <Cell key={i} fill={i === master.daily.length - 1 ? '#475569' : '#cbd5e1'} />)}
+                  {master.daily.map((_, i) => <Cell key={i} fill={i === master.daily.length - 1 ? '#14b8a6' : '#ccfbf1'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -311,35 +453,36 @@ const MasterRow: React.FC<{ master: MasterData; studioTotal: number }> = ({ mast
   const [open, setOpen] = useState(false);
   const s = master.summary;
   const sharePct = studioTotal > 0 ? Math.round((s.totalAmount / studioTotal) * 100) : 0;
+  const convTotal = s.uniqueClients > 0 ? Math.round((s.abonementCount / s.uniqueClients) * 100) : 0;
 
   return (
     <div className="border-t border-slate-100">
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left">
-        <div className="w-7 h-7 rounded bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs shrink-0">
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50/80 transition-colors text-left">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0">
           {master.name[0]?.toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-slate-800">{master.name}</span>
             {s.abonementCount > 0 && (
-              <span className="text-[10px] font-semibold text-violet-500 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded">
-                <Sparkles size={8} className="inline mr-0.5" />{s.abonementCount} або.
+              <span className="text-[10px] font-semibold text-violet-500 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded-full">
+                <Sparkles size={8} className="inline mr-0.5" />{s.abonementCount} або. {convTotal > 0 ? `· ${convTotal}% конв.` : ''}
               </span>
             )}
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+          <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
             <span>{pluralClients(s.uniqueClients)}</span>
-            <span>·</span>
+            <span className="text-slate-300">·</span>
             <span>{s.totalVisits} визитов</span>
-            <span>·</span>
+            <span className="text-slate-300">·</span>
             <span>ср. чек {formatCurrency(s.avgCheck)}</span>
           </div>
         </div>
         <div className="text-right shrink-0">
-          <div className="text-sm font-bold text-slate-800 tabular-nums">{formatCurrency(s.totalAmount)}</div>
+          <div className="text-sm font-bold text-teal-700 tabular-nums">{formatCurrency(s.totalAmount)}</div>
           <div className="text-[10px] text-slate-400 mt-0.5">{sharePct}% студии</div>
         </div>
-        <div className="text-slate-400 shrink-0">
+        <div className="text-slate-400 shrink-0 ml-1">
           {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </div>
       </button>
@@ -352,22 +495,25 @@ const StudioSection: React.FC<{ studio: StudioData }> = ({ studio }) => {
   const [open, setOpen] = useState(true);
   const s = studio.summary;
   const convTotal = s.uniqueClients > 0 ? Math.round((s.abonementCount / s.uniqueClients) * 100) : 0;
+  const abAvg = s.abonementCount > 0 ? Math.round(s.abonementAmount / s.abonementCount) : 0;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       {/* Studio header */}
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors">
-        <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center shrink-0">
-          <Building2 size={16} className="text-white" />
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shrink-0 shadow-sm">
+          <Building2 size={18} className="text-white" />
         </div>
         <div className="flex-1 min-w-0 text-left">
           <div className="text-sm font-bold text-slate-800">{studio.name}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">{studio.masters.length} мастеров · {s.uniqueClients} клиентов · {s.totalVisits} визитов</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            {studio.masters.length} мастеров · {s.uniqueClients} клиентов · {s.totalVisits} визитов
+          </div>
         </div>
         <div className="text-right shrink-0">
-          <div className="text-base font-bold text-slate-900 tabular-nums">{formatCurrency(s.totalAmount)}</div>
-          <div className="flex items-center justify-end gap-1.5 mt-0.5">
-            {s.abonementAmount > 0 && <span className="text-[10px] text-violet-500 font-medium">або. {formatCurrency(s.abonementAmount)}</span>}
+          <div className="text-lg font-bold text-teal-700 tabular-nums">{formatCurrency(s.totalAmount)}</div>
+          <div className="flex items-center justify-end gap-2 mt-0.5">
+            {s.abonementAmount > 0 && <span className="text-[10px] text-violet-500 font-semibold">або. {formatCurrency(s.abonementAmount)}</span>}
             {convTotal > 0 && <span className="text-[10px] text-slate-400">{convTotal}% конв.</span>}
           </div>
         </div>
@@ -376,27 +522,52 @@ const StudioSection: React.FC<{ studio: StudioData }> = ({ studio }) => {
 
       {open && (
         <>
-          {/* Studio summary metrics */}
+          {/* Studio summary row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-100 border-t border-b border-slate-100 bg-slate-50/50">
-            <MetricCell label="Средний чек" value={formatCurrency(s.avgCheck)} />
-            <MetricCell label="Новые / Постоянные" value={`${s.primaryCount} / ${s.regularCount}`} />
-            <MetricCell label="Абонементы" value={s.abonementCount > 0 ? formatCurrency(s.abonementAmount) : '—'} />
-            <MetricCell label="Записей" value={s.totalEntries} />
+            <div className="px-4 py-3">
+              <div className="text-sm font-bold text-slate-700">{formatCurrency(s.avgCheck)}</div>
+              <div className="text-[11px] text-slate-400">Средний чек</div>
+            </div>
+            <div className="px-4 py-3">
+              <div className="text-sm font-bold text-slate-700">
+                <span className="text-orange-500">{s.primaryCount}</span>
+                <span className="text-slate-400 mx-1">/</span>
+                <span className="text-teal-600">{s.regularCount}</span>
+              </div>
+              <div className="text-[11px] text-slate-400">Новые / Постоянные</div>
+            </div>
+            <div className="px-4 py-3">
+              {s.abonementCount > 0 ? (
+                <>
+                  <div className="text-sm font-bold text-violet-600">{formatCurrency(s.abonementAmount)}</div>
+                  <div className="text-[11px] text-slate-400">{s.abonementCount} або.{abAvg > 0 ? ` · ср. ${formatCurrency(abAvg)}` : ''}</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-sm font-bold text-slate-300">—</div>
+                  <div className="text-[11px] text-slate-400">Абонементы</div>
+                </>
+              )}
+            </div>
+            <div className="px-4 py-3">
+              <div className="text-sm font-bold text-slate-700">{s.totalEntries}</div>
+              <div className="text-[11px] text-slate-400">Записей</div>
+            </div>
           </div>
 
           {/* Studio daily chart */}
           {studio.daily.length > 1 && (
             <div className="px-4 py-3 border-b border-slate-100">
               <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <TrendingUp size={11} /> Выручка студии по дням
+                <TrendingUp size={11} /> Выручка по дням
               </div>
               <ResponsiveContainer width="100%" height={110}>
                 <BarChart data={studio.daily} margin={{ top: 2, right: 0, left: -28, bottom: 0 }}>
                   <XAxis dataKey="date" tickFormatter={formatShortDate} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <YAxis tickFormatter={(v: number) => v >= 1000 ? `${Math.round(v/1000)}к` : String(v)} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(v: number) => [formatCurrency(v), 'Выручка']} labelFormatter={(l: string) => formatShortDate(l)} contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
-                  <Bar dataKey="amount" radius={[3, 3, 0, 0]} maxBarSize={22}>
-                    {studio.daily.map((_, i) => <Cell key={i} fill={i === studio.daily.length - 1 ? '#334155' : '#cbd5e1'} />)}
+                  <Bar dataKey="amount" radius={[4, 4, 0, 0]} maxBarSize={22}>
+                    {studio.daily.map((_, i) => <Cell key={i} fill={i === studio.daily.length - 1 ? '#0f766e' : '#99f6e4'} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -405,9 +576,9 @@ const StudioSection: React.FC<{ studio: StudioData }> = ({ studio }) => {
 
           {/* Masters list */}
           <div>
-            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
+            <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/70">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <User size={11} /> Мастера
+                <User size={11} /> Мастера студии
               </span>
             </div>
             {studio.masters.map(m => <MasterRow key={m.id} master={m} studioTotal={s.totalAmount} />)}
@@ -454,7 +625,6 @@ export const AdminStats: React.FC = () => {
   };
 
   const periodLabel = period === 'today' ? 'за сегодня' : period === 'week' ? 'за неделю' : period === 'month' ? 'за месяц' : 'за период';
-  const o = data?.overall;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-5 space-y-4 pb-8">
@@ -475,7 +645,7 @@ export const AdminStats: React.FC = () => {
       <div className="flex gap-1.5 flex-wrap">
         {PERIOD_OPTIONS.map(opt => (
           <button key={opt.key} onClick={() => handlePeriod(opt.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${period === opt.key ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'}`}>
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${period === opt.key ? 'bg-teal-500 text-white border-teal-500 shadow-md shadow-teal-100' : 'bg-white text-slate-600 border-slate-200 hover:border-teal-300'}`}>
             {opt.label}
           </button>
         ))}
@@ -487,71 +657,20 @@ export const AdminStats: React.FC = () => {
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
-          <Loader2 size={24} className="animate-spin" />
+          <Loader2 size={24} className="animate-spin text-teal-400" />
           <span className="text-sm">Загружаю данные...</span>
         </div>
-      ) : !data || !o ? (
+      ) : !data ? (
         <div className="text-center py-16 text-slate-400 text-sm bg-white rounded-xl border border-slate-200">
           Нет данных за выбранный период
         </div>
       ) : (
         <>
-          {/* Overall KPI summary */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Итого {periodLabel}</span>
-              <span className="text-lg font-bold text-slate-900 tabular-nums">{formatCurrency(o.totalAmount)}</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-100">
-              <div className="px-4 py-3">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Users size={13} className="text-slate-400" />
-                  <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Клиентов</span>
-                </div>
-                <div className="text-xl font-bold text-slate-800">{o.uniqueClients}</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">{o.totalVisits} визитов</div>
-              </div>
-              <div className="px-4 py-3">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <TrendingUp size={13} className="text-slate-400" />
-                  <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Ср. чек</span>
-                </div>
-                <div className="text-xl font-bold text-slate-800">{formatCurrency(o.avgCheck)}</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">{o.totalEntries} записей</div>
-              </div>
-              <div className="px-4 py-3">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Calendar size={13} className="text-slate-400" />
-                  <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Новые / Пост.</span>
-                </div>
-                <div className="text-xl font-bold text-slate-800">{o.primaryCount} / {o.regularCount}</div>
-                {o.primaryCount + o.regularCount > 0 && (
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    {Math.round((o.primaryCount / (o.primaryCount + o.regularCount)) * 100)}% новых
-                  </div>
-                )}
-              </div>
-              <div className="px-4 py-3">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Sparkles size={13} className="text-violet-400" />
-                  <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Абонементы</span>
-                </div>
-                {o.abonementCount > 0 ? (
-                  <>
-                    <div className="text-xl font-bold text-slate-800">{formatCurrency(o.abonementAmount)}</div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">
-                      {o.abonementCount} шт. · {o.uniqueClients > 0 ? Math.round((o.abonementCount / o.uniqueClients) * 100) : 0}% конв.
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-xl font-bold text-slate-400">—</div>
-                )}
-              </div>
-            </div>
-          </div>
+          {/* Overall summary */}
+          <OverallSummary o={data.overall} periodLabel={periodLabel} />
 
           {/* Studios */}
-          <div className="space-y-3">
+          <div className="space-y-3 pt-1">
             {data.studios.map(studio => <StudioSection key={studio.id} studio={studio} />)}
           </div>
         </>
