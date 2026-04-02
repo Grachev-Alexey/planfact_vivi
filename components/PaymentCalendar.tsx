@@ -414,13 +414,14 @@ export const PaymentCalendar: React.FC = () => {
                             <div className={`font-bold text-center leading-tight ${cfg.text}`} style={{ fontSize: 10 }}>
                               {fmtCompact(total)}
                             </div>
-                            {statuses.length > 1 && (
-                              <div className="flex justify-center gap-0.5 mt-0.5">
-                                {statuses.map(s => (
-                                  <span key={s} className={`w-1 h-1 rounded-full ${STATUS_CFG[s as keyof typeof STATUS_CFG].dot}`} />
-                                ))}
-                              </div>
-                            )}
+                            <div className="flex justify-center items-center gap-0.5 mt-0.5">
+                              {statuses.map(s => (
+                                <span key={s} className={`w-1 h-1 rounded-full ${STATUS_CFG[s as keyof typeof STATUS_CFG].dot}`} />
+                              ))}
+                              {entries.length > 1 && (
+                                <span className={`text-[8px] font-bold leading-none opacity-70 ${cfg.text}`}>×{entries.length}</span>
+                              )}
+                            </div>
                           </div>
                         </td>
                       );
@@ -465,7 +466,7 @@ export const PaymentCalendar: React.FC = () => {
             <div className="text-[10px] text-slate-400">{tooltip.day} {MONTH_NAMES_GEN[month - 1]} {year}</div>
           </div>
           <div className="p-3 space-y-2 overflow-y-auto">
-            {tooltip.entries.map((entry, i) => {
+            {tooltip.entries.slice(0, 5).map((entry, i) => {
               const cfg = STATUS_CFG[entry.status];
               return (
                 <div key={entry.id} className={`${i > 0 ? 'pt-2 border-t border-slate-100' : ''}`}>
@@ -490,6 +491,11 @@ export const PaymentCalendar: React.FC = () => {
                 </div>
               );
             })}
+            {tooltip.entries.length > 5 && (
+              <div className="pt-2 border-t border-slate-100 text-center">
+                <span className="text-[10px] text-slate-400 italic">и ещё {tooltip.entries.length - 5} операций…</span>
+              </div>
+            )}
             {tooltip.entries.length > 1 && (
               <div className="pt-2 border-t border-slate-100 flex justify-between items-center">
                 <span className="text-[10px] text-slate-400">Итого</span>
