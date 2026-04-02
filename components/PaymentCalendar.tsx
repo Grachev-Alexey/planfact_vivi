@@ -200,14 +200,14 @@ export const PaymentCalendar: React.FC = () => {
             <thead>
               <tr>
                 <th
-                  className="text-left px-3 py-2.5 font-semibold border-b border-r text-slate-200 border-slate-600"
-                  style={{ position: 'sticky', top: 0, left: 0, zIndex: 40, width: LABEL_W, minWidth: LABEL_W, background: '#1e2a38' }}
+                  className="text-left px-3 py-2.5 font-semibold border-b border-r text-slate-500 border-slate-200"
+                  style={{ position: 'sticky', top: 0, left: 0, zIndex: 40, width: LABEL_W, minWidth: LABEL_W, background: '#f8fafc' }}
                 >
                   Статья
                 </th>
                 <th
-                  className="text-right px-2 py-2.5 font-semibold border-b border-r text-slate-300 border-slate-600"
-                  style={{ position: 'sticky', top: 0, left: LABEL_W, zIndex: 40, width: TOTAL_W, minWidth: TOTAL_W, background: '#253244' }}
+                  className="text-right px-2 py-2.5 font-semibold border-b border-r text-slate-400 border-slate-200"
+                  style={{ position: 'sticky', top: 0, left: LABEL_W, zIndex: 40, width: TOTAL_W, minWidth: TOTAL_W, background: '#f1f5f9' }}
                 >
                   Итого
                 </th>
