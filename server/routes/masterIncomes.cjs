@@ -113,6 +113,64 @@ router.get('/master-incomes/stats', async (req, res) => {
     );
 
     const abonementCategoryIds = [9, 10];
+
+    // Step 1: find abonement records missing YClients goods data and reload from YClients
+    try {
+      const missingRes = await db.query(
+        `SELECT mi.id, mi.studio_id, mi.client_phone, DATE(mi.created_at)::text as date
+         FROM master_incomes mi ${baseWhere} AND mi.category_id = ANY($4)
+         AND (mi.yclients_data IS NULL OR NOT (mi.yclients_data ? 'goods') OR jsonb_array_length(mi.yclients_data->'goods') = 0)`,
+        [...params, abonementCategoryIds]
+      );
+
+      if (missingRes.rows.length > 0) {
+        const { getVisitsByPhone } = require('../services/yclients.cjs');
+
+        const studioIds = [...new Set(missingRes.rows.map(r => r.studio_id).filter(Boolean))];
+        const studioMap = {};
+        await Promise.all(studioIds.map(async (sid) => {
+          const sr = await db.query('SELECT yclients_id FROM studios WHERE id = $1', [sid]);
+          if (sr.rows.length > 0 && sr.rows[0].yclients_id) studioMap[sid] = sr.rows[0].yclients_id;
+        }));
+
+        // Group by (companyId|date) to avoid duplicate API calls
+        const groups = {};
+        for (const row of missingRes.rows) {
+          const companyId = studioMap[row.studio_id];
+          if (!companyId) continue;
+          const key = `${companyId}|${row.date}`;
+          if (!groups[key]) groups[key] = { companyId, date: row.date, rows: [] };
+          groups[key].rows.push(row);
+        }
+
+        await Promise.allSettled(Object.values(groups).map(async ({ companyId, date, rows }) => {
+          try {
+            const allVisits = await getVisitsByPhone(companyId, date, null);
+            await Promise.allSettled(rows.map(async (row) => {
+              const phone10 = (row.client_phone || '').replace(/\D/g, '').slice(-10);
+              const match = phone10.length >= 10
+                ? allVisits.find(v => (v.clientPhone || '').replace(/\D/g, '').slice(-10) === phone10)
+                : null;
+              if (match) {
+                await db.query(
+                  `UPDATE master_incomes SET yclients_data = $1 WHERE id = $2`,
+                  [JSON.stringify(match), row.id]
+                );
+                console.log(`[abonement-sync] Updated yclients_data for master_income ${row.id} (${row.date}, phone=${phone10}), goods=${match.goods?.length || 0}`);
+              } else {
+                console.log(`[abonement-sync] No YClients visit found for master_income ${row.id} (${row.date}, phone=${phone10})`);
+              }
+            }));
+          } catch (err) {
+            console.error(`[abonement-sync] Failed for companyId=${companyId} date=${date}:`, err.message);
+          }
+        }));
+      }
+    } catch (syncErr) {
+      console.error('[abonement-sync] Error during YClients sync:', syncErr.message);
+    }
+
+    // Step 2: compute abonement stats using ONLY YClients goods data (no fallback)
     const abonementRes = await db.query(
       `SELECT 
         COALESCE(SUM(
@@ -125,7 +183,7 @@ router.get('/master-incomes/stats', async (req, res) => {
               FROM jsonb_array_elements(mi.yclients_data->'goods') g
               WHERE (g->>'cost') IS NOT NULL AND (g->>'cost') != ''
             )
-            ELSE mi.amount
+            ELSE 0
           END
         ), 0) as abonement_amount,
         COALESCE(SUM(
@@ -134,7 +192,7 @@ router.get('/master-incomes/stats', async (req, res) => {
               AND mi.yclients_data ? 'goods' 
               AND jsonb_array_length(mi.yclients_data->'goods') > 0
             THEN jsonb_array_length(mi.yclients_data->'goods')
-            ELSE 1
+            ELSE 0
           END
         ), 0) as abonement_count
       FROM master_incomes mi ${baseWhere} AND mi.category_id = ANY($4)`,
