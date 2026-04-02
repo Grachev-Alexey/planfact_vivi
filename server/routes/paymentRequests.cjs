@@ -35,7 +35,7 @@ router.get('/payment-requests', async (req, res) => {
       LEFT JOIN contractors co ON pr.contractor_id = co.id
       LEFT JOIN accounts a ON pr.account_id = a.id
       ${whereClause}
-      ORDER BY pr.created_at DESC
+      ORDER BY COALESCE(pr.payment_date, '9999-12-31'::date) ASC, pr.created_at DESC
     `, params);
 
     res.json(result.rows.map(toCamelCase));
@@ -147,6 +147,10 @@ router.put('/payment-requests/:id', async (req, res) => {
       if (!paidDate) return res.status(400).json({ error: 'paidDate is required for payment' });
     }
 
+    if (!['pending', 'approved', 'paid', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
     let updateFields = ['status = $1', 'updated_at = NOW()'];
     let params = [status];
     let idx = 2;
@@ -183,7 +187,7 @@ router.put('/payment-requests/:id', async (req, res) => {
 
     const request = toCamelCase(result.rows[0]);
 
-    if (status === 'paid' || status === 'rejected') {
+    if (status === 'paid' || status === 'rejected' || status === 'approved') {
       const fullRes = await db.query(`
         SELECT pr.*, u.username, c.name as category_name, s.name as studio_name, co.name as contractor_name
         FROM payment_requests pr

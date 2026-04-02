@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronRight, Search, Check, X, Calendar, DollarSign, MessageSquare, Filter, ChevronLeft } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronRight, Search, Check, X, Calendar, DollarSign, MessageSquare, Filter, ChevronLeft, ThumbsUp, BadgeCheck } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import { FilterSelect } from './ui/FilterSelect';
 import { DateRangePicker } from './ui/DateRangePicker';
@@ -551,6 +551,8 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
     switch (status) {
       case 'pending':
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700"><Clock size={11} /> Ожидает</span>;
+      case 'approved':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-700"><BadgeCheck size={11} /> Подтверждено</span>;
       case 'paid':
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700"><CheckCircle2 size={11} /> Оплачено</span>;
       case 'rejected':
@@ -560,8 +562,35 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
     }
   };
 
-  const pendingCount = requests.filter(r => r.status === 'pending').length;
-  const totalPending = requests.filter(r => r.status === 'pending').reduce((s, r) => s + parseFloat(String(r.amount)), 0);
+  const handleApprove = async (id: number) => {
+    try {
+      await fetch(`/api/payment-requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id?.toString() || '' },
+        body: JSON.stringify({ status: 'approved' })
+      });
+      fetchRequests();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    if (!confirm('Отклонить этот запрос на выплату?')) return;
+    try {
+      await fetch(`/api/payment-requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id?.toString() || '' },
+        body: JSON.stringify({ status: 'rejected' })
+      });
+      fetchRequests();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const pendingCount = requests.filter(r => r.status === 'pending' || r.status === 'approved').length;
+  const totalPending = requests.filter(r => r.status === 'pending' || r.status === 'approved').reduce((s, r) => s + parseFloat(String(r.amount)), 0);
 
   const content = (
     <div className={isModal ? '' : 'min-h-screen bg-slate-50'}>
@@ -643,8 +672,10 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
         <div className="flex gap-1.5 sm:gap-2 mb-3 overflow-x-auto pb-1 -mx-1 px-1">
           {[
             { value: '', label: 'Все' },
-            { value: 'pending', label: 'Ожидающие' },
-            { value: 'paid', label: 'Оплаченные' },
+            { value: 'pending', label: 'Ожидает' },
+            { value: 'approved', label: 'Подтверждено' },
+            { value: 'paid', label: 'Оплачено' },
+            { value: 'rejected', label: 'Отклонено' },
           ].map(f => (
             <button
               key={f.value}
@@ -734,12 +765,28 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                         <span className="text-sm font-semibold text-slate-800">{formatCurrency(parseFloat(String(req.amount)))}</span>
                         {getStatusBadge(req.status)}
                       </div>
-                      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] sm:text-xs text-slate-500 truncate">
-                        {isAdmin && req.username && <span className="text-teal-600 font-medium">{req.username}</span>}
-                        {isAdmin && req.username && (req.categoryName || req.studioName) && <span>·</span>}
-                        {req.categoryName && <span className="truncate">{req.categoryName}</span>}
-                        {req.categoryName && req.studioName && <span>·</span>}
-                        {req.studioName && <span className="truncate">{req.studioName}</span>}
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] sm:text-xs text-slate-500 flex-wrap">
+                        {isAdmin && req.username && <span className="text-teal-600 font-medium shrink-0">{req.username}</span>}
+                        {(req.categoryName || req.studioName || req.contractorName) && (
+                          <>
+                            {isAdmin && req.username && <span>·</span>}
+                            <span className="truncate">
+                              {[req.categoryName, req.studioName, req.contractorName].filter(Boolean).join(' · ')}
+                            </span>
+                          </>
+                        )}
+                        {req.paymentDate && (
+                          <>
+                            <span>·</span>
+                            <span className="shrink-0 flex items-center gap-0.5"><Calendar size={10} /> {formatDate(req.paymentDate)}</span>
+                          </>
+                        )}
+                        {req.description && !req.categoryName && !req.studioName && !req.contractorName && (
+                          <>
+                            {isAdmin && req.username && <span>·</span>}
+                            <span className="truncate text-slate-400 italic">{req.description}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <span className="text-[11px] text-slate-400 shrink-0">{formatDate(req.createdAt)}</span>
@@ -832,6 +879,12 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                       {isAdmin && req.status === 'pending' && (
                         <div className="flex gap-2 pt-2 border-t border-slate-200">
                           <button
+                            onClick={(e) => { e.stopPropagation(); handleApprove(req.id); }}
+                            className="flex-1 bg-sky-600 text-white text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-sky-700 active:scale-95 transition-all"
+                          >
+                            <ThumbsUp size={14} /> Подтвердить
+                          </button>
+                          <button
                             onClick={(e) => { e.stopPropagation(); handlePayClick(req); }}
                             className="flex-1 bg-emerald-600 text-white text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-emerald-700 active:scale-95 transition-all"
                           >
@@ -839,9 +892,25 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDelete(req.id); }}
+                            className="bg-white border border-slate-200 text-rose-600 text-xs font-medium py-2 px-2 rounded-lg flex items-center justify-center gap-1 hover:bg-rose-50 active:scale-95 transition-all"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      )}
+                      {isAdmin && req.status === 'approved' && (
+                        <div className="flex gap-2 pt-2 border-t border-slate-200">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handlePayClick(req); }}
+                            className="flex-1 bg-emerald-600 text-white text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-emerald-700 active:scale-95 transition-all"
+                          >
+                            <CheckCircle2 size={14} /> Оплатить
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleReject(req.id); }}
                             className="bg-white border border-slate-200 text-rose-600 text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-rose-50 active:scale-95 transition-all"
                           >
-                            <X size={14} /> Удалить
+                            <XCircle size={14} /> Отклонить
                           </button>
                         </div>
                       )}
