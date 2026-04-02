@@ -446,26 +446,21 @@ export const PaymentCalendar: React.FC = () => {
         </div>
       )}
 
-      {tooltip && (() => {
-        const tipH = Math.min(360, window.innerHeight - 60);
-        const tipTop = tooltip.clientY + 14 + tipH > window.innerHeight - 10
-          ? tooltip.clientY - tipH - 8
-          : tooltip.clientY + 14;
-        return (
+      {tooltip && (
         <div
           className="fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-2xl pointer-events-none flex flex-col"
           style={{
-            left: Math.min(tooltip.clientX + 14, window.innerWidth - 260),
-            top: Math.max(10, tipTop),
-            width: 248,
-            maxHeight: tipH,
+            left: tooltip.clientX + 14 + 252 > window.innerWidth ? tooltip.clientX - 266 : tooltip.clientX + 14,
+            top: Math.max(8, Math.min(tooltip.clientY + 14, window.innerHeight - 320)),
+            width: 252,
+            maxHeight: 300,
           }}
         >
           <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 rounded-t-xl flex-shrink-0">
             <div className="text-[11px] font-bold text-slate-600">{tooltip.catName}</div>
             <div className="text-[10px] text-slate-400">{tooltip.day} {MONTH_NAMES_GEN[month - 1]} {year}</div>
           </div>
-          <div className="p-3 space-y-2 overflow-y-auto">
+          <div className="p-3 space-y-2 overflow-y-auto flex-1 min-h-0">
             {tooltip.entries.slice(0, 5).map((entry, i) => {
               const cfg = STATUS_CFG[entry.status];
               return (
@@ -504,8 +499,7 @@ export const PaymentCalendar: React.FC = () => {
             )}
           </div>
         </div>
-        );
-      })()}
+      )}
     </div>
   );
 };
