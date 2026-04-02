@@ -441,7 +441,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       studioId: studioId || undefined,
       contractorId: type === 'transfer' ? undefined : (contractorId || undefined),
       description,
-      confirmed,
+      confirmed: type === 'transfer' ? true : confirmed,
       accrualDate: accrualDate || undefined,
     };
 
@@ -533,7 +533,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
             <div className="flex-1">
               <DatePicker value={date} onChange={setDate} required />
             </div>
-            {type !== 'transfer' && (
+            {type === 'transfer' ? (
+              <span className="text-xs text-teal-600 font-medium whitespace-nowrap">✓ Подтверждается автоматически</span>
+            ) : (
               <label className="flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
                 <div className="relative flex items-center">
                   <input
