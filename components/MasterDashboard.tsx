@@ -356,14 +356,6 @@ export const MasterDashboard: React.FC = () => {
                 <span className="text-lg font-bold text-violet-700">{formatCurrency(s?.abonementAmount || 0)}</span>
                 <span className="text-xs text-slate-400">{s?.abonementCount} {(s?.abonementCount || 0) === 1 ? 'продажа' : (s?.abonementCount || 0) < 5 ? 'продажи' : 'продаж'}</span>
               </div>
-              {s?.totalAmount ? (
-                <div className="mt-2">
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-violet-400 rounded-full transition-all" style={{ width: `${Math.round(((s?.abonementAmount || 0) / s.totalAmount) * 100)}%` }} />
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-1">{Math.round(((s?.abonementAmount || 0) / s.totalAmount) * 100)}% от общей выручки</div>
-                </div>
-              ) : null}
             </div>
           )}
 

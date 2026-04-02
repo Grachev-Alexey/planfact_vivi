@@ -112,11 +112,31 @@ router.get('/master-incomes/stats', async (req, res) => {
       params
     );
 
-    const abonementCategoryIds = [9, 10, 11];
+    const abonementCategoryIds = [9, 10];
     const abonementRes = await db.query(
       `SELECT 
-        COALESCE(SUM(mi.amount), 0) as abonement_amount,
-        COUNT(*) as abonement_count
+        COALESCE(SUM(
+          CASE 
+            WHEN mi.yclients_data IS NOT NULL 
+              AND mi.yclients_data ? 'goods' 
+              AND jsonb_array_length(mi.yclients_data->'goods') > 0
+            THEN (
+              SELECT COALESCE(SUM((g->>'cost')::numeric), 0)
+              FROM jsonb_array_elements(mi.yclients_data->'goods') g
+              WHERE (g->>'cost') IS NOT NULL AND (g->>'cost') != ''
+            )
+            ELSE mi.amount
+          END
+        ), 0) as abonement_amount,
+        COALESCE(SUM(
+          CASE 
+            WHEN mi.yclients_data IS NOT NULL 
+              AND mi.yclients_data ? 'goods' 
+              AND jsonb_array_length(mi.yclients_data->'goods') > 0
+            THEN jsonb_array_length(mi.yclients_data->'goods')
+            ELSE 1
+          END
+        ), 0) as abonement_count
       FROM master_incomes mi ${baseWhere} AND mi.category_id = ANY($4)`,
       [...params, abonementCategoryIds]
     );
