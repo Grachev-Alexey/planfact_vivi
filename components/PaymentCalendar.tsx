@@ -406,7 +406,7 @@ export const PaymentCalendar: React.FC = () => {
                         >
                           <div
                             className={`mx-0.5 my-0.5 rounded-md px-1 py-0.5 cursor-default select-none
-                              ${cfg.bg} border ${cfg.border} hover:shadow-md hover:scale-105 transition-all`}
+                              ${cfg.bg} border ${cfg.border} hover:shadow-md transition-shadow`}
                             onMouseEnter={e => showTooltip(entries, cat.name, d, e)}
                             onMouseMove={moveTooltip}
                             onMouseLeave={hideTooltip}
@@ -445,20 +445,26 @@ export const PaymentCalendar: React.FC = () => {
         </div>
       )}
 
-      {tooltip && (
+      {tooltip && (() => {
+        const tipH = Math.min(360, window.innerHeight - 60);
+        const tipTop = tooltip.clientY + 14 + tipH > window.innerHeight - 10
+          ? tooltip.clientY - tipH - 8
+          : tooltip.clientY + 14;
+        return (
         <div
-          className="fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-2xl pointer-events-none"
+          className="fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-2xl pointer-events-none flex flex-col"
           style={{
             left: Math.min(tooltip.clientX + 14, window.innerWidth - 260),
-            top: Math.min(tooltip.clientY + 14, window.innerHeight - 220),
+            top: Math.max(10, tipTop),
             width: 248,
+            maxHeight: tipH,
           }}
         >
-          <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 rounded-t-xl">
+          <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 rounded-t-xl flex-shrink-0">
             <div className="text-[11px] font-bold text-slate-600">{tooltip.catName}</div>
             <div className="text-[10px] text-slate-400">{tooltip.day} {MONTH_NAMES_GEN[month - 1]} {year}</div>
           </div>
-          <div className="p-3 space-y-2">
+          <div className="p-3 space-y-2 overflow-y-auto">
             {tooltip.entries.map((entry, i) => {
               const cfg = STATUS_CFG[entry.status];
               return (
@@ -492,7 +498,8 @@ export const PaymentCalendar: React.FC = () => {
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
