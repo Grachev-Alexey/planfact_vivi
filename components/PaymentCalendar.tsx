@@ -515,19 +515,19 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({ label, icon, colSpan, accent 
       className="text-[10px] font-bold uppercase tracking-widest"
       style={{
         position: 'sticky', left: 0, zIndex: 10,
-        background: '#253447',
+        background: '#f8fafc',
         borderLeft: `3px solid ${GROUP_ACCENT[accent].color}`,
-        borderBottom: '1px solid #1e2a38',
-        borderTop: '1px solid #1e2a38',
+        borderBottom: '1px solid #e2e8f0',
+        borderTop: '1px solid #e2e8f0',
         padding: '5px 10px',
-        color: '#94a3b8',
+        color: '#64748b',
       }}
     >
       <span style={{ color: GROUP_ACCENT[accent].color, marginRight: 4 }}>{icon}</span>{label}
     </td>
     <td
       colSpan={colSpan - 2}
-      style={{ background: '#253447', borderBottom: '1px solid #1e2a38', borderTop: '1px solid #1e2a38' }}
+      style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', borderTop: '1px solid #e2e8f0' }}
     />
   </tr>
 );
