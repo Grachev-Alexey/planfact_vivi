@@ -25,6 +25,7 @@ export interface Account {
   currency: string;
   initialBalance?: number;
   legalEntityId?: string;
+  studioId?: string;
 }
 
 export interface Category {

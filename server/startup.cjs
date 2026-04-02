@@ -113,6 +113,15 @@ const initDB = async () => {
       END $$;
     `);
 
+    // Add studio_id to accounts if not exists
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='studio_id') THEN
+          ALTER TABLE accounts ADD COLUMN studio_id INTEGER REFERENCES studios(id);
+        END IF;
+      END $$;
+    `);
+
     await db.query(`ALTER TABLE IF EXISTS transactions DROP COLUMN IF EXISTS project_id`);
     await db.query(`DROP TABLE IF EXISTS projects`);
 

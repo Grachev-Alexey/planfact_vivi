@@ -95,6 +95,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const [newAddress, setNewAddress] = useState('');
   const [newKpp, setNewKpp] = useState('');
   const [newLegalEntityId, setNewLegalEntityId] = useState('');
+  const [newStudioId, setNewStudioId] = useState('');
 
   const [editModal, setEditModal] = useState<{ type: TabType; item: any } | null>(null);
   const [editName, setEditName] = useState('');
@@ -108,6 +109,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const [editAddress, setEditAddress] = useState('');
   const [editKpp, setEditKpp] = useState('');
   const [editLegalEntityId, setEditLegalEntityId] = useState('');
+  const [editStudioId, setEditStudioId] = useState('');
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -125,6 +127,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
     setNewAddress('');
     setNewKpp('');
     setNewLegalEntityId('');
+    setNewStudioId('');
   };
 
   const openEditModal = (type: TabType, item: any) => {
@@ -141,6 +144,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       setEditCurrency(item.currency || 'RUB');
       setEditInitialBalance(String(item.initialBalance ?? 0));
       setEditLegalEntityId(item.legalEntityId || '');
+      setEditStudioId(item.studioId || '');
     } else if (type === 'studios') {
       setEditAddress(item.address || '');
     } else if (type === 'legal_entities') {
@@ -169,6 +173,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       data.currency = newCurrency;
       data.initialBalance = Number(newInitialBalance) || 0;
       if (newLegalEntityId) data.legalEntityId = Number(newLegalEntityId);
+      data.studioId = newStudioId ? Number(newStudioId) : null;
     } else if (activeTab === 'studios') {
       data.address = newAddress;
     } else if (activeTab === 'legal_entities') {
@@ -201,6 +206,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       data.currency = editCurrency;
       data.initialBalance = Number(editInitialBalance) || 0;
       data.legalEntityId = editLegalEntityId ? Number(editLegalEntityId) : null;
+      data.studioId = editStudioId ? Number(editStudioId) : null;
     } else if (type === 'studios') {
       data.address = editAddress;
     } else if (type === 'legal_entities') {
@@ -330,6 +336,13 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
           <div className="w-full md:w-44 space-y-1">
             <label className="text-sm font-medium text-slate-700">Начальный остаток</label>
             <input type="number" value={newInitialBalance} onChange={e => setNewInitialBalance(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+          </div>
+          <div className="w-full md:w-48 space-y-1">
+            <label className="text-sm font-medium text-slate-700">Студия</label>
+            <select value={newStudioId} onChange={e => setNewStudioId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900">
+              <option value="">— Не привязан —</option>
+              {studios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
           </div>
           <div className="w-full md:w-48 space-y-1">
             <label className="text-sm font-medium text-slate-700">Юрлицо</label>
@@ -500,6 +513,13 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
                   <input type="number" value={editInitialBalance} onChange={e => setEditInitialBalance(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
                 </div>
                 <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Студия</label>
+                  <select value={editStudioId} onChange={e => setEditStudioId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900">
+                    <option value="">— Не привязан —</option>
+                    {studios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Юрлицо</label>
                   <select value={editLegalEntityId} onChange={e => setEditLegalEntityId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900">
                     <option value="">— Не указано —</option>
@@ -613,6 +633,12 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
     );
   };
 
+  const getStudioName = (id?: string) => {
+    if (!id) return '—';
+    const s = studios.find(st => String(st.id) === String(id));
+    return s ? s.name : '—';
+  };
+
   const renderAccountsContent = () => {
     return (
       <div className="bg-white rounded border border-slate-200 shadow-sm overflow-x-auto">
@@ -621,6 +647,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
             <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 font-semibold uppercase">
               <th className="px-6 py-3">Название</th>
               <th className="px-6 py-3">Тип</th>
+              <th className="px-6 py-3">Студия</th>
               <th className="px-6 py-3">Юрлицо</th>
               <th className="px-6 py-3 text-right">Текущий остаток</th>
               <th className="px-4 py-3 w-10"></th>
@@ -628,11 +655,18 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {accounts.length === 0 ? (
-              <tr><td colSpan={5} className="p-8 text-center text-slate-400">Нет счетов</td></tr>
+              <tr><td colSpan={6} className="p-8 text-center text-slate-400">Нет счетов</td></tr>
             ) : accounts.map(a => (
               <tr key={a.id} className="hover:bg-slate-50 group">
                 <td className="px-6 py-3 font-medium text-slate-700">{a.name}</td>
                 <td className="px-6 py-3 text-slate-500">{accountTypeLabels[a.type] || a.type}</td>
+                <td className="px-6 py-3 text-slate-500">
+                  {a.studioId ? (
+                    <span className="px-2 py-0.5 bg-teal-50 text-teal-700 rounded text-xs font-medium">{getStudioName(a.studioId)}</span>
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
+                </td>
                 <td className="px-6 py-3 text-slate-500">{getLegalEntityName(a.legalEntityId)}</td>
                 <td className="px-6 py-3 text-right font-medium text-slate-700">{formatCurrency(a.balance)}</td>
                 <td className="px-4 py-3 text-right">
