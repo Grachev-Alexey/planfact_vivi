@@ -145,7 +145,8 @@ function groupRecordsByVisit(records, txDate) {
       for (const g of rec.goods_transactions) {
         const amount = parseFloat(g.cost_to_pay) || parseFloat(g.cost) || 0;
         const goodsCost = parseFloat(g.cost) || 0;
-        const goodsEntry = { title: g.title, amount, cost: goodsCost };
+        const goodsCostPerUnit = parseFloat(g.cost_per_unit) || parseFloat(g.price) || goodsCost;
+        const goodsEntry = { title: g.title, amount, cost: goodsCost, cost_per_unit: goodsCostPerUnit };
         visit.goods.push(goodsEntry);
         visit.goodsAmount += amount;
         visit.totalAmount += amount;
@@ -638,7 +639,8 @@ function groupRecordsByVisitAll(records) {
       for (const g of rec.goods_transactions) {
         const amount = parseFloat(g.cost_to_pay) || parseFloat(g.cost) || 0;
         const goodsCost = parseFloat(g.cost) || 0;
-        const goodsEntry = { title: g.title, amount, cost: goodsCost };
+        const goodsCostPerUnit = parseFloat(g.cost_per_unit) || parseFloat(g.price) || goodsCost;
+        const goodsEntry = { title: g.title, amount, cost: goodsCost, cost_per_unit: goodsCostPerUnit };
         visit.goods.push(goodsEntry);
         visit.goodsAmount += amount;
         visit.totalAmount += amount;
