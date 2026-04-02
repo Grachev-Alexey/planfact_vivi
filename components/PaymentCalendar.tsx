@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, TrendingUp, TrendingDown, Wallet, Target, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface PREntry {
@@ -47,9 +47,6 @@ function fmtFull(v: number): string {
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(v);
 }
 
-function fmtNum(v: number): string {
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(v);
-}
 
 function dominantStatus(entries: PREntry[]): 'pending' | 'approved' | 'paid' {
   if (entries.some(e => e.status === 'paid')) return 'paid';
@@ -73,73 +70,6 @@ interface TooltipState {
   clientY: number;
 }
 
-interface SummaryCardProps {
-  title: string;
-  plan: number;
-  fact: number;
-  color: 'emerald' | 'rose';
-  icon: React.ReactNode;
-}
-
-const SummaryCard: React.FC<SummaryCardProps> = ({ title, plan, fact, color, icon }) => {
-  const pct = plan > 0 ? Math.min(Math.round((fact / plan) * 100), 100) : 0;
-  const overPct = plan > 0 && fact > plan ? Math.round(((fact - plan) / plan) * 100) : 0;
-  const isGreen = color === 'emerald';
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isGreen ? 'bg-emerald-50' : 'bg-rose-50'}`}>
-            <span className={isGreen ? 'text-emerald-600' : 'text-rose-600'}>{icon}</span>
-          </div>
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{title}</span>
-        </div>
-        {overPct > 0 && (
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isGreen ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-            +{overPct}%
-          </span>
-        )}
-      </div>
-      <div className={`text-xl font-bold ${isGreen ? 'text-emerald-700' : 'text-rose-700'} tabular-nums`}>
-        {fmtNum(fact)} ₽
-      </div>
-      {plan > 0 && (
-        <>
-          <div className="text-[11px] text-slate-400 mt-0.5">план: {fmtNum(plan)} ₽</div>
-          <div className="mt-2.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${isGreen ? 'bg-emerald-400' : 'bg-rose-400'}`}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <div className="text-[10px] text-slate-400 mt-1">{pct}% выполнено</div>
-        </>
-      )}
-      {plan === 0 && <div className="text-[11px] text-slate-400 mt-0.5">план не задан</div>}
-    </div>
-  );
-};
-
-const BalanceCard: React.FC<{ income: number; expense: number }> = ({ income, expense }) => {
-  const balance = income - expense;
-  const positive = balance >= 0;
-  return (
-    <div className={`rounded-2xl border shadow-sm p-4 ${positive ? 'bg-gradient-to-br from-teal-500 to-teal-600 border-teal-400' : 'bg-gradient-to-br from-rose-500 to-rose-600 border-rose-400'}`}>
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
-          <Wallet size={16} className="text-white" />
-        </div>
-        <span className="text-xs font-semibold text-white/80 uppercase tracking-wide">Остаток</span>
-      </div>
-      <div className="text-xl font-bold text-white tabular-nums">
-        {balance < 0 ? '−' : ''}{fmtNum(Math.abs(balance))} ₽
-      </div>
-      <div className="text-[11px] text-white/70 mt-0.5">
-        {positive ? `доходов на ${fmtNum(balance)} ₽ больше` : `расходов на ${fmtNum(Math.abs(balance))} ₽ больше`}
-      </div>
-    </div>
-  );
-};
 
 export const PaymentCalendar: React.FC = () => {
   const { user } = useAuth();
@@ -218,72 +148,32 @@ export const PaymentCalendar: React.FC = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden">
-      <div className="shrink-0 px-4 lg:px-6 pt-4 pb-3 space-y-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center shadow-sm">
-              <CalendarDays size={18} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold text-slate-800 leading-tight">Платёжный календарь</h1>
-              <p className="text-[11px] text-slate-400">{MONTH_NAMES_GEN[month - 1]} {year}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {!isCurrentMonth && (
-              <button
-                onClick={goToday}
-                className="text-xs font-medium text-teal-600 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-xl transition-colors"
-              >
-                Сегодня
-              </button>
-            )}
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 py-1 shadow-sm">
-              <button onClick={prevMonth} className="p-1.5 hover:text-teal-600 text-slate-400 hover:bg-slate-50 rounded-lg transition-colors">
-                <ChevronLeft size={15} />
-              </button>
-              <span className="text-sm font-bold text-slate-700 min-w-[128px] text-center">
-                {MONTH_NAMES[month - 1]} {year}
-              </span>
-              <button onClick={nextMonth} className="p-1.5 hover:text-teal-600 text-slate-400 hover:bg-slate-50 rounded-lg transition-colors">
-                <ChevronRight size={15} />
-              </button>
-            </div>
+      <div className="shrink-0 px-4 lg:px-6 pt-3 pb-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <CalendarDays size={17} className="text-teal-600" />
+          <h1 className="text-sm font-bold text-slate-800">Платёжный календарь</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          {!isCurrentMonth && (
+            <button
+              onClick={goToday}
+              className="text-xs font-medium text-teal-600 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1 rounded-lg transition-colors"
+            >
+              Сегодня
+            </button>
+          )}
+          <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg px-1 py-0.5 shadow-sm">
+            <button onClick={prevMonth} className="p-1 hover:text-teal-600 text-slate-400 hover:bg-slate-50 rounded transition-colors">
+              <ChevronLeft size={14} />
+            </button>
+            <span className="text-sm font-bold text-slate-700 min-w-[120px] text-center">
+              {MONTH_NAMES[month - 1]} {year}
+            </span>
+            <button onClick={nextMonth} className="p-1 hover:text-teal-600 text-slate-400 hover:bg-slate-50 rounded transition-colors">
+              <ChevronRight size={14} />
+            </button>
           </div>
         </div>
-
-        {data && !loading && (
-          <div className="grid grid-cols-3 gap-3">
-            <SummaryCard
-              title="Доходы"
-              plan={totalIncomePlan}
-              fact={totalIncomeFact}
-              color="emerald"
-              icon={<TrendingUp size={15} />}
-            />
-            <SummaryCard
-              title="Расходы"
-              plan={totalExpensePlan}
-              fact={totalExpenseFact}
-              color="rose"
-              icon={<TrendingDown size={15} />}
-            />
-            <BalanceCard income={totalIncomeFact} expense={totalExpenseFact} />
-          </div>
-        )}
-
-        {loading && (
-          <div className="grid grid-cols-3 gap-3">
-            {[0,1,2].map(i => (
-              <div key={i} className="bg-white rounded-2xl border border-slate-200 p-4 h-[104px] animate-pulse">
-                <div className="w-24 h-3 bg-slate-100 rounded mb-3" />
-                <div className="w-32 h-6 bg-slate-100 rounded mb-2" />
-                <div className="w-20 h-2.5 bg-slate-100 rounded" />
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {error && (
@@ -446,13 +336,13 @@ export const PaymentCalendar: React.FC = () => {
                     style={{ background: catIdx % 2 === 0 ? '#ffffff' : '#fafafa' }}
                   >
                     <td
-                      className="sticky left-0 z-10 px-3 py-1.5 border-r border-slate-200 text-slate-600 font-medium group-hover:bg-slate-50"
-                      style={{ width: LABEL_W, minWidth: LABEL_W, maxWidth: LABEL_W, background: 'inherit', wordBreak: 'break-word', lineHeight: '1.3' }}
+                      className="sticky left-0 z-10 px-3 py-1.5 border-r border-slate-200 text-slate-600 font-medium"
+                      style={{ width: LABEL_W, minWidth: LABEL_W, maxWidth: LABEL_W, background: catIdx % 2 === 0 ? '#ffffff' : '#fafafa', wordBreak: 'break-word', lineHeight: '1.3', borderLeft: '3px solid #f97316' }}
                     >
                       {cat.name}
                     </td>
                     <td
-                      className="sticky z-10 border-r border-slate-200 text-right px-2 py-1.5 text-slate-500 font-semibold group-hover:bg-slate-100"
+                      className="sticky z-10 border-r border-slate-200 text-right px-2 py-1.5 text-slate-500 font-semibold"
                       style={{ left: LABEL_W, width: TOTAL_W, minWidth: TOTAL_W, background: catIdx % 2 === 0 ? '#f8fafc' : '#f1f5f9' }}
                     >
                       {catTotal > 0 ? fmtCompact(catTotal) : ''}
@@ -514,7 +404,7 @@ export const PaymentCalendar: React.FC = () => {
           <div className="h-10 bg-[#1e2a38]" />
           {[...Array(6)].map((_, i) => (
             <div key={i} className="h-9 border-b border-slate-100 flex">
-              <div className="w-[156px] bg-slate-50 border-r border-slate-100" />
+              <div style={{ width: LABEL_W + TOTAL_W }} className="bg-slate-50 border-r border-slate-100" />
               <div className="flex-1" />
             </div>
           ))}
