@@ -187,16 +187,16 @@ export const PaymentCalendar: React.FC = () => {
         >
           <table className="border-separate border-spacing-0 text-[11px]" style={{ minWidth: LABEL_W + TOTAL_W + days.length * COL_W }}>
             <thead>
-              <tr className="sticky top-0 z-20">
+              <tr>
                 <th
-                  className="sticky left-0 z-30 text-left px-3 py-2.5 font-semibold border-b border-r text-slate-200 border-slate-600"
-                  style={{ width: LABEL_W, minWidth: LABEL_W, background: '#1e2a38' }}
+                  className="text-left px-3 py-2.5 font-semibold border-b border-r text-slate-200 border-slate-600"
+                  style={{ position: 'sticky', top: 0, left: 0, zIndex: 40, width: LABEL_W, minWidth: LABEL_W, background: '#1e2a38' }}
                 >
                   Статья
                 </th>
                 <th
-                  className="sticky z-30 text-right px-2 py-2.5 font-semibold border-b border-r text-slate-300 border-slate-600"
-                  style={{ left: LABEL_W, width: TOTAL_W, minWidth: TOTAL_W, background: '#253244' }}
+                  className="text-right px-2 py-2.5 font-semibold border-b border-r text-slate-300 border-slate-600"
+                  style={{ position: 'sticky', top: 0, left: LABEL_W, zIndex: 40, width: TOTAL_W, minWidth: TOTAL_W, background: '#253244' }}
                 >
                   Итого
                 </th>
@@ -218,7 +218,7 @@ export const PaymentCalendar: React.FC = () => {
                               ? 'bg-white text-slate-300'
                               : 'bg-white text-slate-500'
                         }`}
-                      style={{ width: COL_W, minWidth: COL_W }}
+                      style={{ position: 'sticky', top: 0, zIndex: 20, width: COL_W, minWidth: COL_W }}
                     >
                       <div className="font-bold" style={{ fontSize: 12 }}>{d}</div>
                       <div className="opacity-70" style={{ fontSize: 9 }}>{DAY_SHORT[dow]}</div>
@@ -310,8 +310,8 @@ export const PaymentCalendar: React.FC = () => {
                 <tr>
                   <td
                     colSpan={2}
-                    className="sticky left-0 z-10 border-b border-slate-200 cursor-pointer select-none"
-                    style={{ background: '#f8fafc' }}
+                    className="border-b border-slate-200 cursor-pointer select-none"
+                    style={{ position: 'sticky', left: 0, zIndex: 10, background: '#f8fafc' }}
                     onClick={() => setCatsOpen(o => !o)}
                   >
                     <div className="flex items-center gap-2 px-3 py-1.5">
@@ -342,14 +342,14 @@ export const PaymentCalendar: React.FC = () => {
                     style={{ background: catIdx % 2 === 0 ? '#ffffff' : '#fafafa' }}
                   >
                     <td
-                      className="sticky left-0 z-10 px-3 py-1.5 border-r border-slate-200 text-slate-600 font-medium"
-                      style={{ width: LABEL_W, minWidth: LABEL_W, maxWidth: LABEL_W, background: catIdx % 2 === 0 ? '#ffffff' : '#fafafa', wordBreak: 'break-word', lineHeight: '1.3', borderLeft: '3px solid #f97316' }}
+                      className="px-3 py-1.5 border-r border-slate-200 text-slate-600 font-medium"
+                      style={{ position: 'sticky', left: 0, zIndex: 10, width: LABEL_W, minWidth: LABEL_W, maxWidth: LABEL_W, background: catIdx % 2 === 0 ? '#ffffff' : '#fafafa', wordBreak: 'break-word', lineHeight: '1.3', borderLeft: '3px solid #f97316' }}
                     >
                       {cat.name}
                     </td>
                     <td
-                      className="sticky z-10 border-r border-slate-200 text-right px-2 py-1.5 text-slate-500 font-semibold"
-                      style={{ left: LABEL_W, width: TOTAL_W, minWidth: TOTAL_W, background: catIdx % 2 === 0 ? '#f8fafc' : '#f1f5f9' }}
+                      className="border-r border-slate-200 text-right px-2 py-1.5 text-slate-500 font-semibold"
+                      style={{ position: 'sticky', left: LABEL_W, zIndex: 10, width: TOTAL_W, minWidth: TOTAL_W, background: catIdx % 2 === 0 ? '#f8fafc' : '#f1f5f9' }}
                     >
                       {catTotal > 0 ? fmtCompact(catTotal) : ''}
                     </td>
@@ -479,10 +479,11 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({ label, icon, colSpan, accent 
   <tr>
     <td
       colSpan={2}
-      className={`sticky left-0 z-10 border-b border-t px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest
+      className={`border-b border-t px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest
         ${accent === 'emerald'
           ? 'bg-emerald-600 text-white border-emerald-700'
           : 'bg-rose-600 text-white border-rose-700'}`}
+      style={{ position: 'sticky', left: 0, zIndex: 10 }}
     >
       {icon} {label}
     </td>
@@ -517,14 +518,14 @@ const SummaryRow: React.FC<SummaryRowProps> = ({
 }) => (
   <tr className="border-b border-slate-100" style={{ background: rowBg }}>
     <td
-      className="sticky left-0 z-10 px-3 py-2 border-r border-slate-200 text-slate-600"
-      style={{ width: labelW, minWidth: labelW, fontWeight: bold ? 600 : 400, background: rowBg, borderLeft: `3px solid ${accentColor}` }}
+      className="px-3 py-2 border-r border-slate-200 text-slate-600"
+      style={{ position: 'sticky', left: 0, zIndex: 10, width: labelW, minWidth: labelW, fontWeight: bold ? 600 : 400, background: rowBg, borderLeft: `3px solid ${accentColor}` }}
     >
       {label}
     </td>
     <td
-      className="sticky z-10 border-r border-slate-200 text-right px-2 py-2"
-      style={{ left: labelW, width: totalW, minWidth: totalW, background: rowBg }}
+      className="border-r border-slate-200 text-right px-2 py-2"
+      style={{ position: 'sticky', left: labelW, zIndex: 10, width: totalW, minWidth: totalW, background: rowBg }}
     >
       <span className={`${textClass} ${bold ? 'font-bold' : 'font-medium'}`}>
         {total ? fmtCompact(total) : '—'}
@@ -563,14 +564,14 @@ interface BalanceRowProps {
 const BalanceRow: React.FC<BalanceRowProps> = ({ label, total, days, values, todayDay, labelW, totalW }) => (
   <tr className="border-b-2 border-slate-300" style={{ background: '#f8fafc' }}>
     <td
-      className="sticky left-0 z-10 px-3 py-2 border-r border-slate-200 font-bold text-slate-700"
-      style={{ width: labelW, minWidth: labelW, background: '#f1f5f9' }}
+      className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700"
+      style={{ position: 'sticky', left: 0, zIndex: 10, width: labelW, minWidth: labelW, background: '#f1f5f9' }}
     >
       {label}
     </td>
     <td
-      className="sticky z-10 border-r border-slate-200 text-right px-2 py-2 font-bold"
-      style={{ left: labelW, width: totalW, minWidth: totalW, background: '#e2e8f0' }}
+      className="border-r border-slate-200 text-right px-2 py-2 font-bold"
+      style={{ position: 'sticky', left: labelW, zIndex: 10, width: totalW, minWidth: totalW, background: '#e2e8f0' }}
     >
       <span className={total >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
         {total < 0 ? '−' : ''}{fmtCompact(Math.abs(total))}
