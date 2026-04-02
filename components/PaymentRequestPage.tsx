@@ -436,6 +436,27 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const clampedPage = Math.min(currentPage, totalPages);
   const paginatedRequests = filteredRequests.slice((clampedPage - 1) * REQUESTS_PER_PAGE, clampedPage * REQUESTS_PER_PAGE);
 
+  const groupedRequests = useMemo(() => {
+    const groups: { [key: string]: PaymentRequest[] } = {};
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    paginatedRequests.forEach(req => {
+      let key: string;
+      if (req.paymentDate) {
+        const d = new Date(req.paymentDate);
+        if (d.toDateString() === today.toDateString()) key = 'Сегодня';
+        else if (d.toDateString() === yesterday.toDateString()) key = 'Вчера';
+        else key = formatDate(req.paymentDate);
+      } else {
+        key = 'Без даты оплаты';
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(req);
+    });
+    return Object.entries(groups).map(([title, items]) => ({ title, items }));
+  }, [paginatedRequests]);
+
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [totalPages, currentPage]);
@@ -749,7 +770,13 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           </div>
         ) : (
           <div className="space-y-2">
-            {paginatedRequests.map(req => {
+            {groupedRequests.map(group => (
+              <div key={group.title}>
+                <div className="px-1 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                  {group.title}
+                </div>
+                <div className="space-y-2">
+            {group.items.map(req => {
               const isExpanded = expandedId === req.id;
               return (
                 <div key={req.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden transition-shadow hover:shadow-sm active:shadow-sm">
@@ -775,12 +802,6 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                             </span>
                           </>
                         )}
-                        {req.paymentDate && (
-                          <>
-                            <span>·</span>
-                            <span className="shrink-0 flex items-center gap-0.5"><Calendar size={10} /> {formatDate(req.paymentDate)}</span>
-                          </>
-                        )}
                         {req.description && !req.categoryName && !req.studioName && !req.contractorName && (
                           <>
                             {isAdmin && req.username && <span>·</span>}
@@ -789,7 +810,11 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                         )}
                       </div>
                     </div>
-                    <span className="text-[11px] text-slate-400 shrink-0">{formatDate(req.createdAt)}</span>
+                    {req.paymentDate ? (
+                      <span className="text-[11px] text-slate-500 shrink-0 flex items-center gap-0.5"><Calendar size={10} /> {formatDate(req.paymentDate)}</span>
+                    ) : (
+                      <span className="text-[11px] text-slate-300 shrink-0">—</span>
+                    )}
                   </div>
                   {isExpanded && (
                     <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-1 border-t border-slate-100 bg-slate-50/50">
@@ -919,6 +944,9 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                 </div>
               );
             })}
+                </div>
+              </div>
+            ))}
 
             {totalPages > 1 && (
               <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-3 sm:px-4 py-2.5 mt-3">

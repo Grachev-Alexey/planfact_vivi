@@ -49,7 +49,7 @@ export const Dashboard: React.FC = () => {
   const yearTx = useMemo(() =>
     transactions.filter(t => {
       const d = new Date(t.date);
-      return d.getFullYear() === year;
+      return d.getFullYear() === year && t.confirmed;
     }),
     [transactions, year]
   );
