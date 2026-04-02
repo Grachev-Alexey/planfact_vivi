@@ -36,6 +36,7 @@ export const ReportsPage: React.FC = () => {
     const start = new Date(startYear, startMonth, 1);
     const end = new Date(endYear, endMonth + 1, 0, 23, 59, 59);
     return transactions.filter(t => {
+      if (!t.confirmed) return false;
       const d = new Date(t.date);
       if (d < start || d > end) return false;
       if (filterAccountId && String(t.accountId) !== filterAccountId) return false;
