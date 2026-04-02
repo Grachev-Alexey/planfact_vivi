@@ -348,38 +348,62 @@ export const MasterDashboard: React.FC = () => {
             </div>
           )}
 
-          {(s?.abonementCount || 0) > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
-                  <Receipt size={14} className="text-violet-600" />
-                </div>
-                <span className="text-xs font-medium text-slate-500">Продажи абонементов</span>
-              </div>
-              <div className="flex items-baseline gap-2 mb-3">
-                <span className="text-lg font-bold text-violet-700">{formatCurrency(s?.abonementAmount || 0)}</span>
-                <span className="text-xs text-slate-400">{s?.abonementCount} {(s?.abonementCount || 0) === 1 ? 'продажа' : (s?.abonementCount || 0) < 5 ? 'продажи' : 'продаж'}</span>
-              </div>
-              {((s?.abonementPrimaryCount || 0) > 0 || (s?.abonementRegularCount || 0) > 0) && (
-                <div className="border-t border-slate-100 pt-2.5 flex gap-3">
-                  {(s?.abonementPrimaryCount || 0) > 0 && (
-                    <div className="flex-1 bg-orange-50 rounded-xl p-2.5">
-                      <div className="text-xs text-orange-500 font-medium mb-0.5">Первичные</div>
-                      <div className="text-sm font-bold text-orange-700">{formatCurrency(s?.abonementPrimaryAmount || 0)}</div>
-                      <div className="text-xs text-orange-400">{s?.abonementPrimaryCount} {(s?.abonementPrimaryCount || 0) === 1 ? 'продажа' : (s?.abonementPrimaryCount || 0) < 5 ? 'продажи' : 'продаж'}</div>
+          {(s?.abonementCount || 0) > 0 && (() => {
+            const abPrimaryAvg = (s?.abonementPrimaryCount || 0) > 0 ? Math.round((s?.abonementPrimaryAmount || 0) / (s?.abonementPrimaryCount || 1)) : 0;
+            const abRegularAvg = (s?.abonementRegularCount || 0) > 0 ? Math.round((s?.abonementRegularAmount || 0) / (s?.abonementRegularCount || 1)) : 0;
+            const abTotalAvg = (s?.abonementCount || 0) > 0 ? Math.round((s?.abonementAmount || 0) / (s?.abonementCount || 1)) : 0;
+            const conversionPrimary = (s?.primaryCount || 0) > 0 ? Math.round(((s?.abonementPrimaryCount || 0) / (s?.primaryCount || 1)) * 100) : 0;
+            const conversionRegular = (s?.regularCount || 0) > 0 ? Math.round(((s?.abonementRegularCount || 0) / (s?.regularCount || 1)) * 100) : 0;
+            const conversionTotal = (s?.uniqueClients || 0) > 0 ? Math.round(((s?.abonementCount || 0) / (s?.uniqueClients || 1)) * 100) : 0;
+            return (
+              <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                      <Receipt size={14} className="text-violet-600" />
                     </div>
-                  )}
-                  {(s?.abonementRegularCount || 0) > 0 && (
-                    <div className="flex-1 bg-teal-50 rounded-xl p-2.5">
-                      <div className="text-xs text-teal-500 font-medium mb-0.5">Постоянные</div>
-                      <div className="text-sm font-bold text-teal-700">{formatCurrency(s?.abonementRegularAmount || 0)}</div>
-                      <div className="text-xs text-teal-400">{s?.abonementRegularCount} {(s?.abonementRegularCount || 0) === 1 ? 'продажа' : (s?.abonementRegularCount || 0) < 5 ? 'продажи' : 'продаж'}</div>
-                    </div>
+                    <span className="text-xs font-medium text-slate-500">Продажи абонементов</span>
+                  </div>
+                  {conversionTotal > 0 && (
+                    <span className="text-[11px] font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">
+                      {conversionTotal}% конверсия
+                    </span>
                   )}
                 </div>
-              )}
-            </div>
-          )}
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-lg font-bold text-violet-700">{formatCurrency(s?.abonementAmount || 0)}</span>
+                  <span className="text-xs text-slate-400">{s?.abonementCount} {(s?.abonementCount || 0) === 1 ? 'продажа' : (s?.abonementCount || 0) < 5 ? 'продажи' : 'продаж'}</span>
+                </div>
+                {abTotalAvg > 0 && (
+                  <div className="text-xs text-slate-400 mb-3">ср. чек {formatCurrency(abTotalAvg)}</div>
+                )}
+                {((s?.abonementPrimaryCount || 0) > 0 || (s?.abonementRegularCount || 0) > 0) && (
+                  <div className="border-t border-slate-100 pt-2.5 flex gap-3">
+                    {(s?.abonementPrimaryCount || 0) > 0 && (
+                      <div className="flex-1 bg-orange-50 rounded-xl p-2.5">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <div className="text-xs text-orange-500 font-medium">Первичные</div>
+                          {conversionPrimary > 0 && <div className="text-[10px] font-semibold text-orange-400">{conversionPrimary}%</div>}
+                        </div>
+                        <div className="text-sm font-bold text-orange-700">{formatCurrency(s?.abonementPrimaryAmount || 0)}</div>
+                        <div className="text-xs text-orange-400">{s?.abonementPrimaryCount} {(s?.abonementPrimaryCount || 0) === 1 ? 'прод.' : 'прод.'} · ср. {formatCurrency(abPrimaryAvg)}</div>
+                      </div>
+                    )}
+                    {(s?.abonementRegularCount || 0) > 0 && (
+                      <div className="flex-1 bg-teal-50 rounded-xl p-2.5">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <div className="text-xs text-teal-500 font-medium">Постоянные</div>
+                          {conversionRegular > 0 && <div className="text-[10px] font-semibold text-teal-400">{conversionRegular}%</div>}
+                        </div>
+                        <div className="text-sm font-bold text-teal-700">{formatCurrency(s?.abonementRegularAmount || 0)}</div>
+                        <div className="text-xs text-teal-400">{s?.abonementRegularCount} {(s?.abonementRegularCount || 0) === 1 ? 'прод.' : 'прод.'} · ср. {formatCurrency(abRegularAvg)}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {stats.daily.length > 1 && (
             <div className="bg-white rounded-2xl border border-slate-200 p-4">
