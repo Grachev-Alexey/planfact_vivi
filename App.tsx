@@ -11,6 +11,7 @@ import { LoginPage } from './components/LoginPage';
 import { ReportsPage } from './components/ReportsPage';
 import { PaymentRequestPage } from './components/PaymentRequestPage';
 import { MasterIncomePage } from './components/MasterIncomePage';
+import { AdminStats } from './components/AdminStats';
 import { LogOut } from 'lucide-react';
 import { formatCurrency } from './utils/format';
 
@@ -105,7 +106,8 @@ const AppRoutes = () => {
       return (
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/payment-requests" element={<ProtectedRoute><PaymentRequestPage /></ProtectedRoute>} />
+          <Route path="/payment-requests" element={<ProtectedRoute>{withLayout(<PaymentRequestPage />)}</ProtectedRoute>} />
+          <Route path="/master-stats" element={<ProtectedRoute>{withLayout(<AdminStats />)}</ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/payment-requests" replace />} />
         </Routes>
       );
@@ -119,6 +121,7 @@ const AppRoutes = () => {
             <Route path="/reports" element={<AdminRoute>{withLayout(<ReportsPage />)}</AdminRoute>} />
             <Route path="/settings" element={<AdminRoute>{withLayout(<Settings />)}</AdminRoute>} />
             <Route path="/payment-requests" element={<AdminRoute>{withLayout(<PaymentRequestPage isAdmin />)}</AdminRoute>} />
+            <Route path="/master-stats" element={<AdminRoute>{withLayout(<AdminStats />)}</AdminRoute>} />
             <Route path="/" element={<AdminRoute>{withLayout(<Dashboard />)}</AdminRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

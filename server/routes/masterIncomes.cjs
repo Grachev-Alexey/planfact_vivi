@@ -53,6 +53,204 @@ async function resolveAccountId(studioId, paymentType) {
   return accRes.rows[0].id;
 }
 
+async function requireAdminOrRequester(req, res) {
+  const userId = req.headers['x-user-id'];
+  if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return null; }
+  const userRes = await db.query('SELECT id, role FROM users WHERE id = $1', [userId]);
+  if (userRes.rows.length === 0) { res.status(401).json({ error: 'User not found' }); return null; }
+  const user = userRes.rows[0];
+  if (user.role !== 'admin' && user.role !== 'requester') { res.status(403).json({ error: 'Forbidden' }); return null; }
+  return user;
+}
+
+router.get('/admin-stats', async (req, res) => {
+  const caller = await requireAdminOrRequester(req, res);
+  if (!caller) return;
+
+  try {
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
+
+    const abonementCategoryIds = [9, 10];
+
+    // 1. Per-master summary
+    const summaryRes = await db.query(
+      `SELECT
+        mi.user_id, u.username as master_name, mi.studio_id, s.name as studio_name,
+        COALESCE(SUM(mi.amount), 0) as total_amount,
+        COUNT(*) as total_entries,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != '') as unique_clients,
+        COALESCE(SUM(mi.amount) FILTER (WHERE mi.client_type = 'primary'), 0) as primary_amount,
+        COALESCE(SUM(mi.amount) FILTER (WHERE mi.client_type = 'regular'), 0) as regular_amount,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'primary' AND mi.client_phone != '') as primary_count,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'regular' AND mi.client_phone != '') as regular_count
+       FROM master_incomes mi
+       JOIN users u ON mi.user_id = u.id
+       JOIN studios s ON mi.studio_id = s.id
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       GROUP BY mi.user_id, u.username, mi.studio_id, s.name
+       ORDER BY s.name, u.username`,
+      [startDate, endDate]
+    );
+
+    // 2. Per-master visit count
+    const visitRes = await db.query(
+      `SELECT mi.user_id,
+        COUNT(DISTINCT COALESCE(mi.yclients_data->>'visitId', mi.yclients_data->'recordIds'->>0, mi.id::text)) as total_visits,
+        COUNT(DISTINCT COALESCE(mi.yclients_data->>'visitId', mi.yclients_data->'recordIds'->>0, mi.id::text))
+          FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits
+       FROM master_incomes mi
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2
+       GROUP BY mi.user_id`,
+      [startDate, endDate]
+    );
+
+    // 3. Per-master abonement stats (deduplicated by visitId)
+    const abonementRes = await db.query(
+      `SELECT deduped.user_id, deduped.client_type,
+        COALESCE(SUM(deduped.goods_cost), 0) as abonement_amount,
+        COALESCE(SUM(deduped.goods_count), 0) as abonement_count
+       FROM (
+         SELECT DISTINCT ON (mi.user_id, COALESCE(mi.yclients_data->>'visitId', mi.id::text))
+           mi.user_id, mi.client_type,
+           (SELECT COALESCE(SUM(COALESCE((g->>'cost_per_unit')::numeric, (g->>'cost')::numeric, 0)), 0)
+            FROM jsonb_array_elements(mi.yclients_data->'goods') g
+            WHERE (g->>'cost_per_unit') IS NOT NULL OR (g->>'cost') IS NOT NULL) as goods_cost,
+           jsonb_array_length(mi.yclients_data->'goods') as goods_count
+         FROM master_incomes mi
+         WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2
+           AND mi.payment_type != 'visit_only'
+           AND mi.category_id = ANY($3)
+           AND mi.yclients_data IS NOT NULL
+           AND mi.yclients_data ? 'goods'
+           AND jsonb_array_length(mi.yclients_data->'goods') > 0
+         ORDER BY mi.user_id, COALESCE(mi.yclients_data->>'visitId', mi.id::text)
+       ) deduped
+       GROUP BY deduped.user_id, deduped.client_type`,
+      [startDate, endDate, abonementCategoryIds]
+    );
+
+    // 4. Daily totals per studio for chart
+    const dailyRes = await db.query(
+      `SELECT mi.studio_id, DATE(mi.created_at) as date, SUM(mi.amount) as amount
+       FROM master_incomes mi
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       GROUP BY mi.studio_id, DATE(mi.created_at)
+       ORDER BY mi.studio_id, date`,
+      [startDate, endDate]
+    );
+
+    // Build lookup maps
+    const visitMap = {};
+    for (const r of visitRes.rows) visitMap[r.user_id] = r;
+
+    const abonementMap = {};
+    for (const r of abonementRes.rows) {
+      if (!abonementMap[r.user_id]) abonementMap[r.user_id] = { amount: 0, count: 0, primaryAmount: 0, primaryCount: 0, regularAmount: 0, regularCount: 0 };
+      const a = abonementMap[r.user_id];
+      const amt = parseFloat(r.abonement_amount) || 0;
+      const cnt = parseInt(r.abonement_count) || 0;
+      a.amount += amt; a.count += cnt;
+      if (r.client_type === 'primary') { a.primaryAmount += amt; a.primaryCount += cnt; }
+      else if (r.client_type === 'regular') { a.regularAmount += amt; a.regularCount += cnt; }
+    }
+
+    const dailyByStudio = {};
+    for (const r of dailyRes.rows) {
+      if (!dailyByStudio[r.studio_id]) dailyByStudio[r.studio_id] = [];
+      dailyByStudio[r.studio_id].push({ date: r.date, amount: parseFloat(r.amount) || 0 });
+    }
+
+    // Assemble per-studio structure
+    const studioMap = {};
+    for (const r of summaryRes.rows) {
+      const sid = r.studio_id;
+      if (!studioMap[sid]) {
+        studioMap[sid] = {
+          id: sid, name: r.studio_name,
+          masters: [],
+          daily: dailyByStudio[sid] || [],
+          summary: { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 }
+        };
+      }
+      const totalAmount = parseFloat(r.total_amount) || 0;
+      const totalEntries = parseInt(r.total_entries) || 0;
+      const vc = visitMap[r.user_id] || {};
+      const ab = abonementMap[r.user_id] || { amount: 0, count: 0, primaryAmount: 0, primaryCount: 0, regularAmount: 0, regularCount: 0 };
+      const primaryCount = parseInt(r.primary_count) || 0;
+      const regularCount = parseInt(r.regular_count) || 0;
+      const uniqueClients = parseInt(r.unique_clients) || 0;
+
+      const master = {
+        id: r.user_id, name: r.master_name,
+        summary: {
+          totalAmount, totalEntries, uniqueClients,
+          avgCheck: totalEntries > 0 ? Math.round(totalAmount / totalEntries) : 0,
+          primaryAmount: parseFloat(r.primary_amount) || 0,
+          regularAmount: parseFloat(r.regular_amount) || 0,
+          primaryCount, regularCount,
+          totalVisits: parseInt(vc.total_visits) || 0,
+          zeroVisits: parseInt(vc.zero_visits) || 0,
+          abonementAmount: ab.amount, abonementCount: ab.count,
+          abonementPrimaryAmount: ab.primaryAmount, abonementPrimaryCount: ab.primaryCount,
+          abonementRegularAmount: ab.regularAmount, abonementRegularCount: ab.regularCount,
+        }
+      };
+      studioMap[sid].masters.push(master);
+
+      // Roll up to studio summary
+      const ss = studioMap[sid].summary;
+      ss.totalAmount += totalAmount;
+      ss.totalEntries += totalEntries;
+      ss.uniqueClients += uniqueClients;
+      ss.primaryAmount += master.summary.primaryAmount;
+      ss.regularAmount += master.summary.regularAmount;
+      ss.primaryCount += primaryCount;
+      ss.regularCount += regularCount;
+      ss.totalVisits += master.summary.totalVisits;
+      ss.zeroVisits += master.summary.zeroVisits;
+      ss.abonementAmount += ab.amount;
+      ss.abonementCount += ab.count;
+      ss.abonementPrimaryAmount += ab.primaryAmount;
+      ss.abonementPrimaryCount += ab.primaryCount;
+      ss.abonementRegularAmount += ab.regularAmount;
+      ss.abonementRegularCount += ab.regularCount;
+    }
+    // avgCheck for studios
+    for (const s of Object.values(studioMap)) {
+      s.summary.avgCheck = s.summary.totalEntries > 0 ? Math.round(s.summary.totalAmount / s.summary.totalEntries) : 0;
+    }
+
+    const studios = Object.values(studioMap).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+
+    // Overall totals
+    const overall = studios.reduce((acc, s) => {
+      acc.totalAmount += s.summary.totalAmount;
+      acc.totalEntries += s.summary.totalEntries;
+      acc.uniqueClients += s.summary.uniqueClients;
+      acc.primaryAmount += s.summary.primaryAmount;
+      acc.regularAmount += s.summary.regularAmount;
+      acc.primaryCount += s.summary.primaryCount;
+      acc.regularCount += s.summary.regularCount;
+      acc.totalVisits += s.summary.totalVisits;
+      acc.zeroVisits += s.summary.zeroVisits;
+      acc.abonementAmount += s.summary.abonementAmount;
+      acc.abonementCount += s.summary.abonementCount;
+      acc.abonementPrimaryAmount += s.summary.abonementPrimaryAmount;
+      acc.abonementPrimaryCount += s.summary.abonementPrimaryCount;
+      acc.abonementRegularAmount += s.summary.abonementRegularAmount;
+      acc.abonementRegularCount += s.summary.abonementRegularCount;
+      return acc;
+    }, { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 });
+    overall.avgCheck = overall.totalEntries > 0 ? Math.round(overall.totalAmount / overall.totalEntries) : 0;
+
+    res.json({ overall, studios });
+  } catch (err) {
+    console.error('Error fetching admin stats:', err);
+    res.status(500).json({ error: 'Error fetching admin stats' });
+  }
+});
+
 router.get('/master-incomes/stats', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;
