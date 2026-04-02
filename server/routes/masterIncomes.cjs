@@ -59,7 +59,7 @@ async function requireAdminOrRequester(req, res) {
   const userRes = await db.query('SELECT id, role FROM users WHERE id = $1', [userId]);
   if (userRes.rows.length === 0) { res.status(401).json({ error: 'User not found' }); return null; }
   const user = userRes.rows[0];
-  if (user.role !== 'admin' && user.role !== 'requester') { res.status(403).json({ error: 'Forbidden' }); return null; }
+  if (user.role !== 'admin' && user.role !== 'requester' && user.role !== 'payout_controller') { res.status(403).json({ error: 'Forbidden' }); return null; }
   return user;
 }
 
@@ -140,6 +140,37 @@ router.get('/admin-stats', async (req, res) => {
       [startDate, endDate]
     );
 
+    // 5. Per-master daily totals for master charts
+    const masterDailyRes = await db.query(
+      `SELECT mi.user_id, DATE(mi.created_at) as date, SUM(mi.amount) as amount
+       FROM master_incomes mi
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       GROUP BY mi.user_id, DATE(mi.created_at)
+       ORDER BY mi.user_id, date`,
+      [startDate, endDate]
+    );
+
+    // 6. Per-master payment type breakdown
+    const masterPaymentRes = await db.query(
+      `SELECT mi.user_id, mi.payment_type, SUM(mi.amount) as amount, COUNT(*) as count
+       FROM master_incomes mi
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       GROUP BY mi.user_id, mi.payment_type
+       ORDER BY mi.user_id, amount DESC`,
+      [startDate, endDate]
+    );
+
+    // 7. Per-master category breakdown
+    const masterCategoryRes = await db.query(
+      `SELECT mi.user_id, mi.category_id, c.name as category_name, SUM(mi.amount) as amount, COUNT(*) as count
+       FROM master_incomes mi
+       LEFT JOIN categories c ON mi.category_id = c.id
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       GROUP BY mi.user_id, mi.category_id, c.name
+       ORDER BY mi.user_id, amount DESC`,
+      [startDate, endDate]
+    );
+
     // Build lookup maps
     const visitMap = {};
     for (const r of visitRes.rows) visitMap[r.user_id] = r;
@@ -159,6 +190,24 @@ router.get('/admin-stats', async (req, res) => {
     for (const r of dailyRes.rows) {
       if (!dailyByStudio[r.studio_id]) dailyByStudio[r.studio_id] = [];
       dailyByStudio[r.studio_id].push({ date: r.date, amount: parseFloat(r.amount) || 0 });
+    }
+
+    const masterDailyMap = {};
+    for (const r of masterDailyRes.rows) {
+      if (!masterDailyMap[r.user_id]) masterDailyMap[r.user_id] = [];
+      masterDailyMap[r.user_id].push({ date: r.date, amount: parseFloat(r.amount) || 0 });
+    }
+
+    const masterPaymentMap = {};
+    for (const r of masterPaymentRes.rows) {
+      if (!masterPaymentMap[r.user_id]) masterPaymentMap[r.user_id] = [];
+      masterPaymentMap[r.user_id].push({ type: r.payment_type, amount: parseFloat(r.amount) || 0, count: parseInt(r.count) || 0 });
+    }
+
+    const masterCategoryMap = {};
+    for (const r of masterCategoryRes.rows) {
+      if (!masterCategoryMap[r.user_id]) masterCategoryMap[r.user_id] = [];
+      masterCategoryMap[r.user_id].push({ id: r.category_id, name: r.category_name || 'Без статьи', amount: parseFloat(r.amount) || 0, count: parseInt(r.count) || 0 });
     }
 
     // Assemble per-studio structure
@@ -194,7 +243,10 @@ router.get('/admin-stats', async (req, res) => {
           abonementAmount: ab.amount, abonementCount: ab.count,
           abonementPrimaryAmount: ab.primaryAmount, abonementPrimaryCount: ab.primaryCount,
           abonementRegularAmount: ab.regularAmount, abonementRegularCount: ab.regularCount,
-        }
+        },
+        daily: masterDailyMap[r.user_id] || [],
+        byPayment: masterPaymentMap[r.user_id] || [],
+        byCategory: masterCategoryMap[r.user_id] || [],
       };
       studioMap[sid].masters.push(master);
 

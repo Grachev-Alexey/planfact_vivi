@@ -15,7 +15,10 @@ export const Sidebar: React.FC = () => {
   const isPayoutController = user?.role === 'payout_controller';
   const isRequester = user?.role === 'requester';
 
-  const navItems = isPayoutController ? [] : isRequester ? [
+  const navItems = isPayoutController ? [
+    { icon: Send, label: 'Выплаты', path: '/payment-requests' },
+    { icon: BarChart2, label: 'Мастера', path: '/master-stats' },
+  ] : isRequester ? [
     { icon: Send, label: 'Выплаты', path: '/payment-requests' },
     { icon: BarChart2, label: 'Мастера', path: '/master-stats' },
   ] : [
@@ -26,9 +29,9 @@ export const Sidebar: React.FC = () => {
     { icon: BarChart2, label: 'Мастера', path: '/master-stats' },
   ];
 
-  const bottomItems = isRequester ? [] : [
+  const bottomItems = (isRequester || isPayoutController) ? [] : [
     { icon: Send, label: 'Выплаты', path: '/payment-requests' },
-    ...(isPayoutController ? [] : [{ icon: Settings, label: 'Настройки', path: '/settings' }]),
+    { icon: Settings, label: 'Настройки', path: '/settings' },
   ];
 
   return (

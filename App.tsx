@@ -87,6 +87,7 @@ const AppRoutes = () => {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/payment-requests" element={<ProtectedRoute>{withLayout(<PaymentRequestPage isAdmin />)}</ProtectedRoute>} />
+          <Route path="/master-stats" element={<ProtectedRoute>{withLayout(<AdminStats />)}</ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/payment-requests" replace />} />
         </Routes>
       );
