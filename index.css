@@ -1,1 +1,22 @@
 /* Base styles */
+
+.calendar-scroll::-webkit-scrollbar {
+  height: 12px;
+  width: 6px;
+}
+.calendar-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 0 0 12px 12px;
+}
+.calendar-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 10px;
+  border: 2px solid #f1f5f9;
+}
+.calendar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+.calendar-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}

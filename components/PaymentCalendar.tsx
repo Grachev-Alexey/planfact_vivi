@@ -142,6 +142,17 @@ export const PaymentCalendar: React.FC = () => {
   const totalExpensePlan = days.reduce((s, d) => s + (data?.expensePlan[d] || 0), 0);
   const totalExpenseFact = days.reduce((s, d) => s + (data?.expenseFact[d] || 0), 0);
   const totalBalance = totalIncomeFact - totalExpenseFact;
+  const totalBalancePlan = totalIncomePlan - totalExpensePlan;
+
+  const balancePlan: Record<number, number> = (() => {
+    let running = 0;
+    const result: Record<number, number> = {};
+    for (const d of days) {
+      running += (data?.incomePlan[d] || 0) - (data?.expensePlan[d] || 0);
+      result[d] = running;
+    }
+    return result;
+  })();
 
   const isPast = (d: number) => isCurrentMonth && d < todayDay;
   const isFuture = (d: number) => isCurrentMonth && d > todayDay;
@@ -183,7 +194,7 @@ export const PaymentCalendar: React.FC = () => {
       {data && !loading && (
         <div
           ref={tableRef}
-          className="flex-1 overflow-auto mx-4 lg:mx-6 mb-4 rounded-xl border border-slate-200 shadow-sm bg-white"
+          className="calendar-scroll flex-1 overflow-auto mx-4 lg:mx-6 mb-4 rounded-xl border border-slate-200 shadow-sm bg-white"
         >
           <table className="border-separate border-spacing-0 text-[11px]" style={{ minWidth: LABEL_W + TOTAL_W + days.length * COL_W }}>
             <thead>
@@ -296,14 +307,31 @@ export const PaymentCalendar: React.FC = () => {
                 totalW={TOTAL_W}
               />
 
+              <GroupHeader label="БАЛАНС" icon="=" colSpan={days.length + 2} accent="sky" />
               <BalanceRow
-                label="Остаток"
+                label="План"
+                total={totalBalancePlan}
+                days={days}
+                values={balancePlan}
+                todayDay={todayDay}
+                labelW={LABEL_W}
+                totalW={TOTAL_W}
+                rowBg="#f0f9ff"
+                todayBg="#bae6fd"
+                accentColor="#0ea5e9"
+              />
+              <BalanceRow
+                label="Факт"
                 total={totalBalance}
                 days={days}
                 values={data.balance}
                 todayDay={todayDay}
                 labelW={LABEL_W}
                 totalW={TOTAL_W}
+                rowBg="#e0f2fe"
+                todayBg="#7dd3fc"
+                accentColor="#0284c7"
+                bold
               />
 
               {data.expenseCategories.length > 0 && (
@@ -473,26 +501,25 @@ interface GroupHeaderProps {
   label: string;
   icon: string;
   colSpan: number;
-  accent: 'emerald' | 'rose';
+  accent: 'emerald' | 'rose' | 'sky';
 }
+const GROUP_ACCENT = {
+  emerald: { label: 'bg-emerald-600 text-white border-emerald-700', fill: 'bg-emerald-600 border-emerald-700' },
+  rose:    { label: 'bg-rose-600 text-white border-rose-700',       fill: 'bg-rose-600 border-rose-700' },
+  sky:     { label: 'bg-sky-600 text-white border-sky-700',         fill: 'bg-sky-600 border-sky-700' },
+};
 const GroupHeader: React.FC<GroupHeaderProps> = ({ label, icon, colSpan, accent }) => (
   <tr>
     <td
       colSpan={2}
-      className={`border-b border-t px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest
-        ${accent === 'emerald'
-          ? 'bg-emerald-600 text-white border-emerald-700'
-          : 'bg-rose-600 text-white border-rose-700'}`}
+      className={`border-b border-t px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest ${GROUP_ACCENT[accent].label}`}
       style={{ position: 'sticky', left: 0, zIndex: 10 }}
     >
       {icon} {label}
     </td>
     <td
       colSpan={colSpan - 2}
-      className={`border-b border-t
-        ${accent === 'emerald'
-          ? 'bg-emerald-600 border-emerald-700'
-          : 'bg-rose-600 border-rose-700'}`}
+      className={`border-b border-t ${GROUP_ACCENT[accent].fill}`}
     />
   </tr>
 );
@@ -560,18 +587,25 @@ interface BalanceRowProps {
   todayDay: number;
   labelW: number;
   totalW: number;
+  rowBg?: string;
+  todayBg?: string;
+  accentColor?: string;
+  bold?: boolean;
 }
-const BalanceRow: React.FC<BalanceRowProps> = ({ label, total, days, values, todayDay, labelW, totalW }) => (
-  <tr className="border-b-2 border-slate-300" style={{ background: '#f8fafc' }}>
+const BalanceRow: React.FC<BalanceRowProps> = ({
+  label, total, days, values, todayDay, labelW, totalW,
+  rowBg = '#f8fafc', todayBg = '#e0f2fe', accentColor = '#64748b', bold = false
+}) => (
+  <tr className="border-b border-slate-200" style={{ background: rowBg }}>
     <td
-      className="px-3 py-2 border-r border-slate-200 font-bold text-slate-700"
-      style={{ position: 'sticky', left: 0, zIndex: 10, width: labelW, minWidth: labelW, background: '#f1f5f9' }}
+      className="px-3 py-2 border-r border-slate-200 text-slate-700"
+      style={{ position: 'sticky', left: 0, zIndex: 10, width: labelW, minWidth: labelW, background: rowBg, fontWeight: bold ? 700 : 400, borderLeft: `3px solid ${accentColor}` }}
     >
       {label}
     </td>
     <td
-      className="border-r border-slate-200 text-right px-2 py-2 font-bold"
-      style={{ position: 'sticky', left: labelW, zIndex: 10, width: totalW, minWidth: totalW, background: '#e2e8f0' }}
+      className="border-r border-slate-200 text-right px-2 py-2"
+      style={{ position: 'sticky', left: labelW, zIndex: 10, width: totalW, minWidth: totalW, background: rowBg, fontWeight: bold ? 700 : 600 }}
     >
       <span className={total >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
         {total < 0 ? '−' : ''}{fmtCompact(Math.abs(total))}
@@ -584,11 +618,12 @@ const BalanceRow: React.FC<BalanceRowProps> = ({ label, total, days, values, tod
         <td
           key={d}
           className="border-r border-slate-100 text-center py-1.5 px-0.5"
-          style={{ background: isToday ? '#e0f2fe' : '#f8fafc' }}
+          style={{ background: isToday ? todayBg : rowBg }}
         >
           {v !== 0 && (
             <span
-              className={`font-bold text-[11px] ${v >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}
+              className={`text-[11px] ${v >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}
+              style={{ fontWeight: bold ? 700 : 600 }}
             >
               {v < 0 ? '−' : ''}{fmtCompact(Math.abs(v))}
             </span>
