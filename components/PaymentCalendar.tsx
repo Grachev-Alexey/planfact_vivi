@@ -185,7 +185,7 @@ export const PaymentCalendar: React.FC = () => {
           ref={tableRef}
           className="flex-1 overflow-auto mx-4 lg:mx-6 mb-4 rounded-xl border border-slate-200 shadow-sm bg-white"
         >
-          <table className="border-collapse text-[11px]" style={{ minWidth: LABEL_W + TOTAL_W + days.length * COL_W }}>
+          <table className="border-separate border-spacing-0 text-[11px]" style={{ minWidth: LABEL_W + TOTAL_W + days.length * COL_W }}>
             <thead>
               <tr className="sticky top-0 z-20">
                 <th
@@ -309,8 +309,8 @@ export const PaymentCalendar: React.FC = () => {
               {data.expenseCategories.length > 0 && (
                 <tr>
                   <td
-                    colSpan={days.length + 2}
-                    className="sticky left-0 border-b border-slate-200 cursor-pointer select-none"
+                    colSpan={2}
+                    className="sticky left-0 z-10 border-b border-slate-200 cursor-pointer select-none"
                     style={{ background: '#f8fafc' }}
                     onClick={() => setCatsOpen(o => !o)}
                   >
@@ -324,6 +324,12 @@ export const PaymentCalendar: React.FC = () => {
                       </span>
                     </div>
                   </td>
+                  <td
+                    colSpan={days.length}
+                    className="border-b border-slate-200 cursor-pointer"
+                    style={{ background: '#f8fafc' }}
+                    onClick={() => setCatsOpen(o => !o)}
+                  />
                 </tr>
               )}
 
@@ -472,7 +478,7 @@ interface GroupHeaderProps {
 const GroupHeader: React.FC<GroupHeaderProps> = ({ label, icon, colSpan, accent }) => (
   <tr>
     <td
-      colSpan={colSpan}
+      colSpan={2}
       className={`sticky left-0 z-10 border-b border-t px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest
         ${accent === 'emerald'
           ? 'bg-emerald-600 text-white border-emerald-700'
@@ -480,6 +486,13 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({ label, icon, colSpan, accent 
     >
       {icon} {label}
     </td>
+    <td
+      colSpan={colSpan - 2}
+      className={`border-b border-t
+        ${accent === 'emerald'
+          ? 'bg-emerald-600 border-emerald-700'
+          : 'bg-rose-600 border-rose-700'}`}
+    />
   </tr>
 );
 
