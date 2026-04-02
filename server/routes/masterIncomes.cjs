@@ -232,8 +232,10 @@ router.get('/master-incomes/stats', async (req, res) => {
     // Step 2b: compute abonement stats using ONLY YClients goods data (no fallback)
     // Deduplicate by visitId to avoid counting split-payment records multiple times
     // Use cost_per_unit (full subscription price) with fallback to cost
+    // Group by client_type to get primary/regular breakdown
     const abonementRes = await db.query(
       `SELECT 
+        deduped.client_type,
         COALESCE(SUM(
           (
             SELECT COALESCE(SUM(
@@ -248,7 +250,8 @@ router.get('/master-incomes/stats', async (req, res) => {
         ), 0) as abonement_count
       FROM (
         SELECT DISTINCT ON (COALESCE(mi.yclients_data->>'visitId', mi.id::text))
-          mi.yclients_data
+          mi.yclients_data,
+          mi.client_type
         FROM master_incomes mi
         WHERE mi.user_id = $1 AND DATE(mi.created_at) >= $2 AND DATE(mi.created_at) <= $3
           AND mi.payment_type != 'visit_only'
@@ -257,13 +260,32 @@ router.get('/master-incomes/stats', async (req, res) => {
           AND mi.yclients_data ? 'goods'
           AND jsonb_array_length(mi.yclients_data->'goods') > 0
         ORDER BY COALESCE(mi.yclients_data->>'visitId', mi.id::text)
-      ) deduped`,
+      ) deduped
+      GROUP BY deduped.client_type`,
       [...params, abonementCategoryIds]
     );
 
     const summary = summaryRes.rows[0];
     const vcRow = visitCountRes.rows[0];
-    const abRow = abonementRes.rows[0];
+
+    // Aggregate abonement rows by client_type
+    let abonementAmount = 0, abonementCount = 0;
+    let abonementPrimaryAmount = 0, abonementPrimaryCount = 0;
+    let abonementRegularAmount = 0, abonementRegularCount = 0;
+    for (const row of abonementRes.rows) {
+      const amt = parseFloat(row.abonement_amount) || 0;
+      const cnt = parseInt(row.abonement_count) || 0;
+      abonementAmount += amt;
+      abonementCount += cnt;
+      if (row.client_type === 'primary') {
+        abonementPrimaryAmount += amt;
+        abonementPrimaryCount += cnt;
+      } else if (row.client_type === 'regular') {
+        abonementRegularAmount += amt;
+        abonementRegularCount += cnt;
+      }
+    }
+
     const totalEntries = parseInt(summary.total_entries) || 0;
     const totalAmount = parseFloat(summary.total_amount) || 0;
 
@@ -279,8 +301,12 @@ router.get('/master-incomes/stats', async (req, res) => {
         regularCount: parseInt(summary.regular_count) || 0,
         totalVisits: parseInt(vcRow.total_visits) || 0,
         zeroVisits: parseInt(vcRow.zero_visits) || 0,
-        abonementAmount: parseFloat(abRow.abonement_amount) || 0,
-        abonementCount: parseInt(abRow.abonement_count) || 0,
+        abonementAmount,
+        abonementCount,
+        abonementPrimaryAmount,
+        abonementPrimaryCount,
+        abonementRegularAmount,
+        abonementRegularCount,
       },
       daily: dailyRes.rows.map(r => ({
         date: r.date,

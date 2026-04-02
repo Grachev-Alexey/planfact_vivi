@@ -18,6 +18,10 @@ interface StatsData {
     zeroVisits: number;
     abonementAmount: number;
     abonementCount: number;
+    abonementPrimaryAmount: number;
+    abonementPrimaryCount: number;
+    abonementRegularAmount: number;
+    abonementRegularCount: number;
   };
   daily: { date: string; amount: number; entries: number }[];
   byPayment: { type: string; amount: number; count: number }[];
@@ -346,16 +350,34 @@ export const MasterDashboard: React.FC = () => {
 
           {(s?.abonementCount || 0) > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 p-4">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
                   <Receipt size={14} className="text-violet-600" />
                 </div>
                 <span className="text-xs font-medium text-slate-500">Продажи абонементов</span>
               </div>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 mb-3">
                 <span className="text-lg font-bold text-violet-700">{formatCurrency(s?.abonementAmount || 0)}</span>
                 <span className="text-xs text-slate-400">{s?.abonementCount} {(s?.abonementCount || 0) === 1 ? 'продажа' : (s?.abonementCount || 0) < 5 ? 'продажи' : 'продаж'}</span>
               </div>
+              {((s?.abonementPrimaryCount || 0) > 0 || (s?.abonementRegularCount || 0) > 0) && (
+                <div className="border-t border-slate-100 pt-2.5 flex gap-3">
+                  {(s?.abonementPrimaryCount || 0) > 0 && (
+                    <div className="flex-1 bg-orange-50 rounded-xl p-2.5">
+                      <div className="text-xs text-orange-500 font-medium mb-0.5">Первичные</div>
+                      <div className="text-sm font-bold text-orange-700">{formatCurrency(s?.abonementPrimaryAmount || 0)}</div>
+                      <div className="text-xs text-orange-400">{s?.abonementPrimaryCount} {(s?.abonementPrimaryCount || 0) === 1 ? 'продажа' : (s?.abonementPrimaryCount || 0) < 5 ? 'продажи' : 'продаж'}</div>
+                    </div>
+                  )}
+                  {(s?.abonementRegularCount || 0) > 0 && (
+                    <div className="flex-1 bg-teal-50 rounded-xl p-2.5">
+                      <div className="text-xs text-teal-500 font-medium mb-0.5">Постоянные</div>
+                      <div className="text-sm font-bold text-teal-700">{formatCurrency(s?.abonementRegularAmount || 0)}</div>
+                      <div className="text-xs text-teal-400">{s?.abonementRegularCount} {(s?.abonementRegularCount || 0) === 1 ? 'продажа' : (s?.abonementRegularCount || 0) < 5 ? 'продажи' : 'продаж'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
