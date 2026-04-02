@@ -923,6 +923,16 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                           </button>
                         </div>
                       )}
+                      {!isAdmin && req.status === 'pending' && req.userId === user?.id && (
+                        <div className="flex gap-2 pt-2 border-t border-slate-200">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDelete(req.id); }}
+                            className="bg-white border border-slate-200 text-rose-600 text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 hover:bg-rose-50 active:scale-95 transition-all"
+                          >
+                            <X size={14} /> Удалить
+                          </button>
+                        </div>
+                      )}
                       {isAdmin && req.status === 'approved' && (
                         <div className="flex gap-2 pt-2 border-t border-slate-200">
                           <button
@@ -1038,17 +1048,6 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
               onChange={setStudioId}
               placeholder="— Не указана —"
               options={studioOptions}
-            />
-          </div>
-          <div>
-            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Контрагент</label>
-            <SearchableSelect
-              value={contractorId}
-              onChange={setContractorId}
-              placeholder="— Не указан —"
-              options={contractorOptions}
-              onCreateNew={() => setShowNewContractor(true)}
-              createLabel="Создать контрагента"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">

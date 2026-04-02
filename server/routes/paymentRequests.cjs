@@ -233,6 +233,26 @@ router.put('/payment-requests/:id', async (req, res) => {
 
 router.delete('/payment-requests/:id', async (req, res) => {
   try {
+    const userId = req.headers['x-user-id'];
+
+    const prRes = await db.query('SELECT * FROM payment_requests WHERE id = $1', [req.params.id]);
+    if (prRes.rows.length === 0) return res.status(404).json({ error: 'Request not found' });
+    const pr = prRes.rows[0];
+
+    if (userId) {
+      const userRes = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+      const isAdmin = userRes.rows[0]?.role === 'admin';
+
+      if (!isAdmin) {
+        if (String(pr.user_id) !== String(userId)) {
+          return res.status(403).json({ error: 'Нельзя удалять чужие запросы' });
+        }
+        if (pr.status !== 'pending') {
+          return res.status(403).json({ error: 'Можно удалять только запросы в статусе "Ожидает"' });
+        }
+      }
+    }
+
     const externalId = `pr-${req.params.id}`;
     await db.query('DELETE FROM transactions WHERE external_id = $1', [externalId]);
     await db.query('DELETE FROM payment_requests WHERE id = $1', [req.params.id]);
