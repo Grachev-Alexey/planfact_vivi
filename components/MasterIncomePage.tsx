@@ -200,6 +200,7 @@ const PAYMENT_TYPES = [
   { id: 'sbp', label: 'СБП' },
   { id: 'ukassa', label: 'Ю-Касса' },
   { id: 'installment', label: 'Рассрочка' },
+  { id: 'visit_only', label: 'Абонемент' },
 ];
 
 const CLIENT_TYPES = [
@@ -817,7 +818,7 @@ export const MasterIncomePage: React.FC = () => {
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">Тип оплаты *</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {PAYMENT_TYPES.map(pt => (
+                  {PAYMENT_TYPES.filter(pt => pt.id !== 'visit_only').map(pt => (
                     <button key={pt.id} type="button" onClick={() => setEditPaymentType(pt.id)}
                       className={`px-3 py-2 rounded-full text-xs font-medium border transition-all ${editPaymentType === pt.id ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
                       {pt.label}
@@ -1296,7 +1297,7 @@ export const MasterIncomePage: React.FC = () => {
                       <div>
                         <label className="block text-xs text-slate-500 mb-1.5">Способ оплаты</label>
                         <div className="flex flex-wrap gap-1.5">
-                          {PAYMENT_TYPES.map(pt => (
+                          {PAYMENT_TYPES.filter(pt => pt.id !== 'visit_only').map(pt => (
                             <button key={pt.id} type="button" onClick={() => updateEntry(entry.tempId, 'paymentType', pt.id)}
                               className={`px-3.5 py-2 rounded-xl text-xs font-medium border transition-all ${entry.paymentType === pt.id ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-teal-300 hover:bg-teal-50'}`}>
                               {pt.label}
