@@ -171,31 +171,31 @@ router.get('/master-incomes/stats', async (req, res) => {
     }
 
     // Step 2: compute abonement stats using ONLY YClients goods data (no fallback)
+    // Deduplicate by visitId to avoid counting split-payment records multiple times
     const abonementRes = await db.query(
       `SELECT 
         COALESCE(SUM(
-          CASE 
-            WHEN mi.yclients_data IS NOT NULL 
-              AND mi.yclients_data ? 'goods' 
-              AND jsonb_array_length(mi.yclients_data->'goods') > 0
-            THEN (
-              SELECT COALESCE(SUM((g->>'cost')::numeric), 0)
-              FROM jsonb_array_elements(mi.yclients_data->'goods') g
-              WHERE (g->>'cost') IS NOT NULL AND (g->>'cost') != ''
-            )
-            ELSE 0
-          END
+          (
+            SELECT COALESCE(SUM((g->>'cost')::numeric), 0)
+            FROM jsonb_array_elements(deduped.yclients_data->'goods') g
+            WHERE (g->>'cost') IS NOT NULL AND (g->>'cost') != ''
+          )
         ), 0) as abonement_amount,
         COALESCE(SUM(
-          CASE 
-            WHEN mi.yclients_data IS NOT NULL 
-              AND mi.yclients_data ? 'goods' 
-              AND jsonb_array_length(mi.yclients_data->'goods') > 0
-            THEN jsonb_array_length(mi.yclients_data->'goods')
-            ELSE 0
-          END
+          jsonb_array_length(deduped.yclients_data->'goods')
         ), 0) as abonement_count
-      FROM master_incomes mi ${baseWhere} AND mi.category_id = ANY($4)`,
+      FROM (
+        SELECT DISTINCT ON (COALESCE(mi.yclients_data->>'visitId', mi.id::text))
+          mi.yclients_data
+        FROM master_incomes mi
+        WHERE mi.user_id = $1 AND DATE(mi.created_at) >= $2 AND DATE(mi.created_at) <= $3
+          AND mi.payment_type != 'visit_only'
+          AND mi.category_id = ANY($4)
+          AND mi.yclients_data IS NOT NULL
+          AND mi.yclients_data ? 'goods'
+          AND jsonb_array_length(mi.yclients_data->'goods') > 0
+        ORDER BY COALESCE(mi.yclients_data->>'visitId', mi.id::text)
+      ) deduped`,
       [...params, abonementCategoryIds]
     );
 
