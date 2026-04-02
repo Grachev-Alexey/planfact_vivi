@@ -66,8 +66,11 @@ interface TooltipState {
   entries: PREntry[];
   catName: string;
   day: number;
-  clientX: number;
-  clientY: number;
+  cellLeft: number;
+  cellRight: number;
+  cellTop: number;
+  cellBottom: number;
+  cellWidth: number;
 }
 
 
@@ -129,11 +132,9 @@ export const PaymentCalendar: React.FC = () => {
 
   const days = data ? Array.from({ length: data.daysInMonth }, (_, i) => i + 1) : [];
 
-  function showTooltip(entries: PREntry[], catName: string, day: number, e: React.MouseEvent) {
-    setTooltip({ entries, catName, day, clientX: e.clientX, clientY: e.clientY });
-  }
-  function moveTooltip(e: React.MouseEvent) {
-    if (tooltip) setTooltip(t => t ? { ...t, clientX: e.clientX, clientY: e.clientY } : null);
+  function showTooltip(entries: PREntry[], catName: string, day: number, e: React.MouseEvent<HTMLDivElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    setTooltip({ entries, catName, day, cellLeft: r.left, cellRight: r.right, cellTop: r.top, cellBottom: r.bottom, cellWidth: r.width });
   }
   function hideTooltip() { setTooltip(null); }
 
@@ -408,7 +409,6 @@ export const PaymentCalendar: React.FC = () => {
                             className={`mx-0.5 my-0.5 rounded-md px-1 py-0.5 cursor-default select-none
                               ${cfg.bg} border ${cfg.border} hover:shadow-md transition-shadow`}
                             onMouseEnter={e => showTooltip(entries, cat.name, d, e)}
-                            onMouseMove={moveTooltip}
                             onMouseLeave={hideTooltip}
                           >
                             <div className={`font-bold text-center leading-tight ${cfg.text}`} style={{ fontSize: 10 }}>
@@ -446,14 +446,26 @@ export const PaymentCalendar: React.FC = () => {
         </div>
       )}
 
-      {tooltip && (
+      {tooltip && (() => {
+        const TIP_W = 260;
+        const TIP_MAX_H = 300;
+        const GAP = 6;
+        const spaceBelow = window.innerHeight - tooltip.cellBottom - GAP;
+        const spaceAbove = tooltip.cellTop - GAP;
+        const showBelow = spaceBelow >= 120 || spaceBelow >= spaceAbove;
+        const tipTop = showBelow
+          ? tooltip.cellBottom + GAP
+          : tooltip.cellTop - GAP - Math.min(TIP_MAX_H, spaceAbove);
+        const tipCenter = tooltip.cellLeft + tooltip.cellWidth / 2;
+        const tipLeft = Math.max(8, Math.min(tipCenter - TIP_W / 2, window.innerWidth - TIP_W - 8));
+        return (
         <div
-          className="fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-2xl pointer-events-none flex flex-col"
+          className="fixed z-[9999] bg-white border border-slate-200 rounded-xl shadow-xl pointer-events-none flex flex-col tooltip-popup"
           style={{
-            left: tooltip.clientX + 14 + 252 > window.innerWidth ? tooltip.clientX - 266 : tooltip.clientX + 14,
-            top: Math.max(8, Math.min(tooltip.clientY + 14, window.innerHeight - 320)),
-            width: 252,
-            maxHeight: 300,
+            left: tipLeft,
+            top: tipTop,
+            width: TIP_W,
+            maxHeight: showBelow ? Math.min(TIP_MAX_H, spaceBelow) : Math.min(TIP_MAX_H, spaceAbove),
           }}
         >
           <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 rounded-t-xl flex-shrink-0">
@@ -499,7 +511,8 @@ export const PaymentCalendar: React.FC = () => {
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
