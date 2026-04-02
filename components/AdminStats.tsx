@@ -158,7 +158,7 @@ const OverallSummary: React.FC<{ o: Summary; periodLabel: string }> = ({ o, peri
           <div className="flex flex-wrap gap-4 mt-3">
             <span className="text-teal-100 text-xs">{o.uniqueClients} клиентов</span>
             <span className="text-teal-100 text-xs">{o.totalVisits} визитов</span>
-            <span className="text-teal-100 text-xs">ср. чек {formatCurrency(o.avgCheck)}</span>
+            <span className="text-teal-100 text-xs">средний чек {formatCurrency(o.avgCheck)}</span>
             <span className="text-teal-100 text-xs">{o.totalEntries} записей</span>
           </div>
         </div>
@@ -214,7 +214,7 @@ const OverallSummary: React.FC<{ o: Summary; periodLabel: string }> = ({ o, peri
                 <div className="text-2xl font-bold text-violet-700">{formatCurrency(o.abonementAmount)}</div>
                 <div className="text-xs text-violet-400 mt-0.5">
                   {pluralSales(o.abonementCount)}
-                  {abAvg > 0 ? ` · ср. чек ${formatCurrency(abAvg)}` : ''}
+                  {abAvg > 0 ? ` · средний чек ${formatCurrency(abAvg)}` : ''}
                 </div>
               </div>
               {convTotal > 0 && (
@@ -236,7 +236,7 @@ const OverallSummary: React.FC<{ o: Summary; periodLabel: string }> = ({ o, peri
                 </div>
                 <div className="text-base font-bold text-orange-700">{formatCurrency(o.abonementPrimaryAmount)}</div>
                 <div className="text-[11px] text-orange-400 mt-0.5">{pluralSales(o.abonementPrimaryCount)}</div>
-                {abPrimaryAvg > 0 && <div className="text-[11px] text-orange-400">ср. {formatCurrency(abPrimaryAvg)}</div>}
+                {abPrimaryAvg > 0 && <div className="text-[11px] text-orange-400">средний {formatCurrency(abPrimaryAvg)}</div>}
               </div>
             )}
             {o.abonementRegularCount > 0 && (
@@ -247,7 +247,7 @@ const OverallSummary: React.FC<{ o: Summary; periodLabel: string }> = ({ o, peri
                 </div>
                 <div className="text-base font-bold text-teal-700">{formatCurrency(o.abonementRegularAmount)}</div>
                 <div className="text-[11px] text-teal-400 mt-0.5">{pluralSales(o.abonementRegularCount)}</div>
-                {abRegularAvg > 0 && <div className="text-[11px] text-teal-400">ср. {formatCurrency(abRegularAvg)}</div>}
+                {abRegularAvg > 0 && <div className="text-[11px] text-teal-400">средний {formatCurrency(abRegularAvg)}</div>}
               </div>
             )}
           </div>
@@ -329,12 +329,12 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
               <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Sparkles size={11} className="text-violet-400" /> Абонементы
               </div>
-              {conversionTotal > 0 && <span className="text-[10px] font-bold text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full">{conversionTotal}% конв.</span>}
+              {conversionTotal > 0 && <span className="text-[10px] font-bold text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full">{conversionTotal}% конверсия</span>}
             </div>
             <div className="bg-violet-50 border border-violet-100 rounded-lg overflow-hidden">
               <div className="px-3 py-2.5 border-b border-violet-100">
                 <span className="text-sm font-bold text-violet-700">{formatCurrency(s.abonementAmount)}</span>
-                <span className="text-xs text-violet-400 ml-2">{s.abonementCount} шт.{abAvg > 0 ? ` · ср. ${formatCurrency(abAvg)}` : ''}</span>
+                <span className="text-xs text-violet-400 ml-2">{s.abonementCount} шт.{abAvg > 0 ? ` · средний ${formatCurrency(abAvg)}` : ''}</span>
               </div>
               {(s.abonementPrimaryCount > 0 || s.abonementRegularCount > 0) && (
                 <div className="grid grid-cols-2 divide-x divide-violet-100">
@@ -345,7 +345,7 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
                         {convPrimary > 0 && <span className="text-[10px] font-bold text-orange-400">{convPrimary}%</span>}
                       </div>
                       <div className="text-xs font-bold text-orange-700">{formatCurrency(s.abonementPrimaryAmount)}</div>
-                      {abPrimaryAvg > 0 && <div className="text-[10px] text-orange-400">ср. {formatCurrency(abPrimaryAvg)}</div>}
+                      {abPrimaryAvg > 0 && <div className="text-[10px] text-orange-400">средний {formatCurrency(abPrimaryAvg)}</div>}
                     </div>
                   )}
                   {s.abonementRegularCount > 0 && (
@@ -355,7 +355,7 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
                         {convRegular > 0 && <span className="text-[10px] font-bold text-teal-600">{convRegular}%</span>}
                       </div>
                       <div className="text-xs font-bold text-teal-700">{formatCurrency(s.abonementRegularAmount)}</div>
-                      {abRegularAvg > 0 && <div className="text-[10px] text-teal-400">ср. {formatCurrency(abRegularAvg)}</div>}
+                      {abRegularAvg > 0 && <div className="text-[10px] text-teal-400">средний {formatCurrency(abRegularAvg)}</div>}
                     </div>
                   )}
                 </div>
@@ -466,7 +466,7 @@ const MasterRow: React.FC<{ master: MasterData; studioTotal: number }> = ({ mast
             <span className="text-sm font-semibold text-slate-800">{master.name}</span>
             {s.abonementCount > 0 && (
               <span className="text-[10px] font-semibold text-violet-500 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded-full">
-                <Sparkles size={8} className="inline mr-0.5" />{s.abonementCount} або. {convTotal > 0 ? `· ${convTotal}% конв.` : ''}
+                <Sparkles size={8} className="inline mr-0.5" />{s.abonementCount} абонем.{convTotal > 0 ? ` · ${convTotal}% конверсия` : ''}
               </span>
             )}
           </div>
@@ -475,7 +475,7 @@ const MasterRow: React.FC<{ master: MasterData; studioTotal: number }> = ({ mast
             <span className="text-slate-300">·</span>
             <span>{s.totalVisits} визитов</span>
             <span className="text-slate-300">·</span>
-            <span>ср. чек {formatCurrency(s.avgCheck)}</span>
+            <span>средний чек {formatCurrency(s.avgCheck)}</span>
           </div>
         </div>
         <div className="text-right shrink-0">
@@ -513,8 +513,8 @@ const StudioSection: React.FC<{ studio: StudioData }> = ({ studio }) => {
         <div className="text-right shrink-0">
           <div className="text-lg font-bold text-teal-700 tabular-nums">{formatCurrency(s.totalAmount)}</div>
           <div className="flex items-center justify-end gap-2 mt-0.5">
-            {s.abonementAmount > 0 && <span className="text-[10px] text-violet-500 font-semibold">або. {formatCurrency(s.abonementAmount)}</span>}
-            {convTotal > 0 && <span className="text-[10px] text-slate-400">{convTotal}% конв.</span>}
+            {s.abonementAmount > 0 && <span className="text-[10px] text-violet-500 font-semibold">абонементы {formatCurrency(s.abonementAmount)}</span>}
+            {convTotal > 0 && <span className="text-[10px] text-slate-400">{convTotal}% конверсия</span>}
           </div>
         </div>
         {open ? <ChevronUp size={15} className="text-slate-400 shrink-0" /> : <ChevronDown size={15} className="text-slate-400 shrink-0" />}
@@ -540,7 +540,7 @@ const StudioSection: React.FC<{ studio: StudioData }> = ({ studio }) => {
               {s.abonementCount > 0 ? (
                 <>
                   <div className="text-sm font-bold text-violet-600">{formatCurrency(s.abonementAmount)}</div>
-                  <div className="text-[11px] text-slate-400">{s.abonementCount} або.{abAvg > 0 ? ` · ср. ${formatCurrency(abAvg)}` : ''}</div>
+                  <div className="text-[11px] text-slate-400">{s.abonementCount} шт.{abAvg > 0 ? ` · средний ${formatCurrency(abAvg)}` : ''}</div>
                 </>
               ) : (
                 <>
