@@ -47,10 +47,10 @@ const TopBar: React.FC = () => {
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-50 overflow-hidden">
       <Sidebar />
       <TopBar />
-      <main className="flex-1 ml-0 md:ml-[72px] mt-14 p-0">
+      <main className="flex-1 min-w-0 ml-0 md:ml-[72px] mt-14 p-0 overflow-hidden">
         {children}
       </main>
     </div>
