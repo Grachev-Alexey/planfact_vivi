@@ -40,9 +40,7 @@ const DAY_SHORT = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
 
 function fmtCompact(v: number | undefined): string {
   if (!v || v === 0) return '';
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(v % 1_000_000 === 0 ? 0 : 1)}М`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(v % 1_000 === 0 ? 0 : 1)}к`;
-  return String(Math.round(v));
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(v);
 }
 
 function fmtFull(v: number): string {
@@ -63,9 +61,9 @@ function cellTotal(entries: PREntry[]): number {
   return entries.reduce((s, e) => s + e.amount, 0);
 }
 
-const COL_W = 62;
-const LABEL_W = 156;
-const TOTAL_W = 76;
+const COL_W = 76;
+const LABEL_W = 196;
+const TOTAL_W = 84;
 
 interface TooltipState {
   entries: PREntry[];
@@ -351,6 +349,7 @@ export const PaymentCalendar: React.FC = () => {
                 textClass="text-emerald-500"
                 rowBg="#f0fdf4"
                 todayBg="#bbf7d0"
+                accentColor="#4ade80"
                 isPast={isPast}
                 isFuture={isFuture}
                 labelW={LABEL_W}
@@ -366,6 +365,7 @@ export const PaymentCalendar: React.FC = () => {
                 rowBg="#dcfce7"
                 todayBg="#86efac"
                 bold
+                accentColor="#16a34a"
                 isPast={isPast}
                 isFuture={isFuture}
                 labelW={LABEL_W}
@@ -383,6 +383,7 @@ export const PaymentCalendar: React.FC = () => {
                 textClass="text-rose-400"
                 rowBg="#fff1f2"
                 todayBg="#fecdd3"
+                accentColor="#f87171"
                 isPast={isPast}
                 isFuture={isFuture}
                 labelW={LABEL_W}
@@ -398,6 +399,7 @@ export const PaymentCalendar: React.FC = () => {
                 rowBg="#ffe4e6"
                 todayBg="#fda4af"
                 bold
+                accentColor="#dc2626"
                 isPast={isPast}
                 isFuture={isFuture}
                 labelW={LABEL_W}
@@ -444,9 +446,8 @@ export const PaymentCalendar: React.FC = () => {
                     style={{ background: catIdx % 2 === 0 ? '#ffffff' : '#fafafa' }}
                   >
                     <td
-                      className="sticky left-0 z-10 px-3 py-1.5 border-r border-slate-200 text-slate-600 font-medium truncate group-hover:bg-slate-50"
-                      style={{ width: LABEL_W, minWidth: LABEL_W, maxWidth: LABEL_W, background: 'inherit' }}
-                      title={cat.name}
+                      className="sticky left-0 z-10 px-3 py-1.5 border-r border-slate-200 text-slate-600 font-medium group-hover:bg-slate-50"
+                      style={{ width: LABEL_W, minWidth: LABEL_W, maxWidth: LABEL_W, background: 'inherit', wordBreak: 'break-word', lineHeight: '1.3' }}
                     >
                       {cat.name}
                     </td>
@@ -582,8 +583,10 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({ label, icon, colSpan, accent 
   <tr>
     <td
       colSpan={colSpan}
-      className={`sticky left-0 border-b px-3 py-1 text-[10px] font-bold uppercase tracking-widest
-        ${accent === 'emerald' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}
+      className={`sticky left-0 z-10 border-b border-t px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest
+        ${accent === 'emerald'
+          ? 'bg-emerald-600 text-white border-emerald-700'
+          : 'bg-rose-600 text-white border-rose-700'}`}
     >
       {icon} {label}
     </td>
@@ -600,18 +603,19 @@ interface SummaryRowProps {
   rowBg: string;
   todayBg: string;
   bold?: boolean;
+  accentColor: string;
   isPast: (d: number) => boolean;
   isFuture: (d: number) => boolean;
   labelW: number;
   totalW: number;
 }
 const SummaryRow: React.FC<SummaryRowProps> = ({
-  label, total, days, values, todayDay, textClass, rowBg, todayBg, bold, isPast, labelW, totalW
+  label, total, days, values, todayDay, textClass, rowBg, todayBg, bold, accentColor, isPast, labelW, totalW
 }) => (
   <tr className="border-b border-slate-100" style={{ background: rowBg }}>
     <td
-      className="sticky left-0 z-10 px-3 py-2 border-r border-slate-200 text-slate-500"
-      style={{ width: labelW, minWidth: labelW, fontWeight: bold ? 600 : 400, background: rowBg }}
+      className="sticky left-0 z-10 px-3 py-2 border-r border-slate-200 text-slate-600"
+      style={{ width: labelW, minWidth: labelW, fontWeight: bold ? 600 : 400, background: rowBg, borderLeft: `3px solid ${accentColor}` }}
     >
       {label}
     </td>
