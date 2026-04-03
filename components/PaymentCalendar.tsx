@@ -187,46 +187,136 @@ export const PaymentCalendar: React.FC = () => {
     load();
   }
 
-  function exportXlsx() {
+  async function exportXlsx() {
     if (!data) return;
-    const fmt = (v: number | undefined) => (v && v !== 0 ? v : '');
-    const header = ['Статья', 'Итого', ...days.map(d => d)];
-    const rows: (string | number)[][] = [header];
 
-    rows.push(['▲ ДОХОДЫ', '', ...days.map(() => '')]);
-    rows.push(['  План', fmt(totalIncomePlan), ...days.map(d => fmt(data.incomePlan[d]))]);
-    rows.push(['  Факт', fmt(totalIncomeFact), ...days.map(d => fmt(data.incomeFact[d]))]);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dateLabel = (d: number) => `${pad(d)}.${pad(month)}.${year}`;
+    const numDays = days.length;
 
-    rows.push(['▼ РАСХОДЫ', '', ...days.map(() => '')]);
-    rows.push(['  План', fmt(totalExpensePlan), ...days.map(d => fmt(data.expensePlan[d]))]);
-    rows.push(['  Факт', fmt(totalExpenseFact), ...days.map(d => fmt(data.expenseFact[d]))]);
+    type RowType = 'header' | 'section-income' | 'section-expense' | 'section-balance' | 'section-cats' | 'plan' | 'fact' | 'balance-plan' | 'balance-fact' | 'category';
+    const rows: (string | number | null)[][] = [];
+    const rowTypes: RowType[] = [];
+    const add = (type: RowType, ...vals: (string | number | null)[]) => { rows.push(vals); rowTypes.push(type); };
 
-    rows.push(['= БАЛАНС', '', ...days.map(() => '')]);
-    rows.push(['  План', fmt(totalBalancePlan), ...days.map(d => fmt(balancePlan[d]))]);
-    rows.push(['  Факт', fmt(totalBalance), ...days.map(d => fmt(data.balance[d]))]);
+    const n = (v: number) => (v !== 0 ? v : null);
 
-    rows.push(['По статьям расходов', '', ...days.map(() => '')]);
-    for (const cat of data.expenseCategories) {
-      const catTotalVal = Object.values(cat.days).flat().reduce((s, en) => s + en.amount, 0);
-      rows.push([
-        cat.name,
-        fmt(catTotalVal),
-        ...days.map(d => fmt(cat.days[d] ? cellTotal(cat.days[d]) : 0)),
-      ]);
-      for (const en of Object.values(cat.days).flat()) {
-        rows.push([
-          `    ${en.description || '—'}`,
-          fmt(en.amount),
-          ...days.map(() => ''),
-        ]);
+    add('header', 'Статья', 'Итого', ...days.map(d => dateLabel(d)));
+    add('section-income', '▲ ДОХОДЫ', null, ...Array(numDays).fill(null));
+    add('plan',   'План', n(totalIncomePlan), ...days.map(d => n(data.incomePlan[d] || 0)));
+    add('fact',   'Факт', n(totalIncomeFact), ...days.map(d => n(data.incomeFact[d] || 0)));
+    add('section-expense', '▼ РАСХОДЫ', null, ...Array(numDays).fill(null));
+    add('plan',   'План', n(totalExpensePlan), ...days.map(d => n(data.expensePlan[d] || 0)));
+    add('fact',   'Факт', n(totalExpenseFact), ...days.map(d => n(data.expenseFact[d] || 0)));
+    add('section-balance', '= БАЛАНС', null, ...Array(numDays).fill(null));
+    add('balance-plan', 'План', n(totalBalancePlan), ...days.map(d => n(balancePlan[d] || 0)));
+    add('balance-fact', 'Факт', n(totalBalance),     ...days.map(d => n(data.balance[d] || 0)));
+
+    let allCats: { id: string; name: string }[] = [];
+    try {
+      const r = await fetch('/api/initial-data', { headers: { 'x-user-id': String(user?.id || '') } });
+      if (r.ok) {
+        const d2 = await r.json();
+        allCats = (d2.categories || [])
+          .filter((c: any) => c.type === 'expense')
+          .sort((a: any, b: any) => a.name.localeCompare(b.name, 'ru'))
+          .map((c: any) => ({ id: String(c.id), name: c.name }));
       }
+    } catch {}
+    if (allCats.length === 0) allCats = data.expenseCategories.map(c => ({ id: c.id, name: c.name }));
+
+    const catMap: Record<string, CategoryRow> = {};
+    for (const cat of data.expenseCategories) catMap[cat.id] = cat;
+
+    add('section-cats', 'По статьям расходов', null, ...Array(numDays).fill(null));
+    for (const cat of allCats) {
+      const cd = catMap[cat.id];
+      const catTot = cd ? Object.values(cd.days).flat().reduce((s, e) => s + e.amount, 0) : 0;
+      add('category', cat.name, n(catTot), ...days.map(d => {
+        const es = cd?.days[d];
+        return es ? n(cellTotal(es)) : null;
+      }));
     }
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{ wch: 40 }, { wch: 14 }, ...days.map(() => ({ wch: 11 }))];
+
+    const border = (rgb: string) => ({ style: 'thin' as const, color: { rgb } });
+    const borders = (rgb: string) => ({ top: border(rgb), bottom: border(rgb), left: border(rgb), right: border(rgb) });
+
+    const STYLES: Record<RowType, { label: object; total: object; day: object }> = {
+      header: {
+        label: { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: '253447' } }, alignment: { horizontal: 'left',   vertical: 'center', wrapText: true }, border: borders('1C2E42') },
+        total: { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: '253447' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borders('1C2E42') },
+        day:   { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 9  }, fill: { patternType: 'solid', fgColor: { rgb: '2D3F54' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: borders('1C2E42') },
+      },
+      'section-income': {
+        label: { font: { bold: true, color: { rgb: '065F46' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'ECFDF5' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: borders('A7F3D0') },
+        total: { font: { bold: true, color: { rgb: '065F46' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'ECFDF5' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('A7F3D0') },
+        day:   { font: { bold: true, color: { rgb: '065F46' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'ECFDF5' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borders('A7F3D0') },
+      },
+      'section-expense': {
+        label: { font: { bold: true, color: { rgb: '881337' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFF1F2' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: borders('FECDD3') },
+        total: { font: { bold: true, color: { rgb: '881337' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFF1F2' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('FECDD3') },
+        day:   { font: { bold: true, color: { rgb: '881337' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFF1F2' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borders('FECDD3') },
+      },
+      'section-balance': {
+        label: { font: { bold: true, color: { rgb: '1E3A5F' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: borders('BFDBFE') },
+        total: { font: { bold: true, color: { rgb: '1E3A5F' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('BFDBFE') },
+        day:   { font: { bold: true, color: { rgb: '1E3A5F' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borders('BFDBFE') },
+      },
+      'section-cats': {
+        label: { font: { bold: true, color: { rgb: '64748B' }, sz: 9 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: borders('E2E8F0') },
+        total: { font: { bold: true, color: { rgb: '64748B' }, sz: 9 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0') },
+        day:   { font: { bold: true, color: { rgb: '64748B' }, sz: 9 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borders('E2E8F0') },
+      },
+      plan: {
+        label: { font: { color: { rgb: '475569' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'left', vertical: 'center', indent: 1 }, border: borders('E2E8F0') },
+        total: { font: { color: { rgb: '334155' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
+        day:   { font: { color: { rgb: '475569' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
+      },
+      fact: {
+        label: { font: { bold: true, color: { rgb: '334155' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'left', vertical: 'center', indent: 1 }, border: borders('E2E8F0') },
+        total: { font: { bold: true, color: { rgb: '1E293B' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F1F5F9' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('CBD5E1'), numFmt: '#,##0' },
+        day:   { font: { bold: true, color: { rgb: '334155' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
+      },
+      'balance-plan': {
+        label: { font: { color: { rgb: '3B82F6' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'left', vertical: 'center', indent: 1 }, border: borders('E2E8F0') },
+        total: { font: { color: { rgb: '3B82F6' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
+        day:   { font: { color: { rgb: '3B82F6' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
+      },
+      'balance-fact': {
+        label: { font: { bold: true, color: { rgb: '2563EB' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'left', vertical: 'center', indent: 1 }, border: borders('BFDBFE') },
+        total: { font: { bold: true, color: { rgb: '2563EB' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'DBEAFE' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('BFDBFE'), numFmt: '#,##0' },
+        day:   { font: { bold: true, color: { rgb: '2563EB' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('BFDBFE'), numFmt: '#,##0' },
+      },
+      category: {
+        label: { font: { color: { rgb: '334155' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borders('E2E8F0') },
+        total: { font: { bold: true, color: { rgb: '1E293B' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
+        day:   { font: { color: { rgb: '475569' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
+      },
+    };
+
+    const totalCols = 2 + numDays;
+    for (let r = 0; r < rows.length; r++) {
+      const st = STYLES[rowTypes[r]];
+      for (let c = 0; c < totalCols; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        if (!ws[addr]) ws[addr] = { v: '', t: 's' };
+        const colStyle = c === 0 ? st.label : c === 1 ? st.total : st.day;
+        ws[addr].s = colStyle;
+        if (ws[addr].t === 'n' && (colStyle as any).numFmt) {
+          ws[addr].z = (colStyle as any).numFmt;
+        }
+      }
+    }
+
+    ws['!cols'] = [{ wch: 42 }, { wch: 14 }, ...days.map(() => ({ wch: 12 }))];
+    ws['!rows'] = [{ hpt: 28 }];
+    ws['!freeze'] = { xSplit: 2, ySplit: 1 };
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Платёжный календарь');
-    XLSX.writeFile(wb, `план-факт-${year}-${String(month).padStart(2, '0')}.xlsx`);
+    XLSX.writeFile(wb, `план-факт-${year}-${pad(month)}.xlsx`);
   }
 
   const totalIncomePlan = days.reduce((s, d) => s + (data?.incomePlan[d] || 0), 0);
