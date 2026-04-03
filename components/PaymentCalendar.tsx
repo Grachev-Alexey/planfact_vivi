@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp, Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { useAuth } from '../context/AuthContext';
 import { PaymentCalendarEntryModal } from './PaymentCalendarEntryModal';
 
@@ -190,33 +190,17 @@ export const PaymentCalendar: React.FC = () => {
   async function exportXlsx() {
     if (!data) return;
 
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const dateLabel = (d: number) => `${pad(d)}.${pad(month)}.${year}`;
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const dateLabel = (d: number) => `${pad2(d)}.${pad2(month)}.${year}`;
     const numDays = days.length;
+    const nv = (v: number) => (v !== 0 ? v : null);
 
-    type RowType = 'header' | 'section-income' | 'section-expense' | 'section-balance' | 'section-cats' | 'plan' | 'fact' | 'balance-plan' | 'balance-fact' | 'category';
-    const rows: (string | number | null)[][] = [];
-    const rowTypes: RowType[] = [];
-    const add = (type: RowType, ...vals: (string | number | null)[]) => { rows.push(vals); rowTypes.push(type); };
-
-    const n = (v: number) => (v !== 0 ? v : null);
-
-    add('header', 'Статья', 'Итого', ...days.map(d => dateLabel(d)));
-    add('section-income', '▲ ДОХОДЫ', null, ...Array(numDays).fill(null));
-    add('plan',   'План', n(totalIncomePlan), ...days.map(d => n(data.incomePlan[d] || 0)));
-    add('fact',   'Факт', n(totalIncomeFact), ...days.map(d => n(data.incomeFact[d] || 0)));
-    add('section-expense', '▼ РАСХОДЫ', null, ...Array(numDays).fill(null));
-    add('plan',   'План', n(totalExpensePlan), ...days.map(d => n(data.expensePlan[d] || 0)));
-    add('fact',   'Факт', n(totalExpenseFact), ...days.map(d => n(data.expenseFact[d] || 0)));
-    add('section-balance', '= БАЛАНС', null, ...Array(numDays).fill(null));
-    add('balance-plan', 'План', n(totalBalancePlan), ...days.map(d => n(balancePlan[d] || 0)));
-    add('balance-fact', 'Факт', n(totalBalance),     ...days.map(d => n(data.balance[d] || 0)));
-
+    // Fetch all expense categories
     let allCats: { id: string; name: string }[] = [];
     try {
-      const r = await fetch('/api/initial-data', { headers: { 'x-user-id': String(user?.id || '') } });
-      if (r.ok) {
-        const d2 = await r.json();
+      const r2 = await fetch('/api/initial-data', { headers: { 'x-user-id': String(user?.id || '') } });
+      if (r2.ok) {
+        const d2 = await r2.json();
         allCats = (d2.categories || [])
           .filter((c: any) => c.type === 'expense')
           .sort((a: any, b: any) => a.name.localeCompare(b.name, 'ru'))
@@ -228,95 +212,144 @@ export const PaymentCalendar: React.FC = () => {
     const catMap: Record<string, CategoryRow> = {};
     for (const cat of data.expenseCategories) catMap[cat.id] = cat;
 
-    add('section-cats', 'По статьям расходов', null, ...Array(numDays).fill(null));
+    // ExcelJS workbook
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ViVi Finance';
+    wb.created = new Date();
+    const ws = wb.addWorksheet('Платёжный календарь', {
+      views: [{ state: 'frozen', xSplit: 2, ySplit: 1 }],
+    });
+    ws.columns = [{ width: 44 }, { width: 14 }, ...days.map(() => ({ width: 12 }))];
+
+    // ── Style helpers ──────────────────────────────────────────────────────
+    type Align = 'left' | 'center' | 'right';
+    const bdr = (color: string) => ({
+      top:    { style: 'thin' as const, color: { argb: 'FF' + color } },
+      bottom: { style: 'thin' as const, color: { argb: 'FF' + color } },
+      left:   { style: 'thin' as const, color: { argb: 'FF' + color } },
+      right:  { style: 'thin' as const, color: { argb: 'FF' + color } },
+    });
+    const fill = (color: string): ExcelJS.Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + color } });
+
+    const applyCell = (
+      cell: ExcelJS.Cell,
+      opts: {
+        fg: string; textColor: string; bold?: boolean; sz?: number;
+        align?: Align; numFmt?: string; wrapText?: boolean; indent?: number;
+        borderColor?: string;
+      }
+    ) => {
+      cell.font = { bold: opts.bold, color: { argb: 'FF' + opts.textColor }, size: opts.sz ?? 10 };
+      cell.fill = fill(opts.fg);
+      cell.alignment = {
+        horizontal: opts.align ?? 'left',
+        vertical: 'middle',
+        wrapText: opts.wrapText,
+        indent: opts.indent,
+      };
+      cell.border = bdr(opts.borderColor ?? 'E2E8F0');
+      if (opts.numFmt) cell.numFmt = opts.numFmt;
+    };
+
+    const styleRow = (
+      row: ExcelJS.Row,
+      height: number,
+      fn: (cell: ExcelJS.Cell, colIdx: number) => void
+    ) => {
+      row.height = height;
+      row.eachCell({ includeEmpty: true }, (cell, col) => fn(cell, col - 1));
+    };
+
+    // ── Header ─────────────────────────────────────────────────────────────
+    const headerRow = ws.addRow(['Статья', 'Итого', ...days.map(d => dateLabel(d))]);
+    styleRow(headerRow, 30, (cell, i) =>
+      applyCell(cell, {
+        fg: i === 0 ? '253447' : i === 1 ? '1C2E42' : '2D3F54',
+        textColor: 'FFFFFF', bold: true, sz: i < 2 ? 10 : 9,
+        align: i === 0 ? 'left' : 'center', wrapText: true,
+        borderColor: '1C2E42',
+      })
+    );
+
+    // ── Section helper ─────────────────────────────────────────────────────
+    const addSection = (label: string, fg: string, textColor: string, borderColor: string) => {
+      const row = ws.addRow([label, null, ...Array(numDays).fill(null)]);
+      styleRow(row, 20, (cell) =>
+        applyCell(cell, { fg, textColor, bold: true, sz: 10, align: 'left', borderColor })
+      );
+    };
+
+    // ── Plan / Fact helper ─────────────────────────────────────────────────
+    const addDataRow = (
+      label: string,
+      values: (number | null)[],
+      opts: { fg: string; fgTotal: string; textColor: string; bold?: boolean; borderColor?: string }
+    ) => {
+      const row = ws.addRow([label, ...values]);
+      styleRow(row, 18, (cell, i) =>
+        applyCell(cell, {
+          fg: i === 1 ? opts.fgTotal : opts.fg,
+          textColor: opts.textColor, bold: opts.bold, sz: 10,
+          align: i === 0 ? 'left' : 'right',
+          indent: i === 0 ? 1 : 0,
+          numFmt: i > 0 ? '#,##0' : undefined,
+          borderColor: opts.borderColor,
+        })
+      );
+    };
+
+    // ── ДОХОДЫ ─────────────────────────────────────────────────────────────
+    addSection('▲ ДОХОДЫ', 'ECFDF5', '065F46', 'A7F3D0');
+    addDataRow('  План', [nv(totalIncomePlan), ...days.map(d => nv(data.incomePlan[d] || 0))],
+      { fg: 'FFFFFF', fgTotal: 'F0FDF4', textColor: '475569' });
+    addDataRow('  Факт', [nv(totalIncomeFact), ...days.map(d => nv(data.incomeFact[d] || 0))],
+      { fg: 'F8FAFC', fgTotal: 'DCFCE7', textColor: '166534', bold: true, borderColor: 'CBD5E1' });
+
+    // ── РАСХОДЫ ────────────────────────────────────────────────────────────
+    addSection('▼ РАСХОДЫ', 'FFF1F2', '881337', 'FECDD3');
+    addDataRow('  План', [nv(totalExpensePlan), ...days.map(d => nv(data.expensePlan[d] || 0))],
+      { fg: 'FFFFFF', fgTotal: 'FFF5F5', textColor: '475569' });
+    addDataRow('  Факт', [nv(totalExpenseFact), ...days.map(d => nv(data.expenseFact[d] || 0))],
+      { fg: 'F8FAFC', fgTotal: 'FFE4E6', textColor: '9F1239', bold: true, borderColor: 'FECDD3' });
+
+    // ── БАЛАНС ─────────────────────────────────────────────────────────────
+    addSection('= БАЛАНС', 'EFF6FF', '1E3A5F', 'BFDBFE');
+    addDataRow('  План', [nv(totalBalancePlan), ...days.map(d => nv(balancePlan[d] || 0))],
+      { fg: 'FFFFFF', fgTotal: 'EFF6FF', textColor: '3B82F6' });
+    addDataRow('  Факт', [nv(totalBalance), ...days.map(d => nv(data.balance[d] || 0))],
+      { fg: 'EFF6FF', fgTotal: 'DBEAFE', textColor: '1D4ED8', bold: true, borderColor: 'BFDBFE' });
+
+    // ── Категории ──────────────────────────────────────────────────────────
+    addSection('По статьям расходов', 'F1F5F9', '334155', 'CBD5E1');
     for (const cat of allCats) {
       const cd = catMap[cat.id];
       const catTot = cd ? Object.values(cd.days).flat().reduce((s, e) => s + e.amount, 0) : 0;
-      add('category', cat.name, n(catTot), ...days.map(d => {
-        const es = cd?.days[d];
-        return es ? n(cellTotal(es)) : null;
-      }));
+      const catRow = ws.addRow([
+        cat.name, nv(catTot),
+        ...days.map(d => { const es = cd?.days[d]; return es ? nv(cellTotal(es)) : null; }),
+      ]);
+      styleRow(catRow, 18, (cell, i) =>
+        applyCell(cell, {
+          fg: i % 2 === 0 || i === 0 ? 'FFFFFF' : 'F8FAFC',
+          fgTotal: 'F8FAFC',
+          textColor: i === 1 ? '1E293B' : '334155',
+          bold: i === 1,
+          align: i === 0 ? 'left' : 'right',
+          numFmt: i > 0 ? '#,##0' : undefined,
+          wrapText: i === 0,
+        } as any)
+      );
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-
-    const border = (rgb: string) => ({ style: 'thin' as const, color: { rgb } });
-    const borders = (rgb: string) => ({ top: border(rgb), bottom: border(rgb), left: border(rgb), right: border(rgb) });
-
-    const STYLES: Record<RowType, { label: object; total: object; day: object }> = {
-      header: {
-        label: { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: '253447' } }, alignment: { horizontal: 'left',   vertical: 'center', wrapText: true }, border: borders('1C2E42') },
-        total: { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: '253447' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borders('1C2E42') },
-        day:   { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 9  }, fill: { patternType: 'solid', fgColor: { rgb: '2D3F54' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: borders('1C2E42') },
-      },
-      'section-income': {
-        label: { font: { bold: true, color: { rgb: '065F46' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'ECFDF5' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: borders('A7F3D0') },
-        total: { font: { bold: true, color: { rgb: '065F46' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'ECFDF5' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('A7F3D0') },
-        day:   { font: { bold: true, color: { rgb: '065F46' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'ECFDF5' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borders('A7F3D0') },
-      },
-      'section-expense': {
-        label: { font: { bold: true, color: { rgb: '881337' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFF1F2' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: borders('FECDD3') },
-        total: { font: { bold: true, color: { rgb: '881337' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFF1F2' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('FECDD3') },
-        day:   { font: { bold: true, color: { rgb: '881337' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFF1F2' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borders('FECDD3') },
-      },
-      'section-balance': {
-        label: { font: { bold: true, color: { rgb: '1E3A5F' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: borders('BFDBFE') },
-        total: { font: { bold: true, color: { rgb: '1E3A5F' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('BFDBFE') },
-        day:   { font: { bold: true, color: { rgb: '1E3A5F' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borders('BFDBFE') },
-      },
-      'section-cats': {
-        label: { font: { bold: true, color: { rgb: '64748B' }, sz: 9 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: borders('E2E8F0') },
-        total: { font: { bold: true, color: { rgb: '64748B' }, sz: 9 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0') },
-        day:   { font: { bold: true, color: { rgb: '64748B' }, sz: 9 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borders('E2E8F0') },
-      },
-      plan: {
-        label: { font: { color: { rgb: '475569' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'left', vertical: 'center', indent: 1 }, border: borders('E2E8F0') },
-        total: { font: { color: { rgb: '334155' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
-        day:   { font: { color: { rgb: '475569' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
-      },
-      fact: {
-        label: { font: { bold: true, color: { rgb: '334155' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'left', vertical: 'center', indent: 1 }, border: borders('E2E8F0') },
-        total: { font: { bold: true, color: { rgb: '1E293B' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F1F5F9' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('CBD5E1'), numFmt: '#,##0' },
-        day:   { font: { bold: true, color: { rgb: '334155' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
-      },
-      'balance-plan': {
-        label: { font: { color: { rgb: '3B82F6' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'left', vertical: 'center', indent: 1 }, border: borders('E2E8F0') },
-        total: { font: { color: { rgb: '3B82F6' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
-        day:   { font: { color: { rgb: '3B82F6' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
-      },
-      'balance-fact': {
-        label: { font: { bold: true, color: { rgb: '2563EB' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'left', vertical: 'center', indent: 1 }, border: borders('BFDBFE') },
-        total: { font: { bold: true, color: { rgb: '2563EB' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'DBEAFE' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('BFDBFE'), numFmt: '#,##0' },
-        day:   { font: { bold: true, color: { rgb: '2563EB' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('BFDBFE'), numFmt: '#,##0' },
-      },
-      category: {
-        label: { font: { color: { rgb: '334155' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borders('E2E8F0') },
-        total: { font: { bold: true, color: { rgb: '1E293B' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
-        day:   { font: { color: { rgb: '475569' }, sz: 10 }, fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: borders('E2E8F0'), numFmt: '#,##0' },
-      },
-    };
-
-    const totalCols = 2 + numDays;
-    for (let r = 0; r < rows.length; r++) {
-      const st = STYLES[rowTypes[r]];
-      for (let c = 0; c < totalCols; c++) {
-        const addr = XLSX.utils.encode_cell({ r, c });
-        if (!ws[addr]) ws[addr] = { v: '', t: 's' };
-        const colStyle = c === 0 ? st.label : c === 1 ? st.total : st.day;
-        ws[addr].s = colStyle;
-        if (ws[addr].t === 'n' && (colStyle as any).numFmt) {
-          ws[addr].z = (colStyle as any).numFmt;
-        }
-      }
-    }
-
-    ws['!cols'] = [{ wch: 42 }, { wch: 14 }, ...days.map(() => ({ wch: 12 }))];
-    ws['!rows'] = [{ hpt: 28 }];
-    ws['!freeze'] = { xSplit: 2, ySplit: 1 };
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Платёжный календарь');
-    XLSX.writeFile(wb, `план-факт-${year}-${pad(month)}.xlsx`);
+    // ── Download ───────────────────────────────────────────────────────────
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `план-факт-${year}-${pad2(month)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const totalIncomePlan = days.reduce((s, d) => s + (data?.incomePlan[d] || 0), 0);
