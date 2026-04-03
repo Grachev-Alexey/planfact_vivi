@@ -904,22 +904,16 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                       {isAdmin && req.status === 'pending' && (
                         <div className="flex gap-2 pt-2 border-t border-slate-200">
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleApprove(req.id); }}
-                            className="flex-1 bg-sky-600 text-white text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-sky-700 active:scale-95 transition-all"
-                          >
-                            <ThumbsUp size={14} /> Подтвердить
-                          </button>
-                          <button
                             onClick={(e) => { e.stopPropagation(); handlePayClick(req); }}
                             className="flex-1 bg-emerald-600 text-white text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-emerald-700 active:scale-95 transition-all"
                           >
-                            <CheckCircle2 size={14} /> Оплатить
+                            <BadgeCheck size={14} /> Подтвердить оплату
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleDelete(req.id); }}
+                            onClick={(e) => { e.stopPropagation(); handleReject(req.id); }}
                             className="bg-white border border-slate-200 text-rose-600 text-xs font-medium py-2 px-2 rounded-lg flex items-center justify-center gap-1 hover:bg-rose-50 active:scale-95 transition-all"
                           >
-                            <X size={14} />
+                            <XCircle size={14} />
                           </button>
                         </div>
                       )}
