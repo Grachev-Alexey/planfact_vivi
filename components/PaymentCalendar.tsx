@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../context/AuthContext';
+import { PaymentCalendarEntryModal } from './PaymentCalendarEntryModal';
 
 interface PREntry {
   id: number;
@@ -84,8 +86,12 @@ export const PaymentCalendar: React.FC = () => {
   const [error, setError] = useState('');
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [catsOpen, setCatsOpen] = useState(true);
+  const [dragState, setDragState] = useState<{ catId: string; day: number; entryIds: number[] } | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<number | null>(null);
+  const [activeCell, setActiveCell] = useState<{ catName: string; catId: string; day: number; entries: PREntry[] } | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const todayColRef = useRef<HTMLTableCellElement>(null);
+  const dragJustEndedRef = useRef(false);
 
   const monthStr = `${year}-${String(month).padStart(2, '0')}`;
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
@@ -138,6 +144,91 @@ export const PaymentCalendar: React.FC = () => {
   }
   function hideTooltip() { setTooltip(null); }
 
+  function handleChipClick(entries: PREntry[], catName: string, catId: string, day: number) {
+    if (dragJustEndedRef.current) return;
+    hideTooltip();
+    setActiveCell({ catName, catId, day, entries });
+  }
+
+  function handleDragStart(e: React.DragEvent, catId: string, day: number, entries: PREntry[]) {
+    hideTooltip();
+    setDragState({ catId, day, entryIds: entries.map(en => en.id) });
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function handleDragEnd() {
+    dragJustEndedRef.current = true;
+    setTimeout(() => { dragJustEndedRef.current = false; }, 200);
+    setDragState(null);
+    setDragOverDay(null);
+  }
+
+  function handleDragOver(e: React.DragEvent, day: number) {
+    if (!dragState) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverDay !== day) setDragOverDay(day);
+  }
+
+  async function handleDrop(e: React.DragEvent, targetDay: number) {
+    e.preventDefault();
+    if (!dragState) return;
+    const srcDay = dragState.day;
+    const ids = dragState.entryIds;
+    setDragState(null);
+    setDragOverDay(null);
+    if (targetDay === srcDay) return;
+    const targetDate = `${year}-${String(month).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+    await fetch('/api/payment-calendar/move-payment', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+      body: JSON.stringify({ ids, newDate: targetDate }),
+    });
+    load();
+  }
+
+  function exportXlsx() {
+    if (!data) return;
+    const fmt = (v: number | undefined) => (v && v !== 0 ? v : '');
+    const header = ['Статья', 'Итого', ...days.map(d => d)];
+    const rows: (string | number)[][] = [header];
+
+    rows.push(['▲ ДОХОДЫ', '', ...days.map(() => '')]);
+    rows.push(['  План', fmt(totalIncomePlan), ...days.map(d => fmt(data.incomePlan[d]))]);
+    rows.push(['  Факт', fmt(totalIncomeFact), ...days.map(d => fmt(data.incomeFact[d]))]);
+
+    rows.push(['▼ РАСХОДЫ', '', ...days.map(() => '')]);
+    rows.push(['  План', fmt(totalExpensePlan), ...days.map(d => fmt(data.expensePlan[d]))]);
+    rows.push(['  Факт', fmt(totalExpenseFact), ...days.map(d => fmt(data.expenseFact[d]))]);
+
+    rows.push(['= БАЛАНС', '', ...days.map(() => '')]);
+    rows.push(['  План', fmt(totalBalancePlan), ...days.map(d => fmt(balancePlan[d]))]);
+    rows.push(['  Факт', fmt(totalBalance), ...days.map(d => fmt(data.balance[d]))]);
+
+    rows.push(['По статьям расходов', '', ...days.map(() => '')]);
+    for (const cat of data.expenseCategories) {
+      const catTotalVal = Object.values(cat.days).flat().reduce((s, en) => s + en.amount, 0);
+      rows.push([
+        cat.name,
+        fmt(catTotalVal),
+        ...days.map(d => fmt(cat.days[d] ? cellTotal(cat.days[d]) : 0)),
+      ]);
+      for (const en of Object.values(cat.days).flat()) {
+        rows.push([
+          `    ${en.description || '—'}`,
+          fmt(en.amount),
+          ...days.map(() => ''),
+        ]);
+      }
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 40 }, { wch: 14 }, ...days.map(() => ({ wch: 11 }))];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Платёжный календарь');
+    XLSX.writeFile(wb, `план-факт-${year}-${String(month).padStart(2, '0')}.xlsx`);
+  }
+
   const totalIncomePlan = days.reduce((s, d) => s + (data?.incomePlan[d] || 0), 0);
   const totalIncomeFact = days.reduce((s, d) => s + (data?.incomeFact[d] || 0), 0);
   const totalExpensePlan = days.reduce((s, d) => s + (data?.expensePlan[d] || 0), 0);
@@ -166,6 +257,16 @@ export const PaymentCalendar: React.FC = () => {
           <h1 className="text-sm font-bold text-slate-800">Платёжный календарь</h1>
         </div>
         <div className="flex items-center gap-2">
+          {data && (
+            <button
+              onClick={exportXlsx}
+              className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 px-3 py-1 rounded-lg transition-colors shadow-sm"
+              title="Экспорт в Excel"
+            >
+              <Download size={13} />
+              Excel
+            </button>
+          )}
           {!isCurrentMonth && (
             <button
               onClick={goToday}
@@ -221,19 +322,24 @@ export const PaymentCalendar: React.FC = () => {
                     <th
                       key={d}
                       ref={isToday ? todayColRef : undefined}
-                      className={`text-center py-1.5 border-b border-r border-slate-200 select-none
-                        ${isToday
-                          ? 'bg-teal-600 text-white border-teal-500'
-                          : isWeekend
-                            ? 'bg-slate-100 text-slate-400'
-                            : past
-                              ? 'bg-white text-slate-300'
-                              : 'bg-white text-slate-500'
+                      className={`text-center py-1.5 border-b border-r border-slate-200 select-none transition-colors
+                        ${dragOverDay === d && dragState
+                          ? 'bg-teal-400 text-white border-teal-300'
+                          : isToday
+                            ? 'bg-teal-600 text-white border-teal-500'
+                            : isWeekend
+                              ? 'bg-slate-100 text-slate-400'
+                              : past
+                                ? 'bg-white text-slate-300'
+                                : 'bg-white text-slate-500'
                         }`}
-                      style={{ position: 'sticky', top: 0, zIndex: 20, width: COL_W, minWidth: COL_W }}
+                      style={{ position: 'sticky', top: 0, zIndex: 20, width: COL_W, minWidth: COL_W, cursor: dragState ? 'copy' : 'default' }}
+                      onDragOver={e => handleDragOver(e, d)}
+                      onDrop={e => handleDrop(e, d)}
                     >
                       <div className="font-bold" style={{ fontSize: 12 }}>{d}</div>
                       <div className="opacity-70" style={{ fontSize: 9 }}>{DAY_SHORT[dow]}</div>
+                      {dragState && dragOverDay === d && <div className="text-[8px] mt-0.5 opacity-80">↓ сюда</div>}
                     </th>
                   );
                 })}
@@ -406,10 +512,17 @@ export const PaymentCalendar: React.FC = () => {
                           style={{ width: COL_W, minWidth: COL_W, opacity: past ? 0.75 : 1 }}
                         >
                           <div
-                            className={`mx-0.5 my-0.5 rounded-md px-1 py-0.5 cursor-default select-none
-                              ${cfg.bg} border ${cfg.border} hover:shadow-md transition-shadow`}
-                            onMouseEnter={e => showTooltip(entries, cat.name, d, e)}
+                            className={`mx-0.5 my-0.5 rounded-md px-1 py-0.5 select-none
+                              ${cfg.bg} border ${cfg.border} hover:shadow-md transition-shadow
+                              ${dragState?.catId === cat.id && dragState?.day === d ? 'opacity-30 scale-95' : ''}
+                            `}
+                            style={{ cursor: dragState ? 'grabbing' : 'grab' }}
+                            draggable
+                            onDragStart={e => handleDragStart(e, cat.id, d, entries)}
+                            onDragEnd={handleDragEnd}
+                            onMouseEnter={e => !dragState && showTooltip(entries, cat.name, d, e)}
                             onMouseLeave={hideTooltip}
+                            onClick={() => handleChipClick(entries, cat.name, cat.id, d)}
                           >
                             <div className={`font-bold text-center leading-tight ${cfg.text}`} style={{ fontSize: 10 }}>
                               {fmtCompact(total)}
@@ -444,6 +557,19 @@ export const PaymentCalendar: React.FC = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {activeCell && (
+        <PaymentCalendarEntryModal
+          catName={activeCell.catName}
+          day={activeCell.day}
+          month={month}
+          year={year}
+          entries={activeCell.entries}
+          userId={user?.id || ''}
+          onClose={() => setActiveCell(null)}
+          onRefresh={load}
+        />
       )}
 
       {tooltip && (() => {

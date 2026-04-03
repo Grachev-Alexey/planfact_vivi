@@ -128,4 +128,51 @@ router.get('/payment-calendar', async (req, res) => {
   }
 });
 
+router.patch('/payment-calendar/move-payment', async (req, res) => {
+  const caller = await requireAdmin(req, res);
+  if (!caller) return;
+  const { ids, newDate } = req.body;
+  if (!ids || !Array.isArray(ids) || ids.length === 0 || !newDate) {
+    return res.status(400).json({ error: 'ids (array) and newDate (YYYY-MM-DD) required' });
+  }
+  try {
+    await db.query(
+      `UPDATE payment_requests SET payment_date = $1 WHERE id = ANY($2::int[])`,
+      [newDate, ids]
+    );
+    res.json({ ok: true, moved: ids.length });
+  } catch (err) {
+    console.error('Error moving payments:', err);
+    res.status(500).json({ error: 'Error moving payments' });
+  }
+});
+
+router.post('/payment-calendar/split-payment', async (req, res) => {
+  const caller = await requireAdmin(req, res);
+  if (!caller) return;
+  const { id, amount1, date1, amount2, date2 } = req.body;
+  if (!id || !amount1 || !date1 || !amount2 || !date2) {
+    return res.status(400).json({ error: 'id, amount1, date1, amount2, date2 required' });
+  }
+  try {
+    const orig = await db.query('SELECT * FROM payment_requests WHERE id = $1', [id]);
+    if (orig.rows.length === 0) return res.status(404).json({ error: 'Payment request not found' });
+    const o = orig.rows[0];
+    await db.query(
+      `UPDATE payment_requests SET amount = $1, payment_date = $2 WHERE id = $3`,
+      [parseFloat(amount1), date1, id]
+    );
+    await db.query(
+      `INSERT INTO payment_requests
+         (user_id, amount, category_id, studio_id, contractor_id, account_id, description, payment_date, accrual_date, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [o.user_id, parseFloat(amount2), o.category_id, o.studio_id, o.contractor_id, o.account_id, o.description, date2, o.accrual_date, o.status]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error splitting payment:', err);
+    res.status(500).json({ error: 'Error splitting payment' });
+  }
+});
+
 module.exports = router;
