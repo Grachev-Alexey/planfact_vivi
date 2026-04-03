@@ -706,12 +706,17 @@ export const PaymentCalendar: React.FC = () => {
                       const entries = cat.days[d];
                       const isToday = d === todayDay;
                       const past = isPast(d);
+                      const isDropTarget = dragOverDay === d && dragState;
                       if (!entries || entries.length === 0) {
                         return (
                           <td
                             key={d}
-                            className={`border-r border-slate-100 ${isToday ? 'bg-teal-50/40' : ''}`}
-                            style={{ width: COL_W, minWidth: COL_W }}
+                            className={`border-r border-slate-100 transition-colors ${
+                              isDropTarget ? 'bg-teal-100 border-teal-300' : isToday ? 'bg-teal-50/40' : ''
+                            }`}
+                            style={{ width: COL_W, minWidth: COL_W, cursor: dragState ? 'copy' : 'default' }}
+                            onDragOver={e => handleDragOver(e, d)}
+                            onDrop={e => handleDrop(e, d)}
                           />
                         );
                       }
@@ -722,8 +727,12 @@ export const PaymentCalendar: React.FC = () => {
                       return (
                         <td
                           key={d}
-                          className={`border-r border-slate-100 ${isToday ? 'bg-teal-50/40' : ''}`}
-                          style={{ width: COL_W, minWidth: COL_W, opacity: past ? 0.75 : 1 }}
+                          className={`border-r border-slate-100 transition-colors ${
+                            isDropTarget ? 'bg-teal-100 border-teal-300' : isToday ? 'bg-teal-50/40' : ''
+                          }`}
+                          style={{ width: COL_W, minWidth: COL_W, opacity: past ? 0.75 : 1, cursor: dragState ? 'copy' : 'default' }}
+                          onDragOver={e => handleDragOver(e, d)}
+                          onDrop={e => handleDrop(e, d)}
                         >
                           <div
                             className={`mx-0.5 my-0.5 rounded-md px-1 py-0.5 select-none
