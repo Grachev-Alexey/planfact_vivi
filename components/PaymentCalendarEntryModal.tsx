@@ -19,6 +19,7 @@ interface Props {
   userId: number | string;
   onClose: () => void;
   onRefresh: () => void;
+  onSuccess?: (message: string, type?: 'success' | 'error') => void;
 }
 
 const STATUS_CFG = {
@@ -42,7 +43,7 @@ function pluralOp(n: number) {
 type ActionMode = { entryId: number; type: 'move' } | { entryId: number; type: 'split' };
 
 export const PaymentCalendarEntryModal: React.FC<Props> = ({
-  catName, day, month, year, entries, userId, onClose, onRefresh,
+  catName, day, month, year, entries, userId, onClose, onRefresh, onSuccess,
 }) => {
   const defaultDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
@@ -102,11 +103,11 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
         body: JSON.stringify({ ids: [action.entryId], newDate: moveDate }),
       });
       if (!r.ok) throw new Error('Ошибка сервера');
-      onRefresh();
       onClose();
+      onSuccess?.(`Операция перенесена на ${moveDate.split('-').reverse().slice(0, 2).join('.')}`);
+      onRefresh();
     } catch (e: any) {
       setErr(e.message || 'Ошибка');
-    } finally {
       setBusy(false);
     }
   }
@@ -132,8 +133,9 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
         const body = await r.json().catch(() => ({}));
         throw new Error(body.error || 'Ошибка сервера');
       }
-      onRefresh();
       onClose();
+      onSuccess?.(`Платёж разбит на ${splitParts.length} части`);
+      onRefresh();
     } catch (e: any) {
       setErr(e.message || 'Ошибка');
     } finally {

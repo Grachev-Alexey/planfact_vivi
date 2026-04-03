@@ -76,6 +76,13 @@ interface TooltipState {
 }
 
 
+interface ToastItem {
+  id: number;
+  message: string;
+  type: 'success' | 'error';
+  exiting: boolean;
+}
+
 export const PaymentCalendar: React.FC = () => {
   const { user } = useAuth();
   const today = new Date();
@@ -89,9 +96,11 @@ export const PaymentCalendar: React.FC = () => {
   const [dragState, setDragState] = useState<{ catId: string; day: number; entryIds: number[] } | null>(null);
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
   const [activeCell, setActiveCell] = useState<{ catName: string; catId: string; day: number; entries: PREntry[] } | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const tableRef = useRef<HTMLDivElement>(null);
   const todayColRef = useRef<HTMLTableCellElement>(null);
   const dragJustEndedRef = useRef(false);
+  const toastIdRef = useRef(0);
 
   const monthStr = `${year}-${String(month).padStart(2, '0')}`;
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
@@ -112,6 +121,24 @@ export const PaymentCalendar: React.FC = () => {
       setLoading(false);
     }
   }, [monthStr, user]);
+
+  const silentLoad = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/payment-calendar?month=${monthStr}`, {
+        headers: { 'x-user-id': String(user?.id || '') },
+      });
+      if (r.ok) setData(await r.json());
+    } catch {}
+  }, [monthStr, user]);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    const id = ++toastIdRef.current;
+    setToasts(prev => [...prev, { id, message, type, exiting: false }]);
+    setTimeout(() => {
+      setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 220);
+    }, 2800);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -173,18 +200,44 @@ export const PaymentCalendar: React.FC = () => {
   async function handleDrop(e: React.DragEvent, targetDay: number) {
     e.preventDefault();
     if (!dragState) return;
-    const srcDay = dragState.day;
-    const ids = dragState.entryIds;
+    const { catId, day: srcDay, entryIds: ids } = dragState;
     setDragState(null);
     setDragOverDay(null);
     if (targetDay === srcDay) return;
-    const targetDate = `${year}-${String(month).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
-    await fetch('/api/payment-calendar/move-payment', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
-      body: JSON.stringify({ ids, newDate: targetDate }),
+
+    // Optimistic update — move chips instantly, no re-render flash
+    setData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        expenseCategories: prev.expenseCategories.map(cat => {
+          if (cat.id !== catId) return cat;
+          const srcEntries = cat.days[srcDay] || [];
+          const moving = srcEntries.filter(en => ids.includes(en.id));
+          const remaining = srcEntries.filter(en => !ids.includes(en.id));
+          const targetEntries = cat.days[targetDay] || [];
+          const newDays = { ...cat.days, [srcDay]: remaining, [targetDay]: [...targetEntries, ...moving] };
+          if (remaining.length === 0) delete newDays[srcDay];
+          return { ...cat, days: newDays };
+        }),
+      };
     });
-    load();
+
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const targetDate = `${year}-${pad2(month)}-${pad2(targetDay)}`;
+    try {
+      const r = await fetch('/api/payment-calendar/move-payment', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+        body: JSON.stringify({ ids, newDate: targetDate }),
+      });
+      if (!r.ok) throw new Error();
+      showToast(`Перенесено на ${pad2(targetDay)}.${pad2(month)}`);
+      silentLoad();
+    } catch {
+      showToast('Не удалось перенести операцию', 'error');
+      load();
+    }
   }
 
   async function exportXlsx() {
@@ -791,8 +844,28 @@ export const PaymentCalendar: React.FC = () => {
           entries={activeCell.entries}
           userId={user?.id || ''}
           onClose={() => setActiveCell(null)}
-          onRefresh={load}
+          onRefresh={silentLoad}
+          onSuccess={showToast}
         />
+      )}
+
+      {toasts.length > 0 && (
+        <div className="fixed bottom-5 right-5 flex flex-col gap-2 z-[99999] pointer-events-none">
+          {toasts.map(t => (
+            <div
+              key={t.id}
+              className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg border text-sm font-medium
+                ${t.type === 'success'
+                  ? 'bg-white border-emerald-200 text-emerald-800'
+                  : 'bg-white border-rose-200 text-rose-700'}
+                ${t.exiting ? 'toast-exit' : 'toast-enter'}
+              `}
+            >
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+              {t.message}
+            </div>
+          ))}
+        </div>
       )}
 
       {tooltip && (() => {
