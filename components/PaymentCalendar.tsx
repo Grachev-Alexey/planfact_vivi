@@ -341,6 +341,97 @@ export const PaymentCalendar: React.FC = () => {
       );
     }
 
+    // ── Лист «Детализация» ────────────────────────────────────────────────
+    const ws2 = wb.addWorksheet('Детализация', {
+      views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }],
+    });
+    ws2.columns = [
+      { width: 14 },  // Дата
+      { width: 36 },  // Статья
+      { width: 14 },  // Сумма
+      { width: 14 },  // Статус
+      { width: 46 },  // Назначение / описание
+      { width: 28 },  // Контрагент
+      { width: 20 },  // Запросил
+    ];
+
+    const STATUS_RU: Record<string, string> = {
+      pending: 'Ожидает',
+      approved: 'Утверждён',
+      paid: 'Оплачен',
+    };
+
+    const detHdrRow = ws2.addRow(['Дата', 'Статья', 'Сумма, ₽', 'Статус', 'Назначение', 'Контрагент', 'Запросил']);
+    detHdrRow.height = 28;
+    detHdrRow.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF253447' } };
+      cell.alignment = { horizontal: col === 1 ? 'center' : col === 3 ? 'right' : 'left', vertical: 'middle' };
+      cell.border = bdr('1C2E42');
+    });
+
+    // Auto-filter on the header row
+    ws2.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 7 } };
+
+    const STATUS_COLOR: Record<string, string> = {
+      pending: 'FFDBEAFE',
+      approved: 'FFFFEDD5',
+      paid: 'FFD1FAE5',
+    };
+    const STATUS_TEXT: Record<string, string> = {
+      pending: 'FF1D4ED8',
+      approved: 'FFC2410C',
+      paid: 'FF065F46',
+    };
+
+    let detRowIdx = 0;
+    for (const cat of data.expenseCategories) {
+      for (const d of days) {
+        const entries = cat.days[d];
+        if (!entries || entries.length === 0) continue;
+        for (const e of entries) {
+          const rowData = [
+            `${pad2(d)}.${pad2(month)}.${year}`,
+            cat.name,
+            e.amount,
+            STATUS_RU[e.status] ?? e.status,
+            e.description || '',
+            e.contractorName || '',
+            e.username || '',
+          ];
+          const row = ws2.addRow(rowData);
+          row.height = 18;
+          const rowBgColor = detRowIdx % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFC';
+          const statusFg = STATUS_COLOR[e.status] ?? rowBgColor;
+          const statusText = STATUS_TEXT[e.status] ?? 'FF334155';
+          row.eachCell({ includeEmpty: true }, (cell, col) => {
+            const isStatus = col === 4;
+            cell.font = {
+              bold: col === 3,
+              color: { argb: isStatus ? statusText : 'FF334155' },
+              size: 10,
+            };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isStatus ? statusFg : rowBgColor } };
+            cell.alignment = {
+              horizontal: col === 1 ? 'center' : col === 3 ? 'right' : 'left',
+              vertical: 'middle',
+              wrapText: col === 5,
+            };
+            cell.border = bdr('E2E8F0');
+            if (col === 3) cell.numFmt = '#,##0';
+          });
+          detRowIdx++;
+        }
+      }
+    }
+
+    if (detRowIdx === 0) {
+      const emptyRow = ws2.addRow(['Нет данных за выбранный период', '', '', '', '', '', '']);
+      emptyRow.height = 20;
+      emptyRow.getCell(1).font = { italic: true, color: { argb: 'FF94A3B8' }, size: 10 };
+      emptyRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+    }
+
     // ── Download ───────────────────────────────────────────────────────────
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
