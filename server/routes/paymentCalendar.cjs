@@ -150,25 +150,41 @@ router.patch('/payment-calendar/move-payment', async (req, res) => {
 router.post('/payment-calendar/split-payment', async (req, res) => {
   const caller = await requireAdmin(req, res);
   if (!caller) return;
-  const { id, amount1, date1, amount2, date2 } = req.body;
-  if (!id || !amount1 || !date1 || !amount2 || !date2) {
-    return res.status(400).json({ error: 'id, amount1, date1, amount2, date2 required' });
+  const { id, parts } = req.body;
+  if (!id || !Array.isArray(parts) || parts.length < 2) {
+    return res.status(400).json({ error: 'id and parts (array of {amount, date}, min 2) required' });
+  }
+  for (const p of parts) {
+    if (!p.amount || isNaN(parseFloat(p.amount)) || parseFloat(p.amount) <= 0 || !p.date) {
+      return res.status(400).json({ error: 'Each part must have a positive amount and a date' });
+    }
   }
   try {
     const orig = await db.query('SELECT * FROM payment_requests WHERE id = $1', [id]);
     if (orig.rows.length === 0) return res.status(404).json({ error: 'Payment request not found' });
     const o = orig.rows[0];
+
+    const totalParts = parts.reduce((s, p) => s + parseFloat(p.amount), 0);
+    const originalAmount = parseFloat(o.amount);
+    if (Math.abs(totalParts - originalAmount) > 0.01) {
+      return res.status(400).json({ error: `Sum of parts (${totalParts}) does not match original amount (${originalAmount})` });
+    }
+
     await db.query(
       `UPDATE payment_requests SET amount = $1, payment_date = $2 WHERE id = $3`,
-      [parseFloat(amount1), date1, id]
+      [parseFloat(parts[0].amount), parts[0].date, id]
     );
-    await db.query(
-      `INSERT INTO payment_requests
-         (user_id, amount, category_id, studio_id, contractor_id, account_id, description, payment_date, accrual_date, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [o.user_id, parseFloat(amount2), o.category_id, o.studio_id, o.contractor_id, o.account_id, o.description, date2, o.accrual_date, o.status]
-    );
-    res.json({ ok: true });
+
+    for (let i = 1; i < parts.length; i++) {
+      await db.query(
+        `INSERT INTO payment_requests
+           (user_id, amount, category_id, studio_id, contractor_id, account_id, description, payment_date, accrual_date, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [o.user_id, parseFloat(parts[i].amount), o.category_id, o.studio_id, o.contractor_id, o.account_id, o.description, parts[i].date, o.accrual_date, o.status]
+      );
+    }
+
+    res.json({ ok: true, split: parts.length });
   } catch (err) {
     console.error('Error splitting payment:', err);
     res.status(500).json({ error: 'Error splitting payment' });

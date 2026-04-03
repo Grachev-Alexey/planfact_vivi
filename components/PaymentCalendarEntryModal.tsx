@@ -48,14 +48,15 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
 
   const [action, setAction] = useState<ActionMode | null>(null);
   const [moveDate, setMoveDate] = useState(defaultDate);
-  const [splitAmt1, setSplitAmt1] = useState('');
-  const [splitDate1, setSplitDate1] = useState(defaultDate);
-  const [splitDate2, setSplitDate2] = useState(defaultDate);
+  const [splitParts, setSplitParts] = useState<{ amount: string; date: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   const activeEntry = action ? entries.find(e => e.id === action.entryId) : null;
-  const splitAmt2 = activeEntry && splitAmt1 ? Math.round((activeEntry.amount - parseFloat(splitAmt1)) * 100) / 100 : 0;
+
+  const splitTotal = splitParts.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+  const splitRemainder = activeEntry ? Math.round((activeEntry.amount - splitTotal) * 100) / 100 : 0;
+  const splitValid = activeEntry && Math.abs(splitRemainder) < 0.01 && splitParts.every(p => parseFloat(p.amount) > 0 && p.date);
 
   function openMove(id: number) {
     setAction({ entryId: id, type: 'move' });
@@ -65,10 +66,24 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
 
   function openSplit(entry: PREntry) {
     setAction({ entryId: entry.id, type: 'split' });
-    setSplitAmt1(String(Math.floor(entry.amount / 2)));
-    setSplitDate1(defaultDate);
-    setSplitDate2(defaultDate);
+    const half = Math.floor(entry.amount / 2);
+    setSplitParts([
+      { amount: String(half), date: defaultDate },
+      { amount: String(entry.amount - half), date: defaultDate },
+    ]);
     setErr('');
+  }
+
+  function updatePart(i: number, field: 'amount' | 'date', val: string) {
+    setSplitParts(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: val } : p));
+  }
+
+  function addPart() {
+    setSplitParts(prev => [...prev, { amount: '', date: defaultDate }]);
+  }
+
+  function removePart(i: number) {
+    setSplitParts(prev => prev.filter((_, idx) => idx !== i));
   }
 
   function cancelAction() {
@@ -98,13 +113,8 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
 
   async function handleSplit() {
     if (!action || action.type !== 'split') return;
-    const amt1 = parseFloat(splitAmt1);
-    if (isNaN(amt1) || amt1 <= 0 || splitAmt2 <= 0) {
-      setErr('Некорректное разбиение сумм');
-      return;
-    }
-    if (!splitDate1 || !splitDate2) {
-      setErr('Укажите обе даты');
+    if (!splitValid) {
+      setErr('Суммы частей должны в точности совпадать с исходной суммой');
       return;
     }
     setBusy(true);
@@ -113,9 +123,15 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
       const r = await fetch('/api/payment-calendar/split-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
-        body: JSON.stringify({ id: action.entryId, amount1: amt1, date1: splitDate1, amount2: splitAmt2, date2: splitDate2 }),
+        body: JSON.stringify({
+          id: action.entryId,
+          parts: splitParts.map(p => ({ amount: parseFloat(p.amount), date: p.date })),
+        }),
       });
-      if (!r.ok) throw new Error('Ошибка сервера');
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.error || 'Ошибка сервера');
+      }
       onRefresh();
       onClose();
     } catch (e: any) {
@@ -213,52 +229,64 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
                 )}
 
                 {isActive && action?.type === 'split' && (
-                  <div className="p-3 bg-violet-50 rounded-xl border border-violet-100 space-y-3">
-                    <div className="text-[11px] font-semibold text-violet-700">Разбить платёж {fmtFull(entry.amount)}</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-500 mb-1 block">1-я часть, ₽</label>
-                        <input
-                          type="number" min={1} max={entry.amount - 1}
-                          value={splitAmt1}
-                          onChange={e => setSplitAmt1(e.target.value)}
-                          className="w-full text-[12px] border border-violet-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400 bg-white"
-                        />
+                  <div className="p-3 bg-violet-50 rounded-xl border border-violet-100 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[11px] font-semibold text-violet-700">
+                        Разбить {fmtFull(entry.amount)} на {splitParts.length} части
                       </div>
-                      <div>
-                        <label className="text-[10px] text-slate-500 mb-1 block">Дата</label>
-                        <input
-                          type="date" value={splitDate1}
-                          onChange={e => setSplitDate1(e.target.value)}
-                          className="w-full text-[12px] border border-violet-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400 bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-500 mb-1 block">2-я часть, ₽</label>
-                        <input
-                          type="number" value={splitAmt2 > 0 ? splitAmt2 : ''} readOnly
-                          className="w-full text-[12px] border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-100 text-slate-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-500 mb-1 block">Дата</label>
-                        <input
-                          type="date" value={splitDate2}
-                          onChange={e => setSplitDate2(e.target.value)}
-                          className="w-full text-[12px] border border-violet-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400 bg-white"
-                        />
+                      <div className={`text-[11px] font-bold tabular-nums ${Math.abs(splitRemainder) < 0.01 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                        {Math.abs(splitRemainder) < 0.01 ? '✓ сумма совпадает' : `остаток: ${fmtFull(splitRemainder)}`}
                       </div>
                     </div>
-                    {splitAmt1 && splitAmt2 <= 0 && (
-                      <p className="text-[11px] text-red-500">1-я часть не может быть ≥ общей суммы</p>
-                    )}
+
+                    <div className="space-y-1.5">
+                      {splitParts.map((part, i) => (
+                        <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-1.5 items-end">
+                          <div>
+                            {i === 0 && <label className="text-[10px] text-slate-400 mb-0.5 block">Сумма, ₽</label>}
+                            <input
+                              type="number" min={1}
+                              value={part.amount}
+                              onChange={e => updatePart(i, 'amount', e.target.value)}
+                              placeholder="0"
+                              className="w-full text-[12px] border border-violet-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400 bg-white"
+                            />
+                          </div>
+                          <div>
+                            {i === 0 && <label className="text-[10px] text-slate-400 mb-0.5 block">Дата</label>}
+                            <input
+                              type="date" value={part.date}
+                              onChange={e => updatePart(i, 'date', e.target.value)}
+                              className="w-full text-[12px] border border-violet-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-400 bg-white"
+                            />
+                          </div>
+                          <button
+                            onClick={() => removePart(i)}
+                            disabled={splitParts.length <= 2}
+                            className="mb-0.5 px-2 py-1.5 text-[11px] rounded-lg border border-slate-200 text-slate-400 hover:bg-rose-50 hover:text-rose-500 hover:border-rose-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Удалить часть"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={addPart}
+                      className="w-full py-1 text-[11px] font-medium text-violet-600 border border-dashed border-violet-300 rounded-lg hover:bg-violet-100 transition-colors"
+                    >
+                      + добавить часть
+                    </button>
+
                     {err && <p className="text-[11px] text-red-500">{err}</p>}
-                    <div className="flex gap-2">
+
+                    <div className="flex gap-2 pt-1">
                       <button
-                        onClick={handleSplit} disabled={busy || splitAmt2 <= 0}
+                        onClick={handleSplit} disabled={busy || !splitValid}
                         className="flex-1 py-1.5 text-[11px] font-bold bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
                       >
-                        {busy ? 'Сохраняю…' : 'Разбить'}
+                        {busy ? 'Сохраняю…' : `Разбить на ${splitParts.length}`}
                       </button>
                       <button onClick={cancelAction} className="px-3 py-1.5 text-[11px] border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">
                         Отмена
