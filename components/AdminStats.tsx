@@ -7,11 +7,11 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 
-type PeriodKey = 'today' | 'week' | 'month' | 'custom';
+type PeriodKey = 'yesterday' | 'today' | 'month' | 'custom';
 
 const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
+  { key: 'yesterday', label: 'Вчера' },
   { key: 'today', label: 'Сегодня' },
-  { key: 'week', label: 'Неделя' },
   { key: 'month', label: 'Месяц' },
   { key: 'custom', label: 'Произвольный' },
 ];
@@ -32,6 +32,7 @@ function fmt(d: Date) { return d.toISOString().split('T')[0]; }
 function getDateRange(period: PeriodKey, customStart?: string, customEnd?: string) {
   const today = new Date();
   switch (period) {
+    case 'yesterday': { const y = new Date(today); y.setDate(y.getDate() - 1); return { startDate: fmt(y), endDate: fmt(y) }; }
     case 'today': return { startDate: fmt(today), endDate: fmt(today) };
     case 'week': {
       const start = new Date(today);
@@ -598,7 +599,7 @@ const StudioSection: React.FC<{ studio: StudioData }> = ({ studio }) => {
 
 export const AdminStats: React.FC = () => {
   const { user } = useAuth();
-  const [period, setPeriod] = useState<PeriodKey>('month');
+  const [period, setPeriod] = useState<PeriodKey>('yesterday');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [data, setData] = useState<AdminStatsData | null>(null);
@@ -631,7 +632,7 @@ export const AdminStats: React.FC = () => {
     } else { setShowCustom(false); }
   };
 
-  const periodLabel = period === 'today' ? 'за сегодня' : period === 'week' ? 'за неделю' : period === 'month' ? 'за месяц' : 'за период';
+  const periodLabel = period === 'yesterday' ? 'за вчера' : period === 'today' ? 'за сегодня' : period === 'month' ? 'за месяц' : 'за период';
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-5 space-y-4 pb-8">

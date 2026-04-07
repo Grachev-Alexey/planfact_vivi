@@ -7,7 +7,7 @@ import { PaymentCalendarEntryModal } from './PaymentCalendarEntryModal';
 interface PREntry {
   id: number;
   amount: number;
-  status: 'pending' | 'approved' | 'paid';
+  status: 'pending' | 'approved' | 'paid' | 'verified';
   description: string;
   username: string;
   contractorName: string;

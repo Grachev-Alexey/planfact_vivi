@@ -307,7 +307,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const [paymentDate, setPaymentDate] = useState('');
   const [accrualDate, setAccrualDate] = useState('');
   const [error, setError] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('unpaid');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
   const [filterStudios, setFilterStudios] = useState<string[]>([]);
@@ -329,7 +329,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
     try {
       const params = new URLSearchParams();
       if (!isAdmin && user) params.set('userId', user.id.toString());
-      if (statusFilter) params.set('status', statusFilter);
+      if (statusFilter && statusFilter !== 'unpaid') params.set('status', statusFilter);
       const res = await fetch(`/api/payment-requests?${params.toString()}`);
       const data = await res.json();
       setRequests(data);
@@ -390,6 +390,10 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const filteredRequests = useMemo(() => {
     let result = requests;
 
+    if (statusFilter === 'unpaid') {
+      result = result.filter(r => r.status === 'pending' || r.status === 'approved');
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(r =>
@@ -430,7 +434,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
     }
 
     return result;
-  }, [requests, searchQuery, filterCategories, filterStudios, filterContractors, filterAccounts, dateFrom, dateTo]);
+  }, [requests, searchQuery, filterCategories, filterStudios, filterContractors, filterAccounts, dateFrom, dateTo, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / REQUESTS_PER_PAGE));
   const clampedPage = Math.min(currentPage, totalPages);
@@ -692,11 +696,11 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
 
         <div className="flex gap-1.5 sm:gap-2 mb-3 overflow-x-auto pb-1 -mx-1 px-1">
           {[
+            { value: 'unpaid', label: 'Не оплачено' },
             { value: '', label: 'Все' },
             { value: 'pending', label: 'Ожидает' },
             { value: 'approved', label: 'Утвержден' },
             { value: 'paid', label: 'Оплачен' },
-            { value: 'rejected', label: 'Отклонено' },
           ].map(f => (
             <button
               key={f.value}
@@ -942,10 +946,10 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                             <CheckCircle2 size={14} /> Оплатить
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleReject(req.id); }}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(req.id); }}
                             className="bg-white border border-slate-200 text-rose-600 text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-rose-50 active:scale-95 transition-all"
                           >
-                            <XCircle size={14} /> Отклонить
+                            <XCircle size={14} /> Удалить
                           </button>
                         </div>
                       )}

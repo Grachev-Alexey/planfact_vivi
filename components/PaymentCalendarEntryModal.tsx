@@ -4,7 +4,7 @@ import { X, ArrowRight, Scissors, ThumbsUp, CreditCard, Pencil, Check, ChevronLe
 interface PREntry {
   id: number;
   amount: number;
-  status: 'pending' | 'approved' | 'paid';
+  status: 'pending' | 'approved' | 'paid' | 'verified';
   description: string;
   username: string;
   contractorName: string;
@@ -24,10 +24,11 @@ interface Props {
   onSuccess?: (message: string, type?: 'success' | 'error') => void;
 }
 
-const STATUS_CFG = {
+const STATUS_CFG: Record<string, { label: string; pill: string; dot: string }> = {
   pending:  { label: 'Ожидает',    pill: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-500'    },
   approved: { label: 'Утверждено', pill: 'bg-sky-100 text-sky-700',         dot: 'bg-sky-500'      },
   paid:     { label: 'Оплачено',   pill: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500'  },
+  verified: { label: 'Проверено',  pill: 'bg-teal-100 text-teal-700',       dot: 'bg-teal-500'     },
 };
 
 const MONTH_NAMES_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
@@ -94,7 +95,7 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
   function removePart(i: number) { setSplitParts(prev => prev.filter((_, idx) => idx !== i)); }
   function cancelAction() { setAction(null); setErr(''); }
 
-  async function handleStatusChange(entryId: number, newStatus: 'approved' | 'paid') {
+  async function handleStatusChange(entryId: number, newStatus: 'approved' | 'paid' | 'verified') {
     setStatusBusy(entryId);
     try {
       const r = await fetch(`/api/payment-requests/${entryId}`, {
@@ -103,7 +104,7 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
         body: JSON.stringify({ status: newStatus }),
       });
       if (!r.ok) throw new Error();
-      onSuccess?.(newStatus === 'approved' ? 'Запрос утверждён' : 'Запрос оплачен');
+      onSuccess?.(newStatus === 'approved' ? 'Запрос утверждён' : newStatus === 'paid' ? 'Запрос оплачен' : 'Отмечено как проверено');
       onClose(); onRefresh();
     } catch {
       onSuccess?.('Не удалось изменить статус', 'error');
@@ -333,8 +334,17 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
                         <CreditCard size={14} /> {statusBusy === entry.id ? 'Оплачиваю…' : 'Оплатить'}
                       </button>
                     )}
+                    {entry.status === 'paid' && (
+                      <button
+                        onClick={() => handleStatusChange(entry.id, 'verified')}
+                        disabled={statusBusy === entry.id}
+                        className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 active:scale-[0.98] transition-all"
+                      >
+                        <Check size={14} /> {statusBusy === entry.id ? 'Сохраняю…' : 'Проверено'}
+                      </button>
+                    )}
                     <div className="flex gap-2">
-                      {entry.status !== 'paid' && (
+                      {entry.status !== 'paid' && entry.status !== 'verified' && (
                       <button
                         onClick={() => openMove(entry.id)}
                         className="flex-1 flex items-center justify-center gap-1.5 text-[12px] font-medium py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
@@ -342,7 +352,7 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
                         <ArrowRight size={12} /> Перенести
                       </button>
                       )}
-                      {entry.status !== 'paid' && (
+                      {entry.status !== 'paid' && entry.status !== 'verified' && (
                         <button
                           onClick={() => openSplit(entry)}
                           className="flex-1 flex items-center justify-center gap-1.5 text-[12px] font-medium py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700 transition-colors"

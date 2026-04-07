@@ -425,6 +425,10 @@ export const TransactionList: React.FC = () => {
   const selectedExpense = selectedTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const selectedTotal = selectedIncome - selectedExpense;
 
+  const selectedTypes = new Set(selectedTransactions.map(t => t.type));
+  const hasIncomeSelected = selectedTypes.has('income');
+  const hasExpenseOrIncomeSelected = selectedTypes.has('income') || selectedTypes.has('expense');
+
   const datePresets = [
     { label: 'Просроченные', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); setFilterDateFrom(''); setFilterDateTo(toLocalDate(d)); }},
     { label: 'Будущие', fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); setFilterDateFrom(toLocalDate(d)); setFilterDateTo(''); }},
@@ -614,27 +618,33 @@ export const TransactionList: React.FC = () => {
               </span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={handleBulkVerify}
-                disabled={isVerifying || isDeleting || visibleSelectedCount === 0}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
-              >
-                <ArrowRightLeft size={13} /> <span className="hidden sm:inline">{isVerifying ? 'Сверяю...' : 'Сверка YClients'}</span><span className="sm:hidden">Сверка</span>
-              </button>
-              <button
-                onClick={() => handleBulkConfirm(true)}
-                disabled={isDeleting || isVerifying}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
-              >
-                <CheckCircle2 size={13} /> <span className="hidden sm:inline">Подтвердить</span><span className="sm:hidden">OK</span>
-              </button>
-              <button
-                onClick={() => handleBulkConfirm(false)}
-                disabled={isDeleting || isVerifying}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
-              >
-                <span className="hidden sm:inline">Снять подтверждение</span><span className="sm:hidden">Снять</span>
-              </button>
+              {hasIncomeSelected && (
+                <button
+                  onClick={handleBulkVerify}
+                  disabled={isVerifying || isDeleting || visibleSelectedCount === 0}
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
+                >
+                  <ArrowRightLeft size={13} /> <span className="hidden sm:inline">{isVerifying ? 'Сверяю...' : 'Сверка YClients'}</span><span className="sm:hidden">Сверка</span>
+                </button>
+              )}
+              {hasExpenseOrIncomeSelected && (
+                <button
+                  onClick={() => handleBulkConfirm(true)}
+                  disabled={isDeleting || isVerifying}
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
+                >
+                  <CheckCircle2 size={13} /> <span className="hidden sm:inline">Подтвердить</span><span className="sm:hidden">OK</span>
+                </button>
+              )}
+              {hasExpenseOrIncomeSelected && (
+                <button
+                  onClick={() => handleBulkConfirm(false)}
+                  disabled={isDeleting || isVerifying}
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
+                >
+                  <span className="hidden sm:inline">Снять подтверждение</span><span className="sm:hidden">Снять</span>
+                </button>
+              )}
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={isDeleting || isVerifying}

@@ -147,7 +147,7 @@ router.put('/payment-requests/:id', async (req, res) => {
       if (!paidDate) return res.status(400).json({ error: 'paidDate is required for payment' });
     }
 
-    if (!['pending', 'approved', 'paid', 'rejected'].includes(status)) {
+    if (!['pending', 'approved', 'paid', 'rejected', 'verified'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
@@ -189,7 +189,7 @@ router.put('/payment-requests/:id', async (req, res) => {
 
     // Bidirectional sync: update linked transaction status (and date/account when paid)
     const externalId = `pr-${req.params.id}`;
-    const txStatusMap = { pending: 'pending', approved: 'approved', paid: 'paid', rejected: null };
+    const txStatusMap = { pending: 'pending', approved: 'approved', paid: 'paid', rejected: null, verified: 'verified' };
     const txNewStatus = txStatusMap[status] ?? null;
     {
       const txUpdates = ['status = $1', 'confirmed = $2'];
