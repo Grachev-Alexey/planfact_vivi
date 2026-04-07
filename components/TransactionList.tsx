@@ -27,6 +27,20 @@ type LookupMaps = {
   legalEntities: Map<string, LegalEntity>;
 };
 
+function getTxStatus(tx: Transaction): 'pending' | 'approved' | 'paid' | 'verified' | null {
+  if (tx.confirmed) return 'verified';
+  if (tx.type !== 'expense') return null;
+  if (tx.externalId?.startsWith('pr-')) return (tx.prStatus as 'pending' | 'approved' | 'paid') || 'pending';
+  return 'pending';
+}
+
+const TX_STATUS_BADGE: Record<string, React.ReactNode> = {
+  verified: <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium shrink-0">Проверен</span>,
+  paid:     <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium shrink-0">Оплачен</span>,
+  approved: <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 font-medium shrink-0">Утвержден</span>,
+  pending:  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium shrink-0">Ожидает</span>,
+};
+
 const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
   tx: Transaction;
   isSelected: boolean;
@@ -102,11 +116,14 @@ const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
         {studio?.name || ''}
       </td>
       <td className={`px-4 py-3 text-right align-top whitespace-nowrap text-[13px] font-semibold tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex items-center justify-end gap-1 flex-wrap">
           {tx.type === 'income' && tx.yclientsStatus && (
             <span className={`w-2 h-2 rounded-full shrink-0 ${tx.yclientsStatus === 'match' ? 'bg-emerald-400' : tx.yclientsStatus === 'weak_match' ? 'bg-blue-400' : tx.yclientsStatus === 'amount_mismatch' ? 'bg-amber-400' : tx.yclientsStatus === 'not_found' ? 'bg-rose-400' : 'bg-slate-300'}`} title={tx.yclientsStatus === 'match' ? 'YClients: совпадение' : tx.yclientsStatus === 'weak_match' ? 'YClients: сумма совпадает' : tx.yclientsStatus === 'amount_mismatch' ? 'YClients: сумма отличается' : tx.yclientsStatus === 'not_found' ? 'YClients: не найдено' : ''} />
           )}
-          {tx.confirmed && <CheckCircle2 size={13} className="text-teal-500 shrink-0" />}
+          {tx.type === 'expense'
+            ? TX_STATUS_BADGE[getTxStatus(tx) || ''] ?? null
+            : tx.confirmed && <CheckCircle2 size={13} className="text-teal-500 shrink-0" />
+          }
           <span>{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}</span>
         </div>
       </td>
@@ -171,8 +188,10 @@ export const TransactionList: React.FC = () => {
   const contractorOptions = useMemo(() => contractors.map(c => ({ id: c.id, label: c.name + (c.inn ? ` (${c.inn})` : '') })), [contractors]);
   const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
   const confirmedOptions = useMemo(() => [
-    { id: 'yes', label: 'Подтверждённые' },
-    { id: 'no', label: 'Неподтверждённые' },
+    { id: 'pending',  label: 'Ожидает' },
+    { id: 'approved', label: 'Утвержден' },
+    { id: 'paid',     label: 'Оплачен' },
+    { id: 'verified', label: 'Проверен' },
   ], []);
 
   const filteredTransactions = useMemo(() => {
@@ -196,8 +215,8 @@ export const TransactionList: React.FC = () => {
       const matchesContractor = filterContractorIds.length === 0 || filterContractorIds.includes(String(t.contractorId));
       const matchesCategory = filterCategoryIds.length === 0 || filterCategoryIds.includes(String(t.categoryId));
       const matchesStudio = filterStudioIds.length === 0 || filterStudioIds.includes(String(t.studioId));
-      const matchesConfirmed = filterConfirmed.length === 0 || filterConfirmed.length === 2 ||
-        (filterConfirmed.includes('yes') && t.confirmed) || (filterConfirmed.includes('no') && !t.confirmed);
+      const effectiveStatus = getTxStatus(t) ?? (t.confirmed ? 'verified' : 'pending');
+      const matchesConfirmed = filterConfirmed.length === 0 || filterConfirmed.includes(effectiveStatus);
 
       const txDate = t.date.length > 10 ? t.date.slice(0, 10) : t.date;
       const matchesDateFrom = !filterDateFrom || txDate >= filterDateFrom;

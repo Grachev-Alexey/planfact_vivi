@@ -187,6 +187,23 @@ router.put('/payment-requests/:id', async (req, res) => {
 
     const request = toCamelCase(result.rows[0]);
 
+    // Bidirectional sync: update linked transaction when status changes
+    const externalId = `pr-${req.params.id}`;
+    if (status === 'paid' && (paidDate || accountId)) {
+      const txUpdates = [];
+      const txParams = [];
+      let txIdx = 1;
+      if (paidDate) { txUpdates.push(`date = $${txIdx++}`); txParams.push(paidDate); }
+      if (accountId) { txUpdates.push(`account_id = $${txIdx++}`); txParams.push(accountId); }
+      if (txUpdates.length > 0) {
+        txParams.push(externalId);
+        await db.query(
+          `UPDATE transactions SET ${txUpdates.join(', ')}, updated_at = NOW() WHERE external_id = $${txIdx}`,
+          txParams
+        );
+      }
+    }
+
     if (status === 'paid' || status === 'rejected' || status === 'approved') {
       const fullRes = await db.query(`
         SELECT pr.*, u.username, c.name as category_name, s.name as studio_name, co.name as contractor_name

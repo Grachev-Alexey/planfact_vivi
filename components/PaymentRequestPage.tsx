@@ -573,9 +573,9 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
       case 'pending':
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700"><Clock size={11} /> Ожидает</span>;
       case 'approved':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-700"><BadgeCheck size={11} /> Подтверждено</span>;
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-700"><BadgeCheck size={11} /> Утвержден</span>;
       case 'paid':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700"><CheckCircle2 size={11} /> Оплачено</span>;
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700"><CheckCircle2 size={11} /> Оплачен</span>;
       case 'rejected':
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-700"><XCircle size={11} /> Отклонено</span>;
       default:
@@ -694,8 +694,8 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
           {[
             { value: '', label: 'Все' },
             { value: 'pending', label: 'Ожидает' },
-            { value: 'approved', label: 'Подтверждено' },
-            { value: 'paid', label: 'Оплачено' },
+            { value: 'approved', label: 'Утвержден' },
+            { value: 'paid', label: 'Оплачен' },
             { value: 'rejected', label: 'Отклонено' },
           ].map(f => (
             <button

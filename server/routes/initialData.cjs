@@ -5,7 +5,12 @@ const { toCamelCase } = require('../utils/helpers.cjs');
 
 router.get('/init', async (req, res) => {
   try {
-    const transactionsQuery = `SELECT * FROM transactions ORDER BY date DESC, created_at DESC LIMIT 1000`;
+    const transactionsQuery = `
+      SELECT t.*, pr.status as pr_status
+      FROM transactions t
+      LEFT JOIN payment_requests pr ON t.external_id = 'pr-' || pr.id::text
+      ORDER BY t.date DESC, t.created_at DESC LIMIT 1000
+    `;
     
     // Dynamic balance calculation
     const accountsQuery = `

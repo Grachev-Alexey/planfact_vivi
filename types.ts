@@ -63,4 +63,6 @@ export interface Transaction {
   yclientsRecordId?: string | null;
   yclientsData?: string | null;
   yclientsCheckedAt?: string | null;
+  externalId?: string | null;
+  prStatus?: string | null;
 }
