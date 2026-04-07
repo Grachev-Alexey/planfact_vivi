@@ -64,13 +64,7 @@ function fmtCompact(v: number | undefined): string {
 }
 
 function FmtWithCents({ v, className }: { v: number; className?: string }) {
-  const abs = Math.abs(v);
-  const hasDecimals = abs % 1 !== 0;
-  const intPart = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.trunc(abs));
-  const sign = v < 0 ? '−' : '';
-  if (!hasDecimals) return <span className={className}>{sign}{intPart}</span>;
-  const decPart = Math.abs(Math.round((abs % 1) * 100)).toString().padStart(2, '0');
-  return <span className={className}>{sign}{intPart}<span className="text-[8px] opacity-60">,{decPart}</span></span>;
+  return <span className={className}>{fmtCompact(Math.abs(v)) ? ((v < 0 ? '−' : '') + fmtCompact(Math.abs(v))) : '0'}</span>;
 }
 
 function fmtFull(v: number): string {
@@ -847,9 +841,9 @@ export const PaymentCalendar: React.FC = () => {
                 days={days}
                 values={data.expensePlan}
                 todayDay={todayDay}
-                textClass="text-rose-500"
+                textClass="text-slate-600"
                 rowBg="#ffffff"
-                todayBg="#fff1f2"
+                todayBg="#fef2f2"
                 accentColor="#fca5a5"
                 isPast={isPast}
                 isFuture={isFuture}
@@ -862,11 +856,11 @@ export const PaymentCalendar: React.FC = () => {
                 days={days}
                 values={data.expenseFact}
                 todayDay={todayDay}
-                textClass="text-rose-700"
-                rowBg="#fff9f9"
-                todayBg="#ffe4e6"
+                textClass="text-slate-700"
+                rowBg="#fefafa"
+                todayBg="#fce8e8"
                 bold
-                accentColor="#f43f5e"
+                accentColor="#e57373"
                 isPast={isPast}
                 isFuture={isFuture}
                 labelW={LABEL_W}
@@ -1324,7 +1318,7 @@ const BalanceRow: React.FC<BalanceRowProps> = ({
       className="border-r border-slate-200 text-right px-2 py-1.5"
       style={{ position: 'sticky', left: labelW, zIndex: 10, width: totalW, minWidth: totalW, background: rowBg, fontWeight: bold ? 700 : 600 }}
     >
-      <FmtWithCents v={total} className={total >= 0 ? 'text-emerald-700' : 'text-rose-700'} />
+      <FmtWithCents v={total} className={total >= 0 ? 'text-slate-700' : 'text-slate-700'} />
     </td>
     {days.map(d => {
       const v = values[d] ?? 0;
@@ -1338,7 +1332,7 @@ const BalanceRow: React.FC<BalanceRowProps> = ({
           {v !== 0 && (
             <FmtWithCents
               v={v}
-              className={`text-[11px] ${v >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}
+              className={`text-[11px] ${v >= 0 ? 'text-slate-600' : 'text-rose-500'}`}
             />
           )}
         </td>
