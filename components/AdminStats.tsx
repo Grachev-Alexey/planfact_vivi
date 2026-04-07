@@ -296,7 +296,7 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
         </div>
         <div className="px-4 py-3">
           <div className="text-base font-bold text-slate-800">{s.totalShifts}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">{pluralShifts(s.totalShifts)}{s.zeroVisits > 0 ? ` · ${s.zeroVisits} без опл.` : ''}</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">{pluralShifts(s.totalShifts)}</div>
         </div>
       </div>
 
