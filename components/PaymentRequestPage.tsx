@@ -907,7 +907,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
                             onClick={(e) => { e.stopPropagation(); handleApprove(req.id); }}
                             className="flex-1 bg-sky-600 text-white text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 hover:bg-sky-700 active:scale-95 transition-all"
                           >
-                            <ThumbsUp size={14} /> Подтвердить
+                            <ThumbsUp size={14} /> Утвердить
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handlePayClick(req); }}
