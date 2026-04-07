@@ -225,8 +225,7 @@ export const TransactionList: React.FC = () => {
       } else if (t.type === 'expense') {
         effectiveStatus = getTxStatus(t) ?? 'pending';
       }
-      // transfers: effectiveStatus stays null → always pass the filter
-      const matchesConfirmed = filterConfirmed.length === 0 || effectiveStatus === null || filterConfirmed.includes(effectiveStatus);
+      const matchesConfirmed = filterConfirmed.length === 0 || (effectiveStatus !== null && filterConfirmed.includes(effectiveStatus));
 
       const txDate = t.date.length > 10 ? t.date.slice(0, 10) : t.date;
       const matchesDateFrom = !filterDateFrom || txDate >= filterDateFrom;
