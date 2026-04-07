@@ -661,6 +661,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
           />
         </FormRow>
 
+        {type === 'income' && (
+          <FormRow label="Подтверждение">
+            <button
+              type="button"
+              onClick={() => setConfirmed(!confirmed)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                confirmed
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+              }`}
+            >
+              <div className={`w-4 h-4 rounded border flex items-center justify-center ${confirmed ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300'}`}>
+                {confirmed && <Check size={11} className="text-white" />}
+              </div>
+              {confirmed ? 'Подтверждено' : 'Не подтверждено'}
+            </button>
+          </FormRow>
+        )}
+
         {initialData && type === 'income' && (
           <YClientsSection transaction={initialData} />
         )}
