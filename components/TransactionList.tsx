@@ -351,33 +351,34 @@ export const TransactionList: React.FC = () => {
   const handleBulkDelete = async () => {
     setIsDeleting(true);
     const idsToDelete = [...selectedIds];
-    const failed: string[] = [];
-    for (const id of idsToDelete) {
-      try {
-        await deleteTransaction(id);
-      } catch (err) {
-        console.error('Error deleting transaction:', id, err);
-        failed.push(id);
+    try {
+      const res = await fetch('/api/transactions-batch/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': '1' },
+        body: JSON.stringify({ ids: idsToDelete }),
+      });
+      if (res.ok) {
+        setSelectedIds(new Set());
+        setShowDeleteConfirm(false);
       }
-    }
-    if (failed.length > 0) {
-      setSelectedIds(new Set(failed));
-    } else {
-      setSelectedIds(new Set());
-      setShowDeleteConfirm(false);
+    } catch (err) {
+      console.error('Batch delete error:', err);
     }
     setIsDeleting(false);
+    if (refreshData) refreshData();
   };
 
   const handleBulkConfirm = async (confirmed: boolean) => {
     setIsDeleting(true);
     const ids = [...selectedIds];
-    for (const id of ids) {
-      try {
-        await updateTransaction(id, { confirmed });
-      } catch (err) {
-        console.error('Error updating transaction:', id, err);
-      }
+    try {
+      await fetch('/api/transactions-batch/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': '1' },
+        body: JSON.stringify({ ids, status: confirmed ? 'verified' : null, confirmed }),
+      });
+    } catch (err) {
+      console.error('Batch confirm error:', err);
     }
     setSelectedIds(new Set());
     setIsDeleting(false);
@@ -419,24 +420,29 @@ export const TransactionList: React.FC = () => {
     setIsDeleting(true);
     const ids = [...selectedIds];
     const expenseTxs = transactions.filter(t => ids.includes(t.id) && t.type === 'expense');
-    for (const tx of expenseTxs) {
-      try {
-        if (tx.externalId?.startsWith('pr-')) {
-          const prId = tx.externalId.replace('pr-', '');
-          await fetch(`/api/payment-requests/${prId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'x-user-id': '1' },
-            body: JSON.stringify({ status: newStatus }),
-          });
-        } else {
-          await updateTransaction(tx.id, {
-            status: newStatus,
-            confirmed: newStatus === 'verified'
-          });
-        }
-      } catch (err) {
-        console.error('Error updating expense status:', tx.id, err);
+    const prTxs = expenseTxs.filter(t => t.externalId?.startsWith('pr-'));
+    const directTxs = expenseTxs.filter(t => !t.externalId?.startsWith('pr-'));
+
+    try {
+      const promises: Promise<any>[] = [];
+      if (directTxs.length > 0) {
+        promises.push(fetch('/api/transactions-batch/status', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': '1' },
+          body: JSON.stringify({ ids: directTxs.map(t => t.id), status: newStatus }),
+        }));
       }
+      for (const tx of prTxs) {
+        const prId = tx.externalId!.replace('pr-', '');
+        promises.push(fetch(`/api/payment-requests/${prId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': '1' },
+          body: JSON.stringify({ status: newStatus }),
+        }));
+      }
+      await Promise.all(promises);
+    } catch (err) {
+      console.error('Batch expense status error:', err);
     }
     setSelectedIds(new Set());
     setIsDeleting(false);

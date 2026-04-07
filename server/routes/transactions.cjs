@@ -164,12 +164,17 @@ router.put('/transactions/:id', async (req, res) => {
     if (oldRes.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const old = oldRes.rows[0];
 
-    // Use old date if new date not provided
-    const finalDate = date || old.date;
+    const finalDate = date !== undefined ? date : old.date;
+    const finalAmount = amount !== undefined ? amount : old.amount;
+    const finalType = type !== undefined ? type : old.type;
+    const finalAccountId = accountId !== undefined ? accountId : old.account_id;
+    const finalCategoryId = categoryId !== undefined ? (categoryId || null) : old.category_id;
+    const finalStudioId = studioId !== undefined ? (studioId || null) : old.studio_id;
+    const finalDescription = description !== undefined ? (description || '') : (old.description || '');
+    const finalToAccountId = toAccountId !== undefined ? (toAccountId || null) : old.to_account_id;
+    const finalContractorId = contractorId !== undefined ? (contractorId || null) : old.contractor_id;
+    const finalAcrcualDate = accrualDate !== undefined ? (accrualDate || null) : old.accrual_date;
 
-    // Determine confirmed & status fields
-    // If status provided explicitly: status drives confirmed
-    // Otherwise fall back to the old boolean confirmed
     let finalStatus = status !== undefined ? (status || null) : (old.status || null);
     let finalConfirmed;
     if (status !== undefined) {
@@ -185,7 +190,7 @@ router.put('/transactions/:id', async (req, res) => {
       SET date=$1, amount=$2, type=$3, account_id=$4, category_id=$5, studio_id=$6, description=$7, to_account_id=$8, contractor_id=$9, confirmed=$10, accrual_date=$11, status=$12, updated_at=NOW()
       WHERE id = $13 RETURNING *
     `;
-    const values = [finalDate, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, finalConfirmed, accrualDate || null, finalStatus, id];
+    const values = [finalDate, finalAmount, finalType, finalAccountId, finalCategoryId, finalStudioId, finalDescription, finalToAccountId, finalContractorId, finalConfirmed, finalAcrcualDate, finalStatus, id];
 
     const result = await db.query(query, values);
 
@@ -291,6 +296,70 @@ router.delete('/transactions/:id', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting transaction' });
+  }
+});
+
+// Batch status update
+router.put('/transactions-batch/status', async (req, res) => {
+  const { ids, status, confirmed } = req.body;
+  const currentUserId = req.headers['x-user-id'];
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids required' });
+  }
+  try {
+    const finalConfirmed = status === 'verified' ? true : (confirmed !== undefined ? confirmed : false);
+    const finalStatus = status || null;
+    await db.query(
+      `UPDATE transactions SET status=$1, confirmed=$2, updated_at=NOW() WHERE id = ANY($3::int[])`,
+      [finalStatus, finalConfirmed, ids]
+    );
+    // Sync PR-linked transactions
+    const prLinked = await db.query(
+      `SELECT id, external_id FROM transactions WHERE id = ANY($1::int[]) AND external_id LIKE 'pr-%'`,
+      [ids]
+    );
+    for (const row of prLinked.rows) {
+      const prId = row.external_id.substring(3);
+      const prStatusMap = { pending: 'pending', approved: 'approved', paid: 'paid', verified: 'paid' };
+      await db.query(
+        `UPDATE payment_requests SET status=$1, updated_at=NOW() WHERE id=$2`,
+        [prStatusMap[status] || 'pending', prId]
+      );
+    }
+    await logAction(currentUserId, 'batch_update', 'transaction', null, `Массовое обновление статуса → ${status} (${ids.length} шт.)`);
+    res.json({ success: true, count: ids.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Batch status update failed' });
+  }
+});
+
+// Batch delete
+router.post('/transactions-batch/delete', async (req, res) => {
+  const { ids } = req.body;
+  const currentUserId = req.headers['x-user-id'];
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids required' });
+  }
+  try {
+    // Clean up linked records
+    const linked = await db.query(
+      `SELECT id, external_id FROM transactions WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+    for (const row of linked.rows) {
+      if (row.external_id?.startsWith('mi-')) {
+        await db.query('DELETE FROM master_incomes WHERE id = $1', [row.external_id.substring(3)]);
+      } else if (row.external_id?.startsWith('pr-')) {
+        await db.query('DELETE FROM payment_requests WHERE id = $1', [row.external_id.substring(3)]);
+      }
+    }
+    const result = await db.query('DELETE FROM transactions WHERE id = ANY($1::int[])', [ids]);
+    await logAction(currentUserId, 'batch_delete', 'transaction', null, `Массовое удаление (${result.rowCount} шт.)`);
+    res.json({ success: true, count: result.rowCount });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Batch delete failed' });
   }
 });
 
