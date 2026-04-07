@@ -47,7 +47,7 @@ router.get('/payment-calendar', async (req, res) => {
     const prRes = await db.query(
       `SELECT
         pr.id, pr.amount, pr.paid_amount, pr.status,
-        pr.payment_date, pr.description,
+        pr.payment_date, pr.accrual_date, pr.description,
         pr.category_id, c.name AS category_name,
         u.username, pr.created_at,
         co.name AS contractor_name
@@ -58,6 +58,22 @@ router.get('/payment-calendar', async (req, res) => {
        WHERE pr.status != 'rejected'
          AND pr.payment_date >= $1 AND pr.payment_date < $2
        ORDER BY pr.category_id, pr.payment_date, pr.id`,
+      [startDate, nextMonthDate]
+    );
+
+    const directExpenseRes = await db.query(
+      `SELECT
+        t.id, t.amount, t.date, t.accrual_date, t.description, t.confirmed, t.status,
+        t.category_id, c.name AS category_name,
+        co.name AS contractor_name,
+        t.created_at
+       FROM transactions t
+       LEFT JOIN categories c ON t.category_id = c.id
+       LEFT JOIN contractors co ON t.contractor_id = co.id
+       WHERE t.type = 'expense'
+         AND (t.external_id IS NULL OR t.external_id NOT LIKE 'pr-%')
+         AND t.date >= $1 AND t.date < $2
+       ORDER BY t.category_id, t.date, t.id`,
       [startDate, nextMonthDate]
     );
 
@@ -80,7 +96,7 @@ router.get('/payment-calendar', async (req, res) => {
       const paidAmount = parseFloat(pr.paid_amount || pr.amount || 0);
 
       expensePlan[day] = (expensePlan[day] || 0) + amount;
-      if (pr.status === 'paid') {
+      if (pr.status === 'paid' || pr.status === 'verified') {
         expenseFact[day] = (expenseFact[day] || 0) + paidAmount;
       }
 
@@ -94,6 +110,7 @@ router.get('/payment-calendar', async (req, res) => {
       }
       categoryMap[catId].days[day].push({
         id: pr.id,
+        source: 'pr',
         amount,
         status: pr.status,
         description: pr.description || '',
@@ -102,6 +119,42 @@ router.get('/payment-calendar', async (req, res) => {
         createdAt: pr.created_at,
         paymentDate: pr.payment_date ? (pr.payment_date instanceof Date ? pr.payment_date : new Date(pr.payment_date)).toISOString().slice(0, 10) : null,
         accrualDate: pr.accrual_date ? (pr.accrual_date instanceof Date ? pr.accrual_date : new Date(pr.accrual_date)).toISOString().slice(0, 10) : null,
+      });
+    }
+
+    for (const tx of directExpenseRes.rows) {
+      const txDate = new Date(tx.date);
+      const day = txDate.getUTCDate();
+      const amount = parseFloat(tx.amount || 0);
+
+      expensePlan[day] = (expensePlan[day] || 0) + amount;
+      if (tx.confirmed) {
+        expenseFact[day] = (expenseFact[day] || 0) + amount;
+      }
+
+      const catId = tx.category_id != null ? String(tx.category_id) : '0';
+      const catName = tx.category_name || 'Без категории';
+      if (!categoryMap[catId]) {
+        categoryMap[catId] = { id: catId, name: catName, days: {} };
+      }
+      if (!categoryMap[catId].days[day]) {
+        categoryMap[catId].days[day] = [];
+      }
+
+      let txStatus = tx.status || 'pending';
+      if (tx.confirmed && txStatus === 'pending') txStatus = 'paid';
+
+      categoryMap[catId].days[day].push({
+        id: tx.id,
+        source: 'tx',
+        amount,
+        status: txStatus,
+        description: tx.description || '',
+        username: '',
+        contractorName: tx.contractor_name || '',
+        createdAt: tx.created_at,
+        paymentDate: tx.date ? (tx.date instanceof Date ? tx.date : new Date(tx.date)).toISOString().slice(0, 10) : null,
+        accrualDate: tx.accrual_date ? (tx.accrual_date instanceof Date ? tx.accrual_date : new Date(tx.accrual_date)).toISOString().slice(0, 10) : null,
       });
     }
 

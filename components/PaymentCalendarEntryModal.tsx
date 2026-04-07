@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, ArrowRight, Scissors, ThumbsUp, CreditCard, Pencil, Check, ChevronLeft } from 'lucide-react';
+import { X, ArrowRight, Scissors, ThumbsUp, CreditCard, Pencil, Check, ChevronLeft, Trash2 } from 'lucide-react';
 
 interface PREntry {
   id: number;
+  source: 'pr' | 'tx';
   amount: number;
   status: 'pending' | 'approved' | 'paid' | 'verified';
   description: string;
@@ -43,7 +44,9 @@ function pluralOp(n: number) {
   return 'операций';
 }
 
-type ActionMode = { entryId: number; type: 'move' } | { entryId: number; type: 'split' } | { entryId: number; type: 'edit' };
+function entryKey(e: PREntry) { return `${e.source}:${e.id}`; }
+
+type ActionMode = { entryKey: string; type: 'move' } | { entryKey: string; type: 'split' } | { entryKey: string; type: 'edit' };
 
 export const PaymentCalendarEntryModal: React.FC<Props> = ({
   catName, day, month, year, entries, userId, onClose, onRefresh, onSuccess,
@@ -55,31 +58,31 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
   const [splitParts, setSplitParts] = useState<{ amount: string; date: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [statusBusy, setStatusBusy] = useState<number | null>(null);
+  const [statusBusy, setStatusBusy] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState<string | null>(null);
 
-  // Edit form state
   const [editAmount, setEditAmount] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editPaymentDate, setEditPaymentDate] = useState('');
   const [editAccrualDate, setEditAccrualDate] = useState('');
 
-  const activeEntry = action ? entries.find(e => e.id === action.entryId) : null;
+  const activeEntry = action ? entries.find(e => entryKey(e) === action.entryKey) : null;
 
   const splitTotal = splitParts.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
   const splitRemainder = activeEntry ? Math.round((activeEntry.amount - splitTotal) * 100) / 100 : 0;
   const splitValid = activeEntry && Math.abs(splitRemainder) < 0.01 && splitParts.every(p => parseFloat(p.amount) > 0 && p.date);
 
-  function openMove(id: number) { setAction({ entryId: id, type: 'move' }); setMoveDate(defaultDate); setErr(''); }
+  function openMove(entry: PREntry) { setAction({ entryKey: entryKey(entry), type: 'move' }); setMoveDate(defaultDate); setErr(''); }
 
   function openSplit(entry: PREntry) {
-    setAction({ entryId: entry.id, type: 'split' });
+    setAction({ entryKey: entryKey(entry), type: 'split' });
     const half = Math.floor(entry.amount / 2);
     setSplitParts([{ amount: String(half), date: defaultDate }, { amount: String(entry.amount - half), date: defaultDate }]);
     setErr('');
   }
 
   function openEdit(entry: PREntry) {
-    setAction({ entryId: entry.id, type: 'edit' });
+    setAction({ entryKey: entryKey(entry), type: 'edit' });
     setEditAmount(String(entry.amount));
     setEditDescription(entry.description);
     setEditPaymentDate(entry.paymentDate ?? defaultDate);
@@ -95,16 +98,26 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
   function removePart(i: number) { setSplitParts(prev => prev.filter((_, idx) => idx !== i)); }
   function cancelAction() { setAction(null); setErr(''); }
 
-  async function handleStatusChange(entryId: number, newStatus: 'approved' | 'paid' | 'verified') {
-    setStatusBusy(entryId);
+  async function handleStatusChange(entry: PREntry, newStatus: 'approved' | 'paid' | 'verified') {
+    const ek = entryKey(entry);
+    setStatusBusy(ek);
     try {
-      const r = await fetch(`/api/payment-requests/${entryId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!r.ok) throw new Error();
-      onSuccess?.(newStatus === 'approved' ? 'Запрос утверждён' : newStatus === 'paid' ? 'Запрос оплачен' : 'Отмечено как проверено');
+      if (entry.source === 'tx') {
+        const r = await fetch(`/api/transactions/${entry.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+          body: JSON.stringify({ status: newStatus, confirmed: newStatus === 'paid' || newStatus === 'verified' }),
+        });
+        if (!r.ok) throw new Error();
+      } else {
+        const r = await fetch(`/api/payment-requests/${entry.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+          body: JSON.stringify({ status: newStatus }),
+        });
+        if (!r.ok) throw new Error();
+      }
+      onSuccess?.(newStatus === 'approved' ? 'Утверждено' : newStatus === 'paid' ? 'Оплачено' : 'Отмечено как проверено');
       onClose(); onRefresh();
     } catch {
       onSuccess?.('Не удалось изменить статус', 'error');
@@ -113,14 +126,34 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
     }
   }
 
+  async function handleDelete(entry: PREntry) {
+    if (!confirm('Удалить эту запись?')) return;
+    const ek = entryKey(entry);
+    setDeleteBusy(ek);
+    try {
+      const url = entry.source === 'tx' ? `/api/transactions/${entry.id}` : `/api/payment-requests/${entry.id}`;
+      const r = await fetch(url, {
+        method: 'DELETE',
+        headers: { 'x-user-id': String(userId) },
+      });
+      if (!r.ok) throw new Error();
+      onSuccess?.('Запись удалена');
+      onClose(); onRefresh();
+    } catch {
+      onSuccess?.('Не удалось удалить', 'error');
+    } finally {
+      setDeleteBusy(null);
+    }
+  }
+
   async function handleMove() {
-    if (!action || action.type !== 'move' || !moveDate) return;
+    if (!action || action.type !== 'move' || !moveDate || !activeEntry) return;
     setBusy(true); setErr('');
     try {
       const r = await fetch('/api/payment-calendar/move-payment', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
-        body: JSON.stringify({ ids: [action.entryId], newDate: moveDate }),
+        body: JSON.stringify({ ids: [activeEntry.id], newDate: moveDate }),
       });
       if (!r.ok) throw new Error('Ошибка сервера');
       onClose();
@@ -130,14 +163,14 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
   }
 
   async function handleSplit() {
-    if (!action || action.type !== 'split') return;
+    if (!action || action.type !== 'split' || !activeEntry) return;
     if (!splitValid) { setErr('Суммы частей должны в точности совпадать с исходной суммой'); return; }
     setBusy(true); setErr('');
     try {
       const r = await fetch('/api/payment-calendar/split-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
-        body: JSON.stringify({ id: action.entryId, parts: splitParts.map(p => ({ amount: parseFloat(p.amount), date: p.date })) }),
+        body: JSON.stringify({ id: activeEntry.id, parts: splitParts.map(p => ({ amount: parseFloat(p.amount), date: p.date })) }),
       });
       if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || 'Ошибка сервера'); }
       onClose(); onSuccess?.(`Разбито на ${splitParts.length} части`); onRefresh();
@@ -146,20 +179,35 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
   }
 
   async function handleEdit() {
-    if (!action || action.type !== 'edit') return;
+    if (!action || action.type !== 'edit' || !activeEntry) return;
+    const entry = activeEntry;
     setBusy(true); setErr('');
     try {
-      const r = await fetch(`/api/payment-requests/${action.entryId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
-        body: JSON.stringify({
-          amount: editAmount,
-          description: editDescription,
-          paymentDate: editPaymentDate,
-          accrualDate: editAccrualDate || null,
-        }),
-      });
-      if (!r.ok) throw new Error('Ошибка сервера');
+      if (entry.source === 'tx') {
+        const r = await fetch(`/api/transactions/${entry.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+          body: JSON.stringify({
+            amount: parseFloat(editAmount),
+            description: editDescription,
+            date: editPaymentDate,
+            accrualDate: editAccrualDate || null,
+          }),
+        });
+        if (!r.ok) throw new Error('Ошибка сервера');
+      } else {
+        const r = await fetch(`/api/payment-requests/${entry.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+          body: JSON.stringify({
+            amount: editAmount,
+            description: editDescription,
+            paymentDate: editPaymentDate,
+            accrualDate: editAccrualDate || null,
+          }),
+        });
+        if (!r.ok) throw new Error('Ошибка сервера');
+      }
       onClose(); onSuccess?.('Изменения сохранены'); onRefresh();
     } catch (e: any) { setErr(e.message || 'Ошибка'); }
     finally { setBusy(false); }
@@ -192,14 +240,15 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
         {/* Entries */}
         <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
           {entries.map(entry => {
+            const ek = entryKey(entry);
             const cfg = STATUS_CFG[entry.status];
-            const isActive = action?.entryId === entry.id;
+            const isActive = action?.entryKey === ek;
             const isEdit = isActive && action?.type === 'edit';
             const isMove = isActive && action?.type === 'move';
             const isSplit = isActive && action?.type === 'split';
 
             return (
-              <div key={entry.id} className={`px-5 py-4 ${isActive ? 'bg-slate-50/80' : ''}`}>
+              <div key={ek} className={`px-5 py-4 ${isActive ? 'bg-slate-50/80' : ''}`}>
 
                 {/* Amount + status + edit */}
                 <div className="flex items-start justify-between gap-3 mb-3">
@@ -316,43 +365,43 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
                 {/* === ACTION BUTTONS (non-edit mode) === */}
                 {!isActive && (
                   <div className="space-y-2">
-                    {entry.status === 'pending' && (
+                    {entry.status === 'pending' && entry.source === 'pr' && (
                       <button
-                        onClick={() => handleStatusChange(entry.id, 'approved')}
-                        disabled={statusBusy === entry.id}
+                        onClick={() => handleStatusChange(entry, 'approved')}
+                        disabled={statusBusy === ek}
                         className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50 active:scale-[0.98] transition-all"
                       >
-                        <ThumbsUp size={14} /> {statusBusy === entry.id ? 'Утверждаю…' : 'Утвердить'}
+                        <ThumbsUp size={14} /> {statusBusy === ek ? 'Утверждаю…' : 'Утвердить'}
                       </button>
                     )}
-                    {entry.status === 'approved' && (
+                    {entry.status === 'approved' && entry.source === 'pr' && (
                       <button
-                        onClick={() => handleStatusChange(entry.id, 'paid')}
-                        disabled={statusBusy === entry.id}
+                        onClick={() => handleStatusChange(entry, 'paid')}
+                        disabled={statusBusy === ek}
                         className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 active:scale-[0.98] transition-all"
                       >
-                        <CreditCard size={14} /> {statusBusy === entry.id ? 'Оплачиваю…' : 'Оплатить'}
+                        <CreditCard size={14} /> {statusBusy === ek ? 'Оплачиваю…' : 'Оплатить'}
                       </button>
                     )}
                     {entry.status === 'paid' && (
                       <button
-                        onClick={() => handleStatusChange(entry.id, 'verified')}
-                        disabled={statusBusy === entry.id}
+                        onClick={() => handleStatusChange(entry, 'verified')}
+                        disabled={statusBusy === ek}
                         className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 active:scale-[0.98] transition-all"
                       >
-                        <Check size={14} /> {statusBusy === entry.id ? 'Сохраняю…' : 'Проверено'}
+                        <Check size={14} /> {statusBusy === ek ? 'Сохраняю…' : 'Проверено'}
                       </button>
                     )}
                     <div className="flex gap-2">
-                      {entry.status !== 'paid' && entry.status !== 'verified' && (
+                      {entry.status !== 'paid' && entry.status !== 'verified' && entry.source === 'pr' && (
                       <button
-                        onClick={() => openMove(entry.id)}
+                        onClick={() => openMove(entry)}
                         className="flex-1 flex items-center justify-center gap-1.5 text-[12px] font-medium py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
                       >
                         <ArrowRight size={12} /> Перенести
                       </button>
                       )}
-                      {entry.status !== 'paid' && entry.status !== 'verified' && (
+                      {entry.status !== 'paid' && entry.status !== 'verified' && entry.source === 'pr' && (
                         <button
                           onClick={() => openSplit(entry)}
                           className="flex-1 flex items-center justify-center gap-1.5 text-[12px] font-medium py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700 transition-colors"
@@ -361,6 +410,13 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
                         </button>
                       )}
                     </div>
+                    <button
+                      onClick={() => handleDelete(entry)}
+                      disabled={deleteBusy === ek}
+                      className="w-full flex items-center justify-center gap-2 text-[12px] font-medium py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 hover:text-red-600 disabled:opacity-50 transition-colors"
+                    >
+                      <Trash2 size={12} /> {deleteBusy === ek ? 'Удаляю…' : 'Удалить'}
+                    </button>
                   </div>
                 )}
 

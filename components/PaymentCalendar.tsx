@@ -6,6 +6,7 @@ import { PaymentCalendarEntryModal } from './PaymentCalendarEntryModal';
 
 interface PREntry {
   id: number;
+  source: 'pr' | 'tx';
   amount: number;
   status: 'pending' | 'approved' | 'paid' | 'verified';
   description: string;
@@ -315,8 +316,10 @@ export const PaymentCalendar: React.FC = () => {
   }
 
   function handleDragStart(e: React.DragEvent, catId: string, day: number, entries: PREntry[]) {
+    const prOnly = entries.filter(en => en.source === 'pr');
+    if (prOnly.length === 0) { e.preventDefault(); return; }
     hideTooltip();
-    setDragState({ catId, day, entryIds: entries.map(en => en.id) });
+    setDragState({ catId, day, entryIds: prOnly.map(en => en.id) });
     e.dataTransfer.effectAllowed = 'move';
   }
 
