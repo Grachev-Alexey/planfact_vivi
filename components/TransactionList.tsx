@@ -375,13 +375,14 @@ export const TransactionList: React.FC = () => {
       await fetch('/api/transactions-batch/status', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-user-id': '1' },
-        body: JSON.stringify({ ids, status: confirmed ? 'verified' : null, confirmed }),
+        body: JSON.stringify({ ids, confirmed }),
       });
     } catch (err) {
       console.error('Batch confirm error:', err);
     }
     setSelectedIds(new Set());
     setIsDeleting(false);
+    if (refreshData) refreshData();
   };
 
   const handleBulkVerify = async () => {

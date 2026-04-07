@@ -308,11 +308,18 @@ router.put('/transactions-batch/status', async (req, res) => {
   }
   try {
     const finalConfirmed = status === 'verified' ? true : (confirmed !== undefined ? confirmed : false);
-    const finalStatus = status || null;
-    await db.query(
-      `UPDATE transactions SET status=$1, confirmed=$2, updated_at=NOW() WHERE id = ANY($3::int[])`,
-      [finalStatus, finalConfirmed, ids]
-    );
+    if (status !== undefined) {
+      const finalStatus = status || null;
+      await db.query(
+        `UPDATE transactions SET status=$1, confirmed=$2, updated_at=NOW() WHERE id = ANY($3::int[])`,
+        [finalStatus, finalConfirmed, ids]
+      );
+    } else {
+      await db.query(
+        `UPDATE transactions SET confirmed=$1, updated_at=NOW() WHERE id = ANY($2::int[])`,
+        [finalConfirmed, ids]
+      );
+    }
     // Sync PR-linked transactions
     const prLinked = await db.query(
       `SELECT id, external_id FROM transactions WHERE id = ANY($1::int[]) AND external_id LIKE 'pr-%'`,
