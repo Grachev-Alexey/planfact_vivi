@@ -28,10 +28,11 @@ type LookupMaps = {
 };
 
 function getTxStatus(tx: Transaction): 'pending' | 'approved' | 'paid' | 'verified' | null {
-  if (tx.confirmed) return 'verified';
   if (tx.type !== 'expense') return null;
-  if (tx.externalId?.startsWith('pr-')) return (tx.prStatus as 'pending' | 'approved' | 'paid') || 'pending';
-  return (tx.status as 'pending' | 'approved' | 'paid') || 'pending';
+  if (tx.externalId?.startsWith('pr-')) return (tx.prStatus as 'pending' | 'approved' | 'paid' | 'verified') || 'pending';
+  if (tx.status && ['pending', 'approved', 'paid', 'verified'].includes(tx.status)) return tx.status as 'pending' | 'approved' | 'paid' | 'verified';
+  if (tx.confirmed) return 'verified';
+  return 'pending';
 }
 
 const TX_STATUS_BADGE: Record<string, React.ReactNode> = {
@@ -430,7 +431,7 @@ export const TransactionList: React.FC = () => {
         } else {
           await updateTransaction(tx.id, {
             status: newStatus,
-            confirmed: newStatus === 'paid' || newStatus === 'verified'
+            confirmed: newStatus === 'verified'
           });
         }
       } catch (err) {
