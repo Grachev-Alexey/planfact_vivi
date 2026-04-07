@@ -535,34 +535,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
-      <div className="flex items-center gap-1 mb-4 border-b border-slate-200 shrink-0">
-        <div className="flex gap-1 flex-1">
-          <button type="button" onClick={() => setType('income')} className={tabClass('income', 'bg-emerald-500')}>
-            Поступление
-          </button>
-          <button type="button" onClick={() => setType('expense')} className={tabClass('expense', 'bg-teal-600')}>
-            Выплата
-          </button>
-          <button type="button" onClick={() => setType('transfer')} className={tabClass('transfer', 'bg-blue-500')}>
-            Перемещение
-          </button>
-        </div>
-        {type === 'income' && (
-          <button
-            type="button"
-            onClick={() => setConfirmed(!confirmed)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border mb-1 ${
-              confirmed
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                : 'bg-amber-50 border-amber-200 text-amber-600 hover:border-amber-300'
-            }`}
-          >
-            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${confirmed ? 'bg-emerald-600 border-emerald-600' : 'border-amber-300'}`}>
-              {confirmed && <Check size={10} className="text-white" />}
-            </div>
-            {confirmed ? 'Подтверждено' : 'Не подтв.'}
-          </button>
-        )}
+      <div className="flex gap-1 mb-4 border-b border-slate-200 shrink-0">
+        <button type="button" onClick={() => setType('income')} className={tabClass('income', 'bg-emerald-500')}>
+          Поступление
+        </button>
+        <button type="button" onClick={() => setType('expense')} className={tabClass('expense', 'bg-teal-600')}>
+          Выплата
+        </button>
+        <button type="button" onClick={() => setType('transfer')} className={tabClass('transfer', 'bg-blue-500')}>
+          Перемещение
+        </button>
       </div>
 
       <form id={formId} onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-y-auto min-h-0">
@@ -584,6 +566,26 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
                   type="button"
                   onClick={() => setTxStatus(opt.id)}
                   className={`flex-1 py-2 text-xs font-medium transition-colors ${i < arr.length - 1 ? 'border-r border-slate-200' : ''} ${txStatus === opt.id ? opt.active : 'bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </FormRow>
+        )}
+
+        {type === 'income' && (
+          <FormRow label="Статус">
+            <div className="flex rounded-xl overflow-hidden border border-slate-200 w-full">
+              {([
+                { id: false, label: 'Не подтверждено', active: 'bg-amber-50 text-amber-700 border-amber-200' },
+                { id: true,  label: 'Подтверждено',    active: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+              ] as const).map((opt, i, arr) => (
+                <button
+                  key={String(opt.id)}
+                  type="button"
+                  onClick={() => setConfirmed(opt.id)}
+                  className={`flex-1 py-2 text-xs font-medium transition-colors ${i < arr.length - 1 ? 'border-r border-slate-200' : ''} ${confirmed === opt.id ? opt.active : 'bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
                 >
                   {opt.label}
                 </button>
