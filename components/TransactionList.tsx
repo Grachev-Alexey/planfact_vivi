@@ -187,13 +187,13 @@ export const TransactionList: React.FC = () => {
   }), [accounts, legalEntities]);
   const contractorOptions = useMemo(() => contractors.map(c => ({ id: c.id, label: c.name + (c.inn ? ` (${c.inn})` : '') })), [contractors]);
   const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
-  const confirmedOptions = useMemo(() => [
-    { id: 'pending',           label: 'Ожидает (выплата)' },
-    { id: 'approved',          label: 'Утверждено (выплата)' },
-    { id: 'paid',              label: 'Оплачено (выплата)' },
-    { id: 'verified',          label: 'Проверено (выплата)' },
-    { id: 'income_confirmed',  label: 'Подтверждённый доход' },
-    { id: 'income_unconfirmed',label: 'Неподтверждённый доход' },
+  const statusChips = useMemo(() => [
+    { id: 'income_unconfirmed', label: 'Не подтв.', group: 'income', activeClass: 'bg-amber-100 text-amber-700 border-amber-300' },
+    { id: 'income_confirmed',   label: 'Подтв.',    group: 'income', activeClass: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+    { id: 'pending',            label: 'Ожидает',   group: 'expense', activeClass: 'bg-amber-100 text-amber-700 border-amber-300' },
+    { id: 'approved',           label: 'Утверждено', group: 'expense', activeClass: 'bg-sky-100 text-sky-700 border-sky-300' },
+    { id: 'paid',               label: 'Оплачено',  group: 'expense', activeClass: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+    { id: 'verified',           label: 'Проверено',  group: 'expense', activeClass: 'bg-teal-100 text-teal-700 border-teal-300' },
   ], []);
 
   const filteredTransactions = useMemo(() => {
@@ -413,6 +413,34 @@ export const TransactionList: React.FC = () => {
     alert(`Сверка завершена. Успешно: ${successCount}, Ошибок: ${failCount}`);
   };
 
+  const handleBulkExpenseStatus = async (newStatus: 'approved' | 'paid' | 'verified') => {
+    setIsDeleting(true);
+    const ids = [...selectedIds];
+    const expenseTxs = transactions.filter(t => ids.includes(t.id) && t.type === 'expense');
+    for (const tx of expenseTxs) {
+      try {
+        if (tx.externalId?.startsWith('pr-')) {
+          const prId = tx.externalId.replace('pr-', '');
+          await fetch(`/api/payment-requests/${prId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'x-user-id': '1' },
+            body: JSON.stringify({ status: newStatus }),
+          });
+        } else {
+          await updateTransaction(tx.id, {
+            status: newStatus,
+            confirmed: newStatus === 'paid' || newStatus === 'verified'
+          });
+        }
+      } catch (err) {
+        console.error('Error updating expense status:', tx.id, err);
+      }
+    }
+    setSelectedIds(new Set());
+    setIsDeleting(false);
+    if (refreshData) refreshData();
+  };
+
   const visibleSelectedCount = [...selectedIds].filter(id => filteredIds.has(id)).length;
   const allSelected = filteredTransactions.length > 0 && visibleSelectedCount === filteredTransactions.length;
   const someSelected = visibleSelectedCount > 0 && visibleSelectedCount < filteredTransactions.length;
@@ -427,7 +455,7 @@ export const TransactionList: React.FC = () => {
 
   const selectedTypes = new Set(selectedTransactions.map(t => t.type));
   const hasIncomeSelected = selectedTypes.has('income');
-  const hasExpenseOrIncomeSelected = selectedTypes.has('income') || selectedTypes.has('expense');
+  const hasExpenseSelected = selectedTypes.has('expense');
 
   const datePresets = [
     { label: 'Просроченные', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); setFilterDateFrom(''); setFilterDateTo(toLocalDate(d)); }},
@@ -594,8 +622,48 @@ export const TransactionList: React.FC = () => {
           </div>
 
           <div>
-            <div className="text-[11px] font-medium text-slate-500 mb-1">Статус</div>
-            <FilterSelect value={filterConfirmed} onChange={setFilterConfirmed} placeholder="Все" options={confirmedOptions} searchable={false} />
+            <div className="text-[11px] font-medium text-slate-500 mb-1.5">Статус</div>
+            <div className="space-y-1.5">
+              <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Доход</div>
+              <div className="flex flex-wrap gap-1">
+                {statusChips.filter(c => c.group === 'income').map(chip => {
+                  const active = filterConfirmed.includes(chip.id);
+                  return (
+                    <button
+                      key={chip.id}
+                      onClick={() => setFilterConfirmed(prev => active ? prev.filter(x => x !== chip.id) : [...prev, chip.id])}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${
+                        active ? chip.activeClass : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider pt-1">Расход</div>
+              <div className="flex flex-wrap gap-1">
+                {statusChips.filter(c => c.group === 'expense').map(chip => {
+                  const active = filterConfirmed.includes(chip.id);
+                  return (
+                    <button
+                      key={chip.id}
+                      onClick={() => setFilterConfirmed(prev => active ? prev.filter(x => x !== chip.id) : [...prev, chip.id])}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${
+                        active ? chip.activeClass : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {filterConfirmed.length > 0 && (
+                <button onClick={() => setFilterConfirmed([])} className="text-[10px] text-teal-600 hover:text-teal-700 font-medium flex items-center gap-0.5">
+                  <X size={9} /> Сбросить
+                </button>
+              )}
+            </div>
           </div>
 
           {hasActiveFilters && (
@@ -617,40 +685,67 @@ export const TransactionList: React.FC = () => {
                 Выбрано: <b>{visibleSelectedCount}</b>
               </span>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
               {hasIncomeSelected && (
                 <button
                   onClick={handleBulkVerify}
-                  disabled={isVerifying || isDeleting || visibleSelectedCount === 0}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
+                  disabled={isVerifying || isDeleting}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
                 >
-                  <ArrowRightLeft size={13} /> <span className="hidden sm:inline">{isVerifying ? 'Сверяю...' : 'Сверка YClients'}</span><span className="sm:hidden">Сверка</span>
+                  <ArrowRightLeft size={12} /> {isVerifying ? 'Сверяю...' : 'Сверка YClients'}
                 </button>
               )}
-              {hasExpenseOrIncomeSelected && (
+              {hasIncomeSelected && (
                 <button
                   onClick={() => handleBulkConfirm(true)}
                   disabled={isDeleting || isVerifying}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
                 >
-                  <CheckCircle2 size={13} /> <span className="hidden sm:inline">Подтвердить</span><span className="sm:hidden">OK</span>
+                  <CheckCircle2 size={12} /> Подтвердить
                 </button>
               )}
-              {hasExpenseOrIncomeSelected && (
+              {hasIncomeSelected && (
                 <button
                   onClick={() => handleBulkConfirm(false)}
                   disabled={isDeleting || isVerifying}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
                 >
-                  <span className="hidden sm:inline">Снять подтверждение</span><span className="sm:hidden">Снять</span>
+                  Снять подтв.
+                </button>
+              )}
+              {hasExpenseSelected && (
+                <button
+                  onClick={() => handleBulkExpenseStatus('approved')}
+                  disabled={isDeleting || isVerifying}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
+                >
+                  Утвердить
+                </button>
+              )}
+              {hasExpenseSelected && (
+                <button
+                  onClick={() => handleBulkExpenseStatus('paid')}
+                  disabled={isDeleting || isVerifying}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
+                >
+                  Оплатить
+                </button>
+              )}
+              {hasExpenseSelected && (
+                <button
+                  onClick={() => handleBulkExpenseStatus('verified')}
+                  disabled={isDeleting || isVerifying}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
+                >
+                  Проверено
                 </button>
               )}
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={isDeleting || isVerifying}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[11px] sm:text-xs font-medium disabled:opacity-50"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
               >
-                <Trash2 size={13} />
+                <Trash2 size={12} />
               </button>
             </div>
           </div>
