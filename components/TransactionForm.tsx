@@ -554,20 +554,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
             {type === 'transfer' ? (
               <span className="text-xs text-teal-600 font-medium whitespace-nowrap">✓ Подтверждается автоматически</span>
             ) : type === 'expense' ? (
-              initialData?.externalId?.startsWith('pr-') ? (
-                <span className="text-xs text-slate-400 whitespace-nowrap">статус из запроса</span>
-              ) : (
-                <select
-                  value={txStatus}
-                  onChange={e => setTxStatus(e.target.value)}
-                  className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
-                >
-                  <option value="pending">Ожидает</option>
-                  <option value="approved">Утвержден</option>
-                  <option value="paid">Оплачен</option>
-                  <option value="verified">Проверен</option>
-                </select>
-              )
+              <select
+                value={txStatus}
+                onChange={e => setTxStatus(e.target.value)}
+                className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+              >
+                <option value="pending">Ожидает</option>
+                <option value="approved">Утвержден</option>
+                <option value="paid">Оплачен</option>
+                <option value="verified">Проверен</option>
+              </select>
             ) : (
               <label className="flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
                 <div className="relative flex items-center">

@@ -198,6 +198,17 @@ router.put('/transactions/:id', async (req, res) => {
       );
     }
 
+    // Sync status back to payment_request if this is a PR-linked transaction
+    if (old.external_id && old.external_id.startsWith('pr-') && finalStatus !== undefined) {
+      const prId = old.external_id.substring(3);
+      const prStatusMap = { pending: 'pending', approved: 'approved', paid: 'paid', verified: 'paid' };
+      const prNewStatus = prStatusMap[finalStatus] || 'pending';
+      await db.query(
+        `UPDATE payment_requests SET status = $1, updated_at = NOW() WHERE id = $2`,
+        [prNewStatus, prId]
+      );
+    }
+
     const newAccountName = accountId ? (await db.query('SELECT name FROM accounts WHERE id=$1', [accountId])).rows[0]?.name : null;
     const newCategoryName = categoryId ? (await db.query('SELECT name FROM categories WHERE id=$1', [categoryId])).rows[0]?.name : null;
     const newStudioName = studioId ? (await db.query('SELECT name FROM studios WHERE id=$1', [studioId])).rows[0]?.name : null;
