@@ -112,11 +112,11 @@ router.get('/admin-stats', async (req, res) => {
       };
     }
 
-    // 2. Per-master visit count
+    // 2. Per-master visit count (deduplicate by recordId first — multiple income entries per visit share the same recordId)
     const visitRes = await db.query(
       `SELECT mi.user_id,
-        COUNT(DISTINCT COALESCE(mi.yclients_data->>'visitId', mi.yclients_data->'recordIds'->>0, mi.id::text)) as total_visits,
-        COUNT(DISTINCT COALESCE(mi.yclients_data->>'visitId', mi.yclients_data->'recordIds'->>0, mi.id::text))
+        COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) as total_visits,
+        COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text))
           FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits
        FROM master_incomes mi
        WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2
@@ -373,8 +373,8 @@ router.get('/master-incomes/stats', async (req, res) => {
 
     const visitCountRes = await db.query(
       `SELECT 
-        COUNT(DISTINCT COALESCE(mi.yclients_data->>'visitId', mi.yclients_data->'recordIds'->>0, mi.id::text)) as total_visits,
-        COUNT(DISTINCT COALESCE(mi.yclients_data->>'visitId', mi.yclients_data->'recordIds'->>0, mi.id::text)) FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits
+        COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) as total_visits,
+        COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits
       FROM master_incomes mi ${allVisitsWhere}`,
       params
     );
