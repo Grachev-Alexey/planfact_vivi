@@ -533,19 +533,37 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex gap-1 mb-6 border-b border-slate-200">
-        <button type="button" onClick={() => setType('income')} className={tabClass('income', 'bg-emerald-500')}>
-          Поступление
-        </button>
-        <button type="button" onClick={() => setType('expense')} className={tabClass('expense', 'bg-teal-600')}>
-          Выплата
-        </button>
-        <button type="button" onClick={() => setType('transfer')} className={tabClass('transfer', 'bg-blue-500')}>
-          Перемещение
-        </button>
+      <div className="flex items-center gap-1 mb-4 border-b border-slate-200">
+        <div className="flex gap-1 flex-1">
+          <button type="button" onClick={() => setType('income')} className={tabClass('income', 'bg-emerald-500')}>
+            Поступление
+          </button>
+          <button type="button" onClick={() => setType('expense')} className={tabClass('expense', 'bg-teal-600')}>
+            Выплата
+          </button>
+          <button type="button" onClick={() => setType('transfer')} className={tabClass('transfer', 'bg-blue-500')}>
+            Перемещение
+          </button>
+        </div>
+        {type === 'income' && (
+          <button
+            type="button"
+            onClick={() => setConfirmed(!confirmed)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border mb-1 ${
+              confirmed
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                : 'bg-amber-50 border-amber-200 text-amber-600 hover:border-amber-300'
+            }`}
+          >
+            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${confirmed ? 'bg-emerald-600 border-emerald-600' : 'border-amber-300'}`}>
+              {confirmed && <Check size={10} className="text-white" />}
+            </div>
+            {confirmed ? 'Подтверждено' : 'Не подтв.'}
+          </button>
+        )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4 flex-1">
+      <form onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-y-auto">
         <FormRow label="Дата оплаты">
           <DatePicker value={date} onChange={setDate} required />
         </FormRow>
@@ -676,7 +694,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
           </div>
         )}
 
-        <div className="pt-4 flex items-center justify-between border-t border-slate-100">
+        <div className="pt-4 pb-1 flex items-center justify-between border-t border-slate-100 sticky bottom-0 bg-white">
           <div className="flex items-center gap-2">
             {initialData && (
               <button
@@ -689,22 +707,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
             )}
           </div>
           <div className="flex items-center gap-3">
-            {type === 'income' && (
-              <button
-                type="button"
-                onClick={() => setConfirmed(!confirmed)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
-                  confirmed
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                    : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300'
-                }`}
-              >
-                <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${confirmed ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300'}`}>
-                  {confirmed && <Check size={10} className="text-white" />}
-                </div>
-                {confirmed ? 'Подтверждено' : 'Не подтв.'}
-              </button>
-            )}
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-teal-600 hover:bg-teal-50 rounded-lg font-medium transition-colors">
               Отменить
             </button>
