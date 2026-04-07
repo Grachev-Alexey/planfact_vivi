@@ -42,11 +42,13 @@ interface CalendarData {
   expenseCategories: CategoryRow[];
 }
 
-const STATUS_CFG = {
+const STATUS_CFG: Record<string, { label: string; text: string; bg: string; border: string; dot: string; pill: string }> = {
   pending:  { label: 'Ожидает',    text: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200',   dot: 'bg-amber-500',   pill: 'bg-amber-100 text-amber-700'    },
   approved: { label: 'Утверждено', text: 'text-sky-700',     bg: 'bg-sky-50',     border: 'border-sky-200',     dot: 'bg-sky-500',     pill: 'bg-sky-100 text-sky-700'        },
   paid:     { label: 'Оплачено',   text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500', pill: 'bg-emerald-100 text-emerald-700' },
+  verified: { label: 'Проверено',  text: 'text-teal-700',    bg: 'bg-teal-50',    border: 'border-teal-200',    dot: 'bg-teal-500',    pill: 'bg-teal-100 text-teal-700'      },
 };
+const STATUS_FALLBACK = { label: '?', text: 'text-slate-500', bg: 'bg-slate-50', border: 'border-slate-200', dot: 'bg-slate-400', pill: 'bg-slate-100 text-slate-500' };
 
 const MONTH_NAMES_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 const MONTH_NAMES = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
@@ -62,7 +64,8 @@ function fmtFull(v: number): string {
 }
 
 
-function dominantStatus(entries: PREntry[]): 'pending' | 'approved' | 'paid' {
+function dominantStatus(entries: PREntry[]): string {
+  if (entries.some(e => e.status === 'verified')) return 'verified';
   if (entries.some(e => e.status === 'paid')) return 'paid';
   if (entries.some(e => e.status === 'approved')) return 'approved';
   return 'pending';
@@ -948,7 +951,7 @@ export const PaymentCalendar: React.FC = () => {
                         );
                       }
                       const dom = dominantStatus(entries);
-                      const cfg = STATUS_CFG[dom];
+                      const cfg = STATUS_CFG[dom] || STATUS_FALLBACK;
                       const total = cellTotal(entries);
                       const statuses = [...new Set(entries.map(e => e.status))];
                       return (
@@ -979,7 +982,7 @@ export const PaymentCalendar: React.FC = () => {
                             </div>
                             <div className="flex justify-center items-center gap-0.5 mt-0.5">
                               {statuses.map(s => (
-                                <span key={s} className={`w-1 h-1 rounded-full ${STATUS_CFG[s as keyof typeof STATUS_CFG].dot}`} />
+                                <span key={s} className={`w-1 h-1 rounded-full ${(STATUS_CFG[s] || STATUS_FALLBACK).dot}`} />
                               ))}
                               {entries.length > 1 && (
                                 <span className={`text-[8px] font-bold leading-none opacity-70 ${cfg.text}`}>×{entries.length}</span>
@@ -1070,9 +1073,9 @@ export const PaymentCalendar: React.FC = () => {
           </div>
           <div className="p-3 space-y-2 overflow-y-auto flex-1 min-h-0">
             {tooltip.entries.slice(0, 5).map((entry, i) => {
-              const cfg = STATUS_CFG[entry.status];
+              const cfg = STATUS_CFG[entry.status] || STATUS_FALLBACK;
               return (
-                <div key={entry.id} className={`${i > 0 ? 'pt-2 border-t border-slate-100' : ''}`}>
+                <div key={`${entry.source}:${entry.id}`} className={`${i > 0 ? 'pt-2 border-t border-slate-100' : ''}`}>
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cfg.pill}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
