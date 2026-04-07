@@ -49,7 +49,9 @@ export const Dashboard: React.FC = () => {
   const yearTx = useMemo(() =>
     transactions.filter(t => {
       const d = new Date(t.date);
-      return d.getFullYear() === year && t.confirmed;
+      if (d.getFullYear() !== year) return false;
+      if (t.type === 'expense') return t.status === 'paid' || t.status === 'verified' || t.confirmed;
+      return t.confirmed;
     }),
     [transactions, year]
   );

@@ -23,7 +23,8 @@ router.get('/init', async (req, res) => {
                 WHEN t.to_account_id = a.id AND t.type = 'transfer' THEN t.amount
                 ELSE 0 END)
             FROM transactions t
-            WHERE (t.account_id = a.id OR t.to_account_id = a.id) AND t.confirmed = true
+            WHERE (t.account_id = a.id OR t.to_account_id = a.id)
+              AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
         ), 0)) as balance
       FROM accounts a WHERE a.is_archived = FALSE ORDER BY a.name
     `;

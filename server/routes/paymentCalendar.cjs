@@ -128,7 +128,8 @@ router.get('/payment-calendar', async (req, res) => {
       const amount = parseFloat(tx.amount || 0);
 
       expensePlan[day] = (expensePlan[day] || 0) + amount;
-      if (tx.confirmed) {
+      const txSt = tx.status || (tx.confirmed ? 'verified' : 'pending');
+      if (txSt === 'paid' || txSt === 'verified') {
         expenseFact[day] = (expenseFact[day] || 0) + amount;
       }
 
@@ -171,7 +172,8 @@ router.get('/payment-calendar', async (req, res) => {
               ELSE 0
             END
           ) FROM transactions t
-          WHERE (t.account_id = a.id OR t.to_account_id = a.id) AND t.confirmed = true
+          WHERE (t.account_id = a.id OR t.to_account_id = a.id)
+            AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
         ), 0) AS balance
       FROM accounts a
       ORDER BY a.name
@@ -191,7 +193,8 @@ router.get('/payment-calendar', async (req, res) => {
             END
           ) FROM transactions t
           WHERE (t.account_id = a.id OR t.to_account_id = a.id)
-            AND t.confirmed = true AND t.date < $1
+            AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
+            AND t.date < $1
         ), 0)
       ), 0) AS starting_balance
       FROM accounts a
