@@ -61,6 +61,13 @@ function pluralSales(n: number) {
   return `${n} продаж`;
 }
 
+function pluralShifts(n: number) {
+  const mod10 = n % 10, mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'смена';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'смены';
+  return 'смен';
+}
+
 interface Summary {
   totalAmount: number; totalEntries: number; uniqueClients: number; avgCheck: number;
   primaryAmount: number; regularAmount: number; primaryCount: number; regularCount: number;
@@ -159,7 +166,7 @@ const OverallSummary: React.FC<{ o: Summary; periodLabel: string }> = ({ o, peri
             <span className="text-teal-100 text-xs">{o.uniqueClients} клиентов</span>
             <span className="text-teal-100 text-xs">{o.totalVisits} визитов</span>
             <span className="text-teal-100 text-xs">средний чек {formatCurrency(o.avgCheck)}</span>
-            <span className="text-teal-100 text-xs">{o.totalShifts} смен</span>
+            <span className="text-teal-100 text-xs">{o.totalShifts} {pluralShifts(o.totalShifts)}</span>
           </div>
         </div>
       </div>
@@ -289,7 +296,7 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
         </div>
         <div className="px-4 py-3">
           <div className="text-base font-bold text-slate-800">{s.totalShifts}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Смен{s.zeroVisits > 0 ? ` · ${s.zeroVisits} без опл.` : ''}</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">{pluralShifts(s.totalShifts)}{s.zeroVisits > 0 ? ` · ${s.zeroVisits} без опл.` : ''}</div>
         </div>
       </div>
 
@@ -551,7 +558,7 @@ const StudioSection: React.FC<{ studio: StudioData }> = ({ studio }) => {
             </div>
             <div className="px-4 py-3">
               <div className="text-sm font-bold text-slate-700">{s.totalShifts}</div>
-              <div className="text-[11px] text-slate-400">Смен</div>
+              <div className="text-[11px] text-slate-400">{pluralShifts(s.totalShifts)}</div>
             </div>
           </div>
 

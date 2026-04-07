@@ -159,6 +159,13 @@ function pluralSales(n: number) {
   return `${n} продаж`;
 }
 
+function pluralShifts(n: number) {
+  const mod10 = n % 10, mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'смена';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'смены';
+  return 'смен';
+}
+
 export const MasterDashboard: React.FC = () => {
   const { user } = useAuth();
   const [period, setPeriod] = useState<PeriodKey>('month');
@@ -278,7 +285,7 @@ export const MasterDashboard: React.FC = () => {
                 <TrendingUp size={15} className="text-amber-500" />
               </div>
               <div className="text-xl font-bold text-slate-800">{s?.totalShifts || 0}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">смен</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">{pluralShifts(s?.totalShifts || 0)}</div>
             </div>
           </div>
 
