@@ -661,25 +661,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
           />
         </FormRow>
 
-        {type === 'income' && (
-          <FormRow label="Подтверждение">
-            <button
-              type="button"
-              onClick={() => setConfirmed(!confirmed)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
-                confirmed
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
-              }`}
-            >
-              <div className={`w-4 h-4 rounded border flex items-center justify-center ${confirmed ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300'}`}>
-                {confirmed && <Check size={11} className="text-white" />}
-              </div>
-              {confirmed ? 'Подтверждено' : 'Не подтверждено'}
-            </button>
-          </FormRow>
-        )}
-
         {initialData && type === 'income' && (
           <YClientsSection transaction={initialData} />
         )}
@@ -696,7 +677,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
         )}
 
         <div className="pt-4 flex items-center justify-between border-t border-slate-100">
-          <div>
+          <div className="flex items-center gap-2">
             {initialData && (
               <button
                 type="button"
@@ -707,7 +688,23 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
               </button>
             )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+            {type === 'income' && (
+              <button
+                type="button"
+                onClick={() => setConfirmed(!confirmed)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                  confirmed
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300'
+                }`}
+              >
+                <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${confirmed ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300'}`}>
+                  {confirmed && <Check size={10} className="text-white" />}
+                </div>
+                {confirmed ? 'Подтверждено' : 'Не подтв.'}
+              </button>
+            )}
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-teal-600 hover:bg-teal-50 rounded-lg font-medium transition-colors">
               Отменить
             </button>
