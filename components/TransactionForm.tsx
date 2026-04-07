@@ -547,42 +547,31 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
 
       <form onSubmit={handleSubmit} className="space-y-4 flex-1">
         <FormRow label="Дата оплаты">
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <DatePicker value={date} onChange={setDate} required />
-            </div>
-            {type === 'transfer' ? (
-              <span className="text-xs text-teal-600 font-medium whitespace-nowrap">✓ Подтверждается автоматически</span>
-            ) : type === 'expense' ? (
-              <select
-                value={txStatus}
-                onChange={e => setTxStatus(e.target.value)}
-                className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
-              >
-                <option value="pending">Ожидает</option>
-                <option value="approved">Утверждено</option>
-                <option value="paid">Оплачено</option>
-                <option value="verified">Проверено</option>
-              </select>
-            ) : (
-              <label className="flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
-                <div className="relative flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={confirmed}
-                    onChange={(e) => setConfirmed(e.target.checked)}
-                    className="peer h-4.5 w-4.5 cursor-pointer appearance-none rounded border border-slate-300 bg-white checked:bg-teal-600 checked:border-teal-600 transition-all"
-                    style={{ width: '18px', height: '18px' }}
-                  />
-                  <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100" viewBox="0 0 14 14" fill="none">
-                    <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <span className="text-sm text-slate-600">Подтвердить доход</span>
-              </label>
-            )}
-          </div>
+          <DatePicker value={date} onChange={setDate} required />
         </FormRow>
+
+        {type === 'expense' && (
+          <FormRow label="Статус">
+            <div className="flex rounded-xl overflow-hidden border border-slate-200 w-full">
+              {([
+                { id: 'pending',  label: 'Ожидает',    active: 'bg-amber-50 text-amber-700 border-amber-200'   },
+                { id: 'approved', label: 'Утверждено',  active: 'bg-sky-50 text-sky-700 border-sky-200'         },
+                { id: 'paid',     label: 'Оплачено',    active: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                { id: 'verified', label: 'Проверено',   active: 'bg-teal-50 text-teal-700 border-teal-200'     },
+              ] as const).map((opt, i, arr) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setTxStatus(opt.id)}
+                  className={`flex-1 py-2 text-xs font-medium transition-colors ${i < arr.length - 1 ? 'border-r border-slate-200' : ''} ${txStatus === opt.id ? opt.active : 'bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </FormRow>
+        )}
+
 
         <FormRow label="Счет">
           <SearchableSelect
