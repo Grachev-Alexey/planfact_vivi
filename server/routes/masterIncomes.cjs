@@ -190,6 +190,17 @@ router.get('/admin-stats', async (req, res) => {
       [startDate, endDate]
     );
 
+    // 8. Per-master shifts (distinct working days)
+    const shiftsRes = await db.query(
+      `SELECT mi.user_id, COUNT(DISTINCT DATE(mi.created_at)) as total_shifts
+       FROM master_incomes mi
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       GROUP BY mi.user_id`,
+      [startDate, endDate]
+    );
+    const shiftsMap = {};
+    for (const r of shiftsRes.rows) shiftsMap[r.user_id] = parseInt(r.total_shifts) || 0;
+
     // Build lookup maps
     const visitMap = {};
     for (const r of visitRes.rows) visitMap[r.user_id] = r;
@@ -238,7 +249,7 @@ router.get('/admin-stats', async (req, res) => {
           id: sid, name: r.studio_name,
           masters: [],
           daily: dailyByStudio[sid] || [],
-          summary: { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 }
+          summary: { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, totalShifts: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 }
         };
       }
       const totalAmount = parseFloat(r.total_amount) || 0;
@@ -260,6 +271,7 @@ router.get('/admin-stats', async (req, res) => {
           primaryCount, regularCount,
           totalVisits: parseInt(vc.total_visits) || 0,
           zeroVisits: parseInt(vc.zero_visits) || 0,
+          totalShifts: shiftsMap[r.user_id] || 0,
           abonementAmount: ab.amount, abonementCount: ab.count,
           abonementPrimaryAmount: ab.primaryAmount, abonementPrimaryCount: ab.primaryCount,
           abonementRegularAmount: ab.regularAmount, abonementRegularCount: ab.regularCount,
@@ -281,6 +293,7 @@ router.get('/admin-stats', async (req, res) => {
       ss.regularCount += regularCount;
       ss.totalVisits += master.summary.totalVisits;
       ss.zeroVisits += master.summary.zeroVisits;
+      ss.totalShifts += master.summary.totalShifts;
       ss.abonementAmount += ab.amount;
       ss.abonementCount += ab.count;
       ss.abonementPrimaryAmount += ab.primaryAmount;
@@ -306,6 +319,7 @@ router.get('/admin-stats', async (req, res) => {
       acc.regularCount += s.summary.regularCount;
       acc.totalVisits += s.summary.totalVisits;
       acc.zeroVisits += s.summary.zeroVisits;
+      acc.totalShifts += s.summary.totalShifts;
       acc.abonementAmount += s.summary.abonementAmount;
       acc.abonementCount += s.summary.abonementCount;
       acc.abonementPrimaryAmount += s.summary.abonementPrimaryAmount;
@@ -313,7 +327,7 @@ router.get('/admin-stats', async (req, res) => {
       acc.abonementRegularAmount += s.summary.abonementRegularAmount;
       acc.abonementRegularCount += s.summary.abonementRegularCount;
       return acc;
-    }, { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 });
+    }, { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, totalShifts: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 });
     overall.avgCheck = overall.totalEntries > 0 ? Math.round(overall.totalAmount / overall.totalEntries) : 0;
 
     res.json({ overall, studios });
@@ -387,6 +401,12 @@ router.get('/master-incomes/stats', async (req, res) => {
        LEFT JOIN categories c ON mi.category_id = c.id
        ${baseWhere}
        GROUP BY mi.category_id, c.name ORDER BY amount DESC`,
+      params
+    );
+
+    const shiftsRes2 = await db.query(
+      `SELECT COUNT(DISTINCT DATE(mi.created_at)) as total_shifts
+       FROM master_incomes mi ${baseWhere}`,
       params
     );
 
@@ -571,6 +591,8 @@ router.get('/master-incomes/stats', async (req, res) => {
     const primaryCount = parseInt(allRow.primary_count_all) || 0;
     const regularCount = parseInt(allRow.regular_count_all) || 0;
 
+    const totalShifts = parseInt((shiftsRes2.rows[0] || {}).total_shifts) || 0;
+
     res.json({
       summary: {
         totalAmount,
@@ -583,6 +605,7 @@ router.get('/master-incomes/stats', async (req, res) => {
         regularCount,
         totalVisits: parseInt(vcRow.total_visits) || 0,
         zeroVisits: parseInt(vcRow.zero_visits) || 0,
+        totalShifts,
         abonementAmount,
         abonementCount,
         abonementPrimaryAmount,

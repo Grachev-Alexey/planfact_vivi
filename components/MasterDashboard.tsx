@@ -16,6 +16,7 @@ interface StatsData {
     regularCount: number;
     totalVisits: number;
     zeroVisits: number;
+    totalShifts: number;
     abonementAmount: number;
     abonementCount: number;
     abonementPrimaryAmount: number;
@@ -276,8 +277,8 @@ export const MasterDashboard: React.FC = () => {
               <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center mx-auto mb-1.5">
                 <TrendingUp size={15} className="text-amber-500" />
               </div>
-              <div className="text-xl font-bold text-slate-800">{s?.totalEntries || 0}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">записей</div>
+              <div className="text-xl font-bold text-slate-800">{s?.totalShifts || 0}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">смен</div>
             </div>
           </div>
 

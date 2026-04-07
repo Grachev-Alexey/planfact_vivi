@@ -64,7 +64,7 @@ function pluralSales(n: number) {
 interface Summary {
   totalAmount: number; totalEntries: number; uniqueClients: number; avgCheck: number;
   primaryAmount: number; regularAmount: number; primaryCount: number; regularCount: number;
-  totalVisits: number; zeroVisits: number;
+  totalVisits: number; zeroVisits: number; totalShifts: number;
   abonementAmount: number; abonementCount: number;
   abonementPrimaryAmount: number; abonementPrimaryCount: number;
   abonementRegularAmount: number; abonementRegularCount: number;
@@ -159,7 +159,7 @@ const OverallSummary: React.FC<{ o: Summary; periodLabel: string }> = ({ o, peri
             <span className="text-teal-100 text-xs">{o.uniqueClients} клиентов</span>
             <span className="text-teal-100 text-xs">{o.totalVisits} визитов</span>
             <span className="text-teal-100 text-xs">средний чек {formatCurrency(o.avgCheck)}</span>
-            <span className="text-teal-100 text-xs">{o.totalEntries} записей</span>
+            <span className="text-teal-100 text-xs">{o.totalShifts} смен</span>
           </div>
         </div>
       </div>
@@ -288,8 +288,8 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
           <div className="text-[11px] text-slate-400 mt-0.5">Клиентов · {s.totalVisits} визитов</div>
         </div>
         <div className="px-4 py-3">
-          <div className="text-base font-bold text-slate-800">{s.totalEntries}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Записей{s.zeroVisits > 0 ? ` · ${s.zeroVisits} без опл.` : ''}</div>
+          <div className="text-base font-bold text-slate-800">{s.totalShifts}</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Смен{s.zeroVisits > 0 ? ` · ${s.zeroVisits} без опл.` : ''}</div>
         </div>
       </div>
 
@@ -550,8 +550,8 @@ const StudioSection: React.FC<{ studio: StudioData }> = ({ studio }) => {
               )}
             </div>
             <div className="px-4 py-3">
-              <div className="text-sm font-bold text-slate-700">{s.totalEntries}</div>
-              <div className="text-[11px] text-slate-400">Записей</div>
+              <div className="text-sm font-bold text-slate-700">{s.totalShifts}</div>
+              <div className="text-[11px] text-slate-400">Смен</div>
             </div>
           </div>
 

@@ -533,6 +533,7 @@ export const MasterIncomePage: React.FC = () => {
     entries.forEach((e, i) => {
       if (!e.amount || parseFloat(e.amount) <= 0) errs.push(`Поступление ${i + 1}: введите сумму`);
       if (!e.paymentType) errs.push(`Поступление ${i + 1}: выберите тип оплаты`);
+      if (!e.categoryId) errs.push(`Поступление ${i + 1}: выберите статью`);
     });
     if (errs.length > 0) { setGlobalError(errs.join(' · ')); return; }
     setGlobalError(null);
