@@ -334,12 +334,14 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
                       </button>
                     )}
                     <div className="flex gap-2">
+                      {entry.status !== 'paid' && (
                       <button
                         onClick={() => openMove(entry.id)}
                         className="flex-1 flex items-center justify-center gap-1.5 text-[12px] font-medium py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
                       >
                         <ArrowRight size={12} /> Перенести
                       </button>
+                      )}
                       {entry.status !== 'paid' && (
                         <button
                           onClick={() => openSplit(entry)}

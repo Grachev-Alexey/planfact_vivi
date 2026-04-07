@@ -293,6 +293,17 @@ const initDB = async () => {
       ON CONFLICT (key) DO NOTHING
     `);
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS income_daily_plan (
+        id SERIAL PRIMARY KEY,
+        year INT NOT NULL,
+        month INT NOT NULL,
+        day INT NOT NULL,
+        amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+        UNIQUE(year, month, day)
+      )
+    `);
+
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
       await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['grachev', 'cd5d56a8', 'admin']);

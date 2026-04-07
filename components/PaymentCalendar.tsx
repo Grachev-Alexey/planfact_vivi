@@ -159,7 +159,7 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
                   type="text"
                   value={perAccount[acc.id] ?? ''}
                   onChange={e => setAcc(acc.id, e.target.value)}
-                  placeholder="в банке"
+                  placeholder="Фактически..."
                   className="w-28 text-[11px] border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-400 bg-slate-50 text-right"
                 />
                 <div className="w-16 flex justify-end">
@@ -216,6 +216,7 @@ export const PaymentCalendar: React.FC = () => {
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
   const [activeCell, setActiveCell] = useState<{ catName: string; catId: string; day: number; entries: PREntry[] } | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [incomePlanManual, setIncomePlanManual] = useState<Record<number, number>>({});
   const tableRef = useRef<HTMLDivElement>(null);
   const todayColRef = useRef<HTMLTableCellElement>(null);
   const dragJustEndedRef = useRef(false);
@@ -250,6 +251,23 @@ export const PaymentCalendar: React.FC = () => {
     } catch {}
   }, [monthStr, user]);
 
+  const loadIncomePlan = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/income-plan?year=${year}&month=${month}`);
+      if (r.ok) setIncomePlanManual(await r.json());
+    } catch {}
+  }, [year, month]);
+
+  const saveIncomePlanDay = useCallback(async (day: number, amount: number) => {
+    try {
+      await fetch('/api/income-plan', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year, month, day, amount }),
+      });
+    } catch {}
+  }, [year, month]);
+
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     const id = ++toastIdRef.current;
     setToasts(prev => [...prev, { id, message, type, exiting: false }]);
@@ -259,7 +277,7 @@ export const PaymentCalendar: React.FC = () => {
     }, 2800);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); loadIncomePlan(); }, [load, loadIncomePlan]);
 
   useEffect(() => {
     if (data && todayDay > 0 && todayColRef.current) {
@@ -472,8 +490,10 @@ export const PaymentCalendar: React.FC = () => {
 
     // ── ДОХОДЫ ─────────────────────────────────────────────────────────────
     addSection('▲ ДОХОДЫ', 'ECFDF5', '065F46', 'A7F3D0');
-    addDataRow('  План', [nv(totalIncomePlan), ...days.map(d => nv(data.incomePlan[d] || 0))],
+    addDataRow('  План', [nv(totalIncomePlan), ...days.map(d => nv(incomePlanManual[d] || 0))],
       { fg: 'FFFFFF', fgTotal: 'F0FDF4', textColor: '475569' });
+    addDataRow('  Неподтвержд. факт', [nv(totalIncomeUnconfirmed), ...days.map(d => nv(data.incomePlan[d] || 0))],
+      { fg: 'F8FAFC', fgTotal: 'D1FAE5', textColor: '059669', borderColor: 'D1FAE5' });
     addDataRow('  Факт', [nv(totalIncomeFact), ...days.map(d => nv(data.incomeFact[d] || 0))],
       { fg: 'F8FAFC', fgTotal: 'DCFCE7', textColor: '166534', bold: true, borderColor: 'CBD5E1' });
 
@@ -615,7 +635,8 @@ export const PaymentCalendar: React.FC = () => {
     URL.revokeObjectURL(url);
   }
 
-  const totalIncomePlan = days.reduce((s, d) => s + (data?.incomePlan[d] || 0), 0);
+  const totalIncomeUnconfirmed = days.reduce((s, d) => s + (data?.incomePlan[d] || 0), 0);
+  const totalIncomePlan = days.reduce((s, d) => s + (incomePlanManual[d] || 0), 0);
   const totalIncomeFact = days.reduce((s, d) => s + (data?.incomeFact[d] || 0), 0);
   const totalExpensePlan = days.reduce((s, d) => s + (data?.expensePlan[d] || 0), 0);
   const totalExpenseFact = days.reduce((s, d) => s + (data?.expenseFact[d] || 0), 0);
@@ -628,7 +649,7 @@ export const PaymentCalendar: React.FC = () => {
     let running = startingBalance;
     const result: Record<number, number> = {};
     for (const d of days) {
-      running += (data?.incomePlan[d] || 0) - (data?.expensePlan[d] || 0);
+      running += (incomePlanManual[d] || 0) - (data?.expensePlan[d] || 0);
       result[d] = running;
     }
     return result;
@@ -746,16 +767,35 @@ export const PaymentCalendar: React.FC = () => {
             <tbody>
               <GroupHeader label="ДОХОДЫ" icon="↑" colSpan={days.length + 2} accent="emerald" />
 
-              <SummaryRow
+              <EditableSummaryRow
                 label="План"
                 total={totalIncomePlan}
                 days={days}
-                values={data.incomePlan}
+                values={incomePlanManual}
+                onChange={(day, val) => {
+                  setIncomePlanManual(prev => ({ ...prev, [day]: val }));
+                  saveIncomePlanDay(day, val);
+                }}
                 todayDay={todayDay}
                 textClass="text-emerald-600"
                 rowBg="#ffffff"
                 todayBg="#ecfdf5"
                 accentColor="#86efac"
+                isPast={isPast}
+                isFuture={isFuture}
+                labelW={LABEL_W}
+                totalW={TOTAL_W}
+              />
+              <SummaryRow
+                label="Неподтвержд. факт"
+                total={totalIncomeUnconfirmed}
+                days={days}
+                values={data.incomePlan}
+                todayDay={todayDay}
+                textClass="text-teal-600"
+                rowBg="#f0fdfa"
+                todayBg="#ccfbf1"
+                accentColor="#5eead4"
                 isPast={isPast}
                 isFuture={isFuture}
                 labelW={LABEL_W}
@@ -1159,6 +1199,85 @@ const SummaryRow: React.FC<SummaryRowProps> = ({
     })}
   </tr>
 );
+
+interface EditableSummaryRowProps extends SummaryRowProps {
+  onChange: (day: number, value: number) => void;
+}
+const EditableSummaryRow: React.FC<EditableSummaryRowProps> = ({
+  label, total, days, values, todayDay, textClass, rowBg, todayBg, bold, accentColor, isPast, labelW, totalW, onChange
+}) => {
+  const [editing, setEditing] = React.useState<number | null>(null);
+  const [draft, setDraft] = React.useState('');
+
+  function startEdit(d: number) {
+    setEditing(d);
+    setDraft(values[d] ? String(values[d]) : '');
+  }
+  function commit(d: number) {
+    const v = parseFloat(draft.replace(/\s/g, '').replace(',', '.')) || 0;
+    onChange(d, v);
+    setEditing(null);
+  }
+  return (
+    <tr className="border-b border-slate-100" style={{ background: rowBg }}>
+      <td
+        className="px-3 py-1.5 border-r border-slate-200 text-slate-600"
+        style={{ position: 'sticky', left: 0, zIndex: 10, width: labelW, minWidth: labelW, fontWeight: bold ? 600 : 400, background: rowBg, borderLeft: `3px solid ${accentColor}` }}
+      >
+        {label}
+      </td>
+      <td
+        className="border-r border-slate-200 text-right px-2 py-1.5"
+        style={{ position: 'sticky', left: labelW, zIndex: 10, width: totalW, minWidth: totalW, background: rowBg }}
+      >
+        <span className={`${textClass} ${bold ? 'font-bold' : 'font-medium'}`}>
+          {total ? fmtCompact(total) : '—'}
+        </span>
+      </td>
+      {days.map(d => {
+        const v = values[d] || 0;
+        const isToday = d === todayDay;
+        const past = isPast(d);
+        const isEdit = editing === d;
+        return (
+          <td
+            key={d}
+            className="border-r border-slate-100 text-center py-1 px-0.5"
+            style={{ background: isToday ? todayBg : rowBg, opacity: past && !v ? 0.4 : 1 }}
+          >
+            {isEdit ? (
+              <input
+                autoFocus
+                type="text"
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onBlur={() => commit(d)}
+                onKeyDown={e => { if (e.key === 'Enter') commit(d); if (e.key === 'Escape') setEditing(null); }}
+                className="w-full text-center border-0 border-b border-emerald-400 outline-none bg-emerald-50 rounded text-emerald-700 font-medium"
+                style={{ fontSize: 10, padding: '1px 2px' }}
+              />
+            ) : (
+              <button
+                onClick={() => startEdit(d)}
+                className="w-full text-center rounded hover:bg-emerald-50 transition-colors group"
+                style={{ minHeight: 20 }}
+                title="Нажмите для ввода плана"
+              >
+                {v > 0 ? (
+                  <span className={`${textClass} ${bold ? 'font-bold' : 'font-medium'}`} style={{ fontSize: 11 }}>
+                    {fmtCompact(v)}
+                  </span>
+                ) : (
+                  <span className="text-slate-200 group-hover:text-emerald-300 transition-colors" style={{ fontSize: 10 }}>+</span>
+                )}
+              </button>
+            )}
+          </td>
+        );
+      })}
+    </tr>
+  );
+};
 
 interface BalanceRowProps {
   label: string;
