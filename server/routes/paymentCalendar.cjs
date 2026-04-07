@@ -103,7 +103,54 @@ router.get('/payment-calendar', async (req, res) => {
       });
     }
 
-    let running = 0;
+    // Real account balances (current)
+    const accountsRes = await db.query(`
+      SELECT a.id, a.name, a.currency,
+        COALESCE(a.initial_balance, 0) + COALESCE((
+          SELECT SUM(
+            CASE
+              WHEN t.type = 'income'   AND t.account_id    = a.id THEN  t.amount
+              WHEN t.type = 'expense'  AND t.account_id    = a.id THEN -t.amount
+              WHEN t.type = 'transfer' AND t.account_id    = a.id THEN -t.amount
+              WHEN t.type = 'transfer' AND t.to_account_id = a.id THEN  t.amount
+              ELSE 0
+            END
+          ) FROM transactions t
+          WHERE (t.account_id = a.id OR t.to_account_id = a.id) AND t.confirmed = true
+        ), 0) AS balance
+      FROM accounts a
+      ORDER BY a.name
+    `);
+
+    // Balance at start of selected month
+    const startBalRes = await db.query(`
+      SELECT COALESCE(SUM(
+        COALESCE(a.initial_balance, 0) + COALESCE((
+          SELECT SUM(
+            CASE
+              WHEN t.type = 'income'   AND t.account_id    = a.id THEN  t.amount
+              WHEN t.type = 'expense'  AND t.account_id    = a.id THEN -t.amount
+              WHEN t.type = 'transfer' AND t.account_id    = a.id THEN -t.amount
+              WHEN t.type = 'transfer' AND t.to_account_id = a.id THEN  t.amount
+              ELSE 0
+            END
+          ) FROM transactions t
+          WHERE (t.account_id = a.id OR t.to_account_id = a.id)
+            AND t.confirmed = true AND t.date < $1
+        ), 0)
+      ), 0) AS starting_balance
+      FROM accounts a
+    `, [startDate]);
+
+    const startingBalance = parseFloat(startBalRes.rows[0]?.starting_balance || 0);
+    const accountBalances = accountsRes.rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      currency: r.currency || 'RUB',
+      balance: parseFloat(r.balance || 0),
+    }));
+
+    let running = startingBalance;
     const balance = {};
     for (let d = 1; d <= daysInMonth; d++) {
       running += (incomeFact[d] || 0) - (expenseFact[d] || 0);
@@ -115,6 +162,8 @@ router.get('/payment-calendar', async (req, res) => {
 
     res.json({
       daysInMonth,
+      startingBalance,
+      accountBalances,
       incomePlan,
       incomeFact,
       expensePlan,

@@ -171,14 +171,14 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 flex flex-col"
-        style={{ maxHeight: '85vh', animation: 'tooltip-in 0.15s ease-out' }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 flex flex-col"
+        style={{ maxHeight: '88vh', animation: 'tooltip-in 0.15s ease-out' }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="px-4 py-3 border-b border-slate-100 flex items-start justify-between bg-slate-50 rounded-t-2xl flex-shrink-0">
+        <div className="px-5 py-3.5 border-b border-slate-100 flex items-start justify-between bg-slate-50 rounded-t-2xl flex-shrink-0">
           <div>
             <div className="text-[13px] font-bold text-slate-700 leading-tight">{catName}</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">{day} {MONTH_NAMES_GEN[month - 1]} {year}</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">{day} {MONTH_NAMES_GEN[month - 1]} {year} · {entries.length} {pluralOp(entries.length)}</div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200 transition-colors ml-2 flex-shrink-0">
             <X size={15} />
@@ -191,60 +191,72 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
             const isActive = action?.entryId === entry.id;
 
             return (
-              <div key={entry.id} className={`p-4 ${isActive ? 'bg-slate-50' : ''}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.pill}`}>
+              <div key={entry.id} className={`px-5 py-4 ${isActive ? 'bg-slate-50/80' : ''}`}>
+
+                {/* Amount + status row */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <div className="text-xl font-bold text-slate-800 tabular-nums leading-tight">
+                      {fmtFull(entry.amount)}
+                    </div>
+                    {entry.contractorName && (
+                      <div className="text-[11px] text-slate-500 mt-0.5">{entry.contractorName}</div>
+                    )}
+                  </div>
+                  <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${cfg.pill}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
                     {cfg.label}
                   </span>
-                  <span className="text-sm font-bold text-slate-800">{fmtFull(entry.amount)}</span>
                 </div>
 
+                {/* Description */}
                 {entry.description && (
-                  <p className="text-[11px] text-slate-600 mb-2 leading-snug">{entry.description}</p>
+                  <p className="text-[12px] text-slate-600 mb-3 leading-relaxed bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
+                    {entry.description}
+                  </p>
                 )}
-                <div className="flex gap-2 mb-3 text-[10px] text-slate-400 flex-wrap">
-                  {entry.contractorName && <span>{entry.contractorName}</span>}
-                  {entry.username && <span>· {entry.username}</span>}
-                </div>
 
+                {/* Meta row */}
+                {entry.username && (
+                  <div className="text-[10px] text-slate-400 mb-3">Запросил: {entry.username}</div>
+                )}
+
+                {/* Actions — shown when not in move/split mode */}
                 {!isActive && (
                   <div className="space-y-2">
-                    {(entry.status === 'pending' || entry.status === 'approved') && (
-                      <div className="flex gap-2">
-                        {entry.status === 'pending' && (
-                          <button
-                            onClick={() => handleStatusChange(entry.id, 'approved')}
-                            disabled={statusBusy === entry.id}
-                            className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50 transition-colors"
-                          >
-                            <ThumbsUp size={11} /> {statusBusy === entry.id ? '...' : 'Утвердить'}
-                          </button>
-                        )}
-                        {entry.status === 'approved' && (
-                          <button
-                            onClick={() => handleStatusChange(entry.id, 'paid')}
-                            disabled={statusBusy === entry.id}
-                            className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                          >
-                            <CreditCard size={11} /> {statusBusy === entry.id ? '...' : 'Оплатить'}
-                          </button>
-                        )}
-                      </div>
+                    {/* Primary: status change */}
+                    {entry.status === 'pending' && (
+                      <button
+                        onClick={() => handleStatusChange(entry.id, 'approved')}
+                        disabled={statusBusy === entry.id}
+                        className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50 active:scale-[0.98] transition-all"
+                      >
+                        <ThumbsUp size={14} /> {statusBusy === entry.id ? 'Утверждаю…' : 'Утвердить'}
+                      </button>
                     )}
+                    {entry.status === 'approved' && (
+                      <button
+                        onClick={() => handleStatusChange(entry.id, 'paid')}
+                        disabled={statusBusy === entry.id}
+                        className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 active:scale-[0.98] transition-all"
+                      >
+                        <CreditCard size={14} /> {statusBusy === entry.id ? 'Оплачиваю…' : 'Оплатить'}
+                      </button>
+                    )}
+                    {/* Secondary: move / split */}
                     <div className="flex gap-2">
                       <button
                         onClick={() => openMove(entry.id)}
-                        className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 text-[12px] font-medium py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
                       >
-                        <ArrowRight size={11} /> Перенести
+                        <ArrowRight size={12} /> Перенести
                       </button>
                       {entry.status !== 'paid' && (
                         <button
                           onClick={() => openSplit(entry)}
-                          className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700 transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1.5 text-[12px] font-medium py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700 transition-colors"
                         >
-                          <Scissors size={11} /> Разбить
+                          <Scissors size={12} /> Разбить
                         </button>
                       )}
                     </div>

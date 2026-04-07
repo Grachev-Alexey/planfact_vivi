@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp, Download, Landmark, AlertCircle, CheckCircle2 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { useAuth } from '../context/AuthContext';
 import { PaymentCalendarEntryModal } from './PaymentCalendarEntryModal';
@@ -20,8 +20,17 @@ interface CategoryRow {
   days: Record<number, PREntry[]>;
 }
 
+interface AccountBalance {
+  id: number;
+  name: string;
+  currency: string;
+  balance: number;
+}
+
 interface CalendarData {
   daysInMonth: number;
+  startingBalance: number;
+  accountBalances: AccountBalance[];
   incomePlan: Record<number, number>;
   incomeFact: Record<number, number>;
   expensePlan: Record<number, number>;
@@ -93,6 +102,8 @@ export const PaymentCalendar: React.FC = () => {
   const [error, setError] = useState('');
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [catsOpen, setCatsOpen] = useState(true);
+  const [accountsOpen, setAccountsOpen] = useState(false);
+  const [manualBalance, setManualBalance] = useState('');
   const [dragState, setDragState] = useState<{ catId: string; day: number; entryIds: number[] } | null>(null);
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
   const [activeCell, setActiveCell] = useState<{ catName: string; catId: string; day: number; entries: PREntry[] } | null>(null);
@@ -500,11 +511,13 @@ export const PaymentCalendar: React.FC = () => {
   const totalIncomeFact = days.reduce((s, d) => s + (data?.incomeFact[d] || 0), 0);
   const totalExpensePlan = days.reduce((s, d) => s + (data?.expensePlan[d] || 0), 0);
   const totalExpenseFact = days.reduce((s, d) => s + (data?.expenseFact[d] || 0), 0);
-  const totalBalance = totalIncomeFact - totalExpenseFact;
-  const totalBalancePlan = totalIncomePlan - totalExpensePlan;
+  const totalBalance = (data?.startingBalance ?? 0) + totalIncomeFact - totalExpenseFact;
+  const totalBalancePlan = (data?.startingBalance ?? 0) + totalIncomePlan - totalExpensePlan;
+
+  const startingBalance = data?.startingBalance ?? 0;
 
   const balancePlan: Record<number, number> = (() => {
-    let running = 0;
+    let running = startingBalance;
     const result: Record<number, number> = {};
     for (const d of days) {
       running += (data?.incomePlan[d] || 0) - (data?.expensePlan[d] || 0);
@@ -558,6 +571,73 @@ export const PaymentCalendar: React.FC = () => {
 
       {error && (
         <div className="mx-4 lg:mx-6 bg-rose-50 border border-rose-200 rounded-xl p-3 text-rose-700 text-sm shrink-0">{error}</div>
+      )}
+
+      {data && (
+        <div className="shrink-0 mx-4 lg:mx-6 mb-2">
+          <button
+            onClick={() => setAccountsOpen(o => !o)}
+            className="w-full flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm hover:bg-slate-50 transition-colors text-left"
+          >
+            <Landmark size={14} className="text-slate-500 shrink-0" />
+            <span className="text-xs font-semibold text-slate-700">Остатки на счетах</span>
+            <span className="text-xs font-bold text-slate-800 ml-1">
+              {fmtFull((data.accountBalances ?? []).reduce((s, a) => s + a.balance, 0))}
+            </span>
+            {manualBalance && (() => {
+              const manual = parseFloat(manualBalance.replace(/\s/g, '').replace(',', '.'));
+              const total = (data.accountBalances ?? []).reduce((s, a) => s + a.balance, 0);
+              const diff = Math.abs(total - manual);
+              return diff < 1 ? (
+                <span className="ml-2 flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  <CheckCircle2 size={10} /> Совпадает
+                </span>
+              ) : (
+                <span className="ml-2 flex items-center gap-1 text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                  <AlertCircle size={10} /> Расхождение {fmtFull(total - manual)}
+                </span>
+              );
+            })()}
+            <span className="ml-auto text-slate-400">{accountsOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}</span>
+          </button>
+
+          {accountsOpen && (
+            <div className="mt-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="divide-y divide-slate-100">
+                {(data.accountBalances ?? []).map(acc => (
+                  <div key={acc.id} className="flex items-center justify-between px-4 py-2">
+                    <span className="text-xs text-slate-600">{acc.name}</span>
+                    <span className={`text-xs font-semibold tabular-nums ${acc.balance >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
+                      {fmtFull(acc.balance)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-slate-200 px-4 py-2.5 bg-slate-50 flex items-center gap-3">
+                <label className="text-[11px] text-slate-500 shrink-0">Баланс по банку сегодня:</label>
+                <input
+                  type="text"
+                  value={manualBalance}
+                  onChange={e => setManualBalance(e.target.value)}
+                  placeholder="Введите сумму..."
+                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+                />
+                {manualBalance && (() => {
+                  const manual = parseFloat(manualBalance.replace(/\s/g, '').replace(',', '.'));
+                  const total = (data.accountBalances ?? []).reduce((s, a) => s + a.balance, 0);
+                  const diff = total - manual;
+                  const ok = Math.abs(diff) < 1;
+                  return (
+                    <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg ${ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                      {ok ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+                      {ok ? 'Совпадает' : `Расхождение: ${diff > 0 ? '+' : ''}${fmtFull(diff)}`}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {data && !loading && (
@@ -681,7 +761,7 @@ export const PaymentCalendar: React.FC = () => {
                 totalW={TOTAL_W}
               />
 
-              <GroupHeader label="БАЛАНС" icon="=" colSpan={days.length + 2} accent="sky" />
+              <GroupHeader label="ОСТАТКИ НА СЧЕТАХ" icon="=" colSpan={days.length + 2} accent="sky" />
               <BalanceRow
                 label="План"
                 total={totalBalancePlan}
