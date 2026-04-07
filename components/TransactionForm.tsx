@@ -531,9 +531,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
         : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
     }`;
 
+  const formId = 'transaction-form';
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-1 mb-4 border-b border-slate-200">
+    <div className="flex flex-col min-h-0 flex-1">
+      <div className="flex items-center gap-1 mb-4 border-b border-slate-200 shrink-0">
         <div className="flex gap-1 flex-1">
           <button type="button" onClick={() => setType('income')} className={tabClass('income', 'bg-emerald-500')}>
             Поступление
@@ -563,7 +565,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-y-auto">
+      <form id={formId} onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-y-auto min-h-0">
         <FormRow label="Дата оплаты">
           <DatePicker value={date} onChange={setDate} required />
         </FormRow>
@@ -694,28 +696,29 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
           </div>
         )}
 
-        <div className="pt-4 pb-1 flex items-center justify-between border-t border-slate-100 sticky bottom-0 bg-white">
-          <div className="flex items-center gap-2">
-            {initialData && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="px-4 py-2 text-sm bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-medium transition-colors"
-              >
-                Удалить
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-teal-600 hover:bg-teal-50 rounded-lg font-medium transition-colors">
-              Отменить
-            </button>
-            <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg text-sm font-medium shadow-sm">
-              {initialData ? 'Сохранить' : 'Создать'}
-            </Button>
-          </div>
-        </div>
       </form>
+
+      <div className="pt-4 pb-1 flex items-center justify-between border-t border-slate-100 shrink-0">
+        <div className="flex items-center gap-2">
+          {initialData && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="px-4 py-2 text-sm bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-medium transition-colors"
+            >
+              Удалить
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-teal-600 hover:bg-teal-50 rounded-lg font-medium transition-colors">
+            Отменить
+          </button>
+          <Button type="submit" form={formId} className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2 rounded-lg text-sm font-medium shadow-sm">
+            {initialData ? 'Сохранить' : 'Создать'}
+          </Button>
+        </div>
+      </div>
 
       {showNewContractor && (
         <NewContractorModal
