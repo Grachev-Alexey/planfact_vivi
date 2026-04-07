@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ArrowRight, Scissors } from 'lucide-react';
+import { X, ArrowRight, Scissors, ThumbsUp, CreditCard } from 'lucide-react';
 
 interface PREntry {
   id: number;
@@ -23,9 +23,9 @@ interface Props {
 }
 
 const STATUS_CFG = {
-  pending:  { label: 'Ожидает',   pill: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-500'    },
-  approved: { label: 'Утверждён', pill: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500'  },
-  paid:     { label: 'Оплачен',   pill: 'bg-green-100 text-green-700',   dot: 'bg-green-500'   },
+  pending:  { label: 'Ожидает',    pill: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500'    },
+  approved: { label: 'Утверждено', pill: 'bg-sky-100 text-sky-700',        dot: 'bg-sky-500'      },
+  paid:     { label: 'Оплачено',   pill: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500'  },
 };
 
 const MONTH_NAMES_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
@@ -52,6 +52,8 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
   const [splitParts, setSplitParts] = useState<{ amount: string; date: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  const [statusBusy, setStatusBusy] = useState<number | null>(null);
 
   const activeEntry = action ? entries.find(e => e.id === action.entryId) : null;
 
@@ -90,6 +92,25 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
   function cancelAction() {
     setAction(null);
     setErr('');
+  }
+
+  async function handleStatusChange(entryId: number, newStatus: 'approved' | 'paid') {
+    setStatusBusy(entryId);
+    try {
+      const r = await fetch(`/api/payment-requests/${entryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!r.ok) throw new Error();
+      onSuccess?.(newStatus === 'approved' ? 'Запрос утверждён' : 'Запрос оплачен');
+      onClose();
+      onRefresh();
+    } catch {
+      onSuccess?.('Не удалось изменить статус', 'error');
+    } finally {
+      setStatusBusy(null);
+    }
   }
 
   async function handleMove() {
@@ -188,21 +209,45 @@ export const PaymentCalendarEntryModal: React.FC<Props> = ({
                 </div>
 
                 {!isActive && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openMove(entry.id)}
-                      className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
-                    >
-                      <ArrowRight size={11} /> Перенести
-                    </button>
-                    {entry.status !== 'paid' && (
-                      <button
-                        onClick={() => openSplit(entry)}
-                        className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700 transition-colors"
-                      >
-                        <Scissors size={11} /> Разбить
-                      </button>
+                  <div className="space-y-2">
+                    {(entry.status === 'pending' || entry.status === 'approved') && (
+                      <div className="flex gap-2">
+                        {entry.status === 'pending' && (
+                          <button
+                            onClick={() => handleStatusChange(entry.id, 'approved')}
+                            disabled={statusBusy === entry.id}
+                            className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50 transition-colors"
+                          >
+                            <ThumbsUp size={11} /> {statusBusy === entry.id ? '...' : 'Утвердить'}
+                          </button>
+                        )}
+                        {entry.status === 'approved' && (
+                          <button
+                            onClick={() => handleStatusChange(entry.id, 'paid')}
+                            disabled={statusBusy === entry.id}
+                            className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                          >
+                            <CreditCard size={11} /> {statusBusy === entry.id ? '...' : 'Оплатить'}
+                          </button>
+                        )}
+                      </div>
                     )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openMove(entry.id)}
+                        className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                      >
+                        <ArrowRight size={11} /> Перенести
+                      </button>
+                      {entry.status !== 'paid' && (
+                        <button
+                          onClick={() => openSplit(entry)}
+                          className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700 transition-colors"
+                        >
+                          <Scissors size={11} /> Разбить
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 

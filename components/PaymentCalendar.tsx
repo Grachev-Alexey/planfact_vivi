@@ -31,9 +31,9 @@ interface CalendarData {
 }
 
 const STATUS_CFG = {
-  pending:  { label: 'Ожидает',   text: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-200',   dot: 'bg-blue-500',   pill: 'bg-blue-100 text-blue-700'   },
-  approved: { label: 'Утверждён', text: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', dot: 'bg-orange-500', pill: 'bg-orange-100 text-orange-700' },
-  paid:     { label: 'Оплачен',   text: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-200',  dot: 'bg-green-500',  pill: 'bg-green-100 text-green-700'   },
+  pending:  { label: 'Ожидает',    text: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200',   dot: 'bg-amber-500',   pill: 'bg-amber-100 text-amber-700'    },
+  approved: { label: 'Утверждено', text: 'text-sky-700',     bg: 'bg-sky-50',     border: 'border-sky-200',     dot: 'bg-sky-500',     pill: 'bg-sky-100 text-sky-700'        },
+  paid:     { label: 'Оплачено',   text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500', pill: 'bg-emerald-100 text-emerald-700' },
 };
 
 const MONTH_NAMES_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
@@ -410,8 +410,8 @@ export const PaymentCalendar: React.FC = () => {
 
     const STATUS_RU: Record<string, string> = {
       pending: 'Ожидает',
-      approved: 'Утверждён',
-      paid: 'Оплачен',
+      approved: 'Утверждено',
+      paid: 'Оплачено',
     };
 
     const detHdrRow = ws2.addRow(['Дата', 'Статья', 'Сумма, ₽', 'Статус', 'Назначение', 'Контрагент', 'Запросил']);
