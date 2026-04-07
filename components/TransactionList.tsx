@@ -35,9 +35,9 @@ function getTxStatus(tx: Transaction): 'pending' | 'approved' | 'paid' | 'verifi
 }
 
 const TX_STATUS_BADGE: Record<string, React.ReactNode> = {
-  verified: <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium shrink-0">Проверен</span>,
-  paid:     <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium shrink-0">Оплачен</span>,
-  approved: <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 font-medium shrink-0">Утвержден</span>,
+  verified: <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium shrink-0">Проверена</span>,
+  paid:     <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium shrink-0">Оплачена</span>,
+  approved: <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 font-medium shrink-0">Утверждена</span>,
   pending:  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium shrink-0">Ожидает</span>,
 };
 
@@ -188,10 +188,12 @@ export const TransactionList: React.FC = () => {
   const contractorOptions = useMemo(() => contractors.map(c => ({ id: c.id, label: c.name + (c.inn ? ` (${c.inn})` : '') })), [contractors]);
   const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
   const confirmedOptions = useMemo(() => [
-    { id: 'pending',  label: 'Ожидает' },
-    { id: 'approved', label: 'Утвержден' },
-    { id: 'paid',     label: 'Оплачен' },
-    { id: 'verified', label: 'Проверен' },
+    { id: 'pending',           label: 'Ожидает (выплата)' },
+    { id: 'approved',          label: 'Утверждена (выплата)' },
+    { id: 'paid',              label: 'Оплачена (выплата)' },
+    { id: 'verified',          label: 'Проверена (выплата)' },
+    { id: 'income_confirmed',  label: 'Подтверждённый доход' },
+    { id: 'income_unconfirmed',label: 'Неподтверждённый доход' },
   ], []);
 
   const filteredTransactions = useMemo(() => {
@@ -215,8 +217,14 @@ export const TransactionList: React.FC = () => {
       const matchesContractor = filterContractorIds.length === 0 || filterContractorIds.includes(String(t.contractorId));
       const matchesCategory = filterCategoryIds.length === 0 || filterCategoryIds.includes(String(t.categoryId));
       const matchesStudio = filterStudioIds.length === 0 || filterStudioIds.includes(String(t.studioId));
-      const effectiveStatus = getTxStatus(t) ?? (t.confirmed ? 'verified' : 'pending');
-      const matchesConfirmed = filterConfirmed.length === 0 || filterConfirmed.includes(effectiveStatus);
+      let effectiveStatus: string | null = null;
+      if (t.type === 'income') {
+        effectiveStatus = t.confirmed ? 'income_confirmed' : 'income_unconfirmed';
+      } else if (t.type === 'expense') {
+        effectiveStatus = getTxStatus(t) ?? 'pending';
+      }
+      // transfers: effectiveStatus stays null → always pass the filter
+      const matchesConfirmed = filterConfirmed.length === 0 || effectiveStatus === null || filterConfirmed.includes(effectiveStatus);
 
       const txDate = t.date.length > 10 ? t.date.slice(0, 10) : t.date;
       const matchesDateFrom = !filterDateFrom || txDate >= filterDateFrom;

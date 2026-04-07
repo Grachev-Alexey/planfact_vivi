@@ -560,9 +560,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
                 className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
               >
                 <option value="pending">Ожидает</option>
-                <option value="approved">Утвержден</option>
-                <option value="paid">Оплачен</option>
-                <option value="verified">Проверен</option>
+                <option value="approved">Утверждена</option>
+                <option value="paid">Оплачена</option>
+                <option value="verified">Проверена</option>
               </select>
             ) : (
               <label className="flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
