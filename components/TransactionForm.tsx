@@ -389,6 +389,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
   const [contractorId, setContractorId] = useState('');
   const [description, setDescription] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  const [txStatus, setTxStatus] = useState<string>('pending');
   const [accrualDate, setAccrualDate] = useState('');
   const [showNewContractor, setShowNewContractor] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -407,6 +408,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       setContractorId(initialData.contractorId || '');
       setDescription(initialData.description || '');
       setConfirmed(initialData.confirmed || false);
+      // Initialize status: for expense use status field or derive from confirmed/prStatus
+      if (initialData.type === 'expense') {
+        if (initialData.confirmed) {
+          setTxStatus('verified');
+        } else if (initialData.externalId?.startsWith('pr-')) {
+          setTxStatus(initialData.prStatus || 'pending');
+        } else {
+          setTxStatus(initialData.status || 'pending');
+        }
+      }
       setAccrualDate(initialData.accrualDate ? initialData.accrualDate.split('T')[0] : '');
       initialized.current = true;
     } else if (accounts.length > 0 || studios.length > 0) {
@@ -431,7 +442,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
     }
     setErrors([]);
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       date,
       amount: parseFloat(amount),
       type,
@@ -441,9 +452,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       studioId: studioId || undefined,
       contractorId: type === 'transfer' ? undefined : (contractorId || undefined),
       description,
-      confirmed: type === 'transfer' ? true : confirmed,
       accrualDate: accrualDate || undefined,
     };
+    if (type === 'expense') {
+      payload.status = txStatus;
+      payload.confirmed = txStatus === 'verified';
+    } else if (type === 'transfer') {
+      payload.confirmed = true;
+    } else {
+      payload.confirmed = confirmed;
+    }
 
     if (initialData) {
       updateTransaction(initialData.id, payload);
@@ -535,6 +553,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
             </div>
             {type === 'transfer' ? (
               <span className="text-xs text-teal-600 font-medium whitespace-nowrap">✓ Подтверждается автоматически</span>
+            ) : type === 'expense' ? (
+              initialData?.externalId?.startsWith('pr-') ? (
+                <span className="text-xs text-slate-400 whitespace-nowrap">статус из запроса</span>
+              ) : (
+                <select
+                  value={txStatus}
+                  onChange={e => setTxStatus(e.target.value)}
+                  className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+                >
+                  <option value="pending">Ожидает</option>
+                  <option value="approved">Утвержден</option>
+                  <option value="paid">Оплачен</option>
+                  <option value="verified">Проверен</option>
+                </select>
+              )
             ) : (
               <label className="flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
                 <div className="relative flex items-center">
@@ -549,9 +582,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
                     <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
-                <span className="text-sm text-slate-600">
-                  {type === 'income' ? 'Подтвердить доход' : 'Подтвердить оплату'}
-                </span>
+                <span className="text-sm text-slate-600">Подтвердить доход</span>
               </label>
             )}
           </div>

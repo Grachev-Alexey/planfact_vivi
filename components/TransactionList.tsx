@@ -31,7 +31,7 @@ function getTxStatus(tx: Transaction): 'pending' | 'approved' | 'paid' | 'verifi
   if (tx.confirmed) return 'verified';
   if (tx.type !== 'expense') return null;
   if (tx.externalId?.startsWith('pr-')) return (tx.prStatus as 'pending' | 'approved' | 'paid') || 'pending';
-  return 'pending';
+  return (tx.status as 'pending' | 'approved' | 'paid') || 'pending';
 }
 
 const TX_STATUS_BADGE: Record<string, React.ReactNode> = {

@@ -65,4 +65,5 @@ export interface Transaction {
   yclientsCheckedAt?: string | null;
   externalId?: string | null;
   prStatus?: string | null;
+  status?: string | null;
 }

@@ -95,12 +95,16 @@ router.post('/transactions/bulk-import', async (req, res) => {
 
 // Create Transaction
 router.post('/transactions', async (req, res) => {
-  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate } = req.body;
+  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate, status } = req.body;
   const currentUserId = req.headers['x-user-id'];
   
   try {
-    const baseCols = ['date', 'amount', 'type', 'account_id', 'category_id', 'studio_id', 'description', 'to_account_id', 'contractor_id', 'confirmed', 'accrual_date'];
-    const baseVals = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, confirmed || false, accrualDate || null];
+    // Status drives confirmed for expense; otherwise use legacy confirmed flag
+    const finalStatus = status !== undefined ? (status || null) : (type === 'transfer' ? null : null);
+    const finalConfirmed = status !== undefined ? (status === 'verified') : (type === 'transfer' ? true : (confirmed || false));
+
+    const baseCols = ['date', 'amount', 'type', 'account_id', 'category_id', 'studio_id', 'description', 'to_account_id', 'contractor_id', 'confirmed', 'accrual_date', 'status'];
+    const baseVals = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, finalConfirmed, accrualDate || null, finalStatus];
 
     const extraCols = [];
     const extraVals = [];
@@ -141,7 +145,7 @@ router.post('/transactions', async (req, res) => {
 // Update Transaction
 router.put('/transactions/:id', async (req, res) => {
   const { id } = req.params;
-  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate } = req.body;
+  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate, status } = req.body;
   const currentUserId = req.headers['x-user-id'];
 
   try {
@@ -163,12 +167,25 @@ router.put('/transactions/:id', async (req, res) => {
     // Use old date if new date not provided
     const finalDate = date || old.date;
 
+    // Determine confirmed & status fields
+    // If status provided explicitly: status drives confirmed
+    // Otherwise fall back to the old boolean confirmed
+    let finalStatus = status !== undefined ? (status || null) : (old.status || null);
+    let finalConfirmed;
+    if (status !== undefined) {
+      finalConfirmed = status === 'verified';
+      finalStatus = status || null;
+    } else {
+      finalConfirmed = confirmed !== undefined ? (confirmed || false) : (old.confirmed || false);
+      if (finalConfirmed && !finalStatus) finalStatus = 'verified';
+    }
+
     const query = `
       UPDATE transactions 
-      SET date=$1, amount=$2, type=$3, account_id=$4, category_id=$5, studio_id=$6, description=$7, to_account_id=$8, contractor_id=$9, confirmed=$10, accrual_date=$11, updated_at=NOW()
-      WHERE id = $12 RETURNING *
+      SET date=$1, amount=$2, type=$3, account_id=$4, category_id=$5, studio_id=$6, description=$7, to_account_id=$8, contractor_id=$9, confirmed=$10, accrual_date=$11, status=$12, updated_at=NOW()
+      WHERE id = $13 RETURNING *
     `;
-    const values = [finalDate, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, confirmed || false, accrualDate || null, id];
+    const values = [finalDate, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, finalConfirmed, accrualDate || null, finalStatus, id];
 
     const result = await db.query(query, values);
 

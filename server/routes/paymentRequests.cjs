@@ -187,21 +187,23 @@ router.put('/payment-requests/:id', async (req, res) => {
 
     const request = toCamelCase(result.rows[0]);
 
-    // Bidirectional sync: update linked transaction when status changes
+    // Bidirectional sync: update linked transaction status (and date/account when paid)
     const externalId = `pr-${req.params.id}`;
-    if (status === 'paid' && (paidDate || accountId)) {
-      const txUpdates = [];
-      const txParams = [];
-      let txIdx = 1;
-      if (paidDate) { txUpdates.push(`date = $${txIdx++}`); txParams.push(paidDate); }
-      if (accountId) { txUpdates.push(`account_id = $${txIdx++}`); txParams.push(accountId); }
-      if (txUpdates.length > 0) {
-        txParams.push(externalId);
-        await db.query(
-          `UPDATE transactions SET ${txUpdates.join(', ')}, updated_at = NOW() WHERE external_id = $${txIdx}`,
-          txParams
-        );
+    const txStatusMap = { pending: 'pending', approved: 'approved', paid: 'paid', rejected: null };
+    const txNewStatus = txStatusMap[status] ?? null;
+    {
+      const txUpdates = ['status = $1', 'confirmed = $2'];
+      const txParams = [txNewStatus, false];
+      let txIdx = 3;
+      if (status === 'paid') {
+        if (paidDate) { txUpdates.push(`date = $${txIdx++}`); txParams.push(paidDate); }
+        if (accountId) { txUpdates.push(`account_id = $${txIdx++}`); txParams.push(accountId); }
       }
+      txParams.push(externalId);
+      await db.query(
+        `UPDATE transactions SET ${txUpdates.join(', ')}, updated_at = NOW() WHERE external_id = $${txIdx}`,
+        txParams
+      );
     }
 
     if (status === 'paid' || status === 'rejected' || status === 'approved') {
