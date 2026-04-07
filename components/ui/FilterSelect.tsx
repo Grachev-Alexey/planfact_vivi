@@ -7,6 +7,7 @@ interface FilterOption {
   label: string;
   sublabel?: string;
   indent?: number;
+  isGroup?: boolean;
 }
 
 interface FilterSelectProps {
@@ -74,7 +75,7 @@ export const FilterSelect: React.FC<FilterSelectProps> = ({ value, onChange, pla
   const filtered = useMemo(() => {
     if (!search.trim()) return options;
     const q = search.toLowerCase();
-    return options.filter(o => o.label.toLowerCase().includes(q) || (o.sublabel && o.sublabel.toLowerCase().includes(q)));
+    return options.filter(o => o.isGroup || o.label.toLowerCase().includes(q) || (o.sublabel && o.sublabel.toLowerCase().includes(q)));
   }, [options, search]);
 
   const toggleOption = (id: string) => {
@@ -151,6 +152,13 @@ export const FilterSelect: React.FC<FilterSelectProps> = ({ value, onChange, pla
             )}
 
             {filtered.map(opt => {
+              if (opt.isGroup) {
+                return (
+                  <div key={opt.id} className="px-2.5 pt-2 pb-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-100 first:border-t-0">
+                    {opt.label}
+                  </div>
+                );
+              }
               const isSelected = value.includes(opt.id);
               return (
                 <button

@@ -187,13 +187,15 @@ export const TransactionList: React.FC = () => {
   }), [accounts, legalEntities]);
   const contractorOptions = useMemo(() => contractors.map(c => ({ id: c.id, label: c.name + (c.inn ? ` (${c.inn})` : '') })), [contractors]);
   const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
-  const statusChips = useMemo(() => [
-    { id: 'income_unconfirmed', label: 'Не подтв.', group: 'income', activeClass: 'bg-amber-100 text-amber-700 border-amber-300' },
-    { id: 'income_confirmed',   label: 'Подтв.',    group: 'income', activeClass: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
-    { id: 'pending',            label: 'Ожидает',   group: 'expense', activeClass: 'bg-amber-100 text-amber-700 border-amber-300' },
-    { id: 'approved',           label: 'Утверждено', group: 'expense', activeClass: 'bg-sky-100 text-sky-700 border-sky-300' },
-    { id: 'paid',               label: 'Оплачено',  group: 'expense', activeClass: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
-    { id: 'verified',           label: 'Проверено',  group: 'expense', activeClass: 'bg-teal-100 text-teal-700 border-teal-300' },
+  const confirmedOptions = useMemo(() => [
+    { id: '__group_income', label: 'Доход', isGroup: true },
+    { id: 'income_unconfirmed', label: 'Не подтверждённый' },
+    { id: 'income_confirmed',   label: 'Подтверждённый' },
+    { id: '__group_expense', label: 'Расход', isGroup: true },
+    { id: 'pending',            label: 'Ожидает' },
+    { id: 'approved',           label: 'Утверждено' },
+    { id: 'paid',               label: 'Оплачено' },
+    { id: 'verified',           label: 'Проверено' },
   ], []);
 
   const filteredTransactions = useMemo(() => {
@@ -622,48 +624,8 @@ export const TransactionList: React.FC = () => {
           </div>
 
           <div>
-            <div className="text-[11px] font-medium text-slate-500 mb-1.5">Статус</div>
-            <div className="space-y-1.5">
-              <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Доход</div>
-              <div className="flex flex-wrap gap-1">
-                {statusChips.filter(c => c.group === 'income').map(chip => {
-                  const active = filterConfirmed.includes(chip.id);
-                  return (
-                    <button
-                      key={chip.id}
-                      onClick={() => setFilterConfirmed(prev => active ? prev.filter(x => x !== chip.id) : [...prev, chip.id])}
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${
-                        active ? chip.activeClass : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      {chip.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider pt-1">Расход</div>
-              <div className="flex flex-wrap gap-1">
-                {statusChips.filter(c => c.group === 'expense').map(chip => {
-                  const active = filterConfirmed.includes(chip.id);
-                  return (
-                    <button
-                      key={chip.id}
-                      onClick={() => setFilterConfirmed(prev => active ? prev.filter(x => x !== chip.id) : [...prev, chip.id])}
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${
-                        active ? chip.activeClass : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      {chip.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {filterConfirmed.length > 0 && (
-                <button onClick={() => setFilterConfirmed([])} className="text-[10px] text-teal-600 hover:text-teal-700 font-medium flex items-center gap-0.5">
-                  <X size={9} /> Сбросить
-                </button>
-              )}
-            </div>
+            <div className="text-[11px] font-medium text-slate-500 mb-1">Статус</div>
+            <FilterSelect value={filterConfirmed} onChange={setFilterConfirmed} placeholder="Все" options={confirmedOptions} searchable={false} />
           </div>
 
           {hasActiveFilters && (
