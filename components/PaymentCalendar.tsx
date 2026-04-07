@@ -56,11 +56,13 @@ const DAY_SHORT = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
 
 function fmtCompact(v: number | undefined): string {
   if (!v || v === 0) return '';
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(v);
+  const hasDecimals = v % 1 !== 0;
+  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: hasDecimals ? 2 : 0, maximumFractionDigits: 2 }).format(v);
 }
 
 function fmtFull(v: number): string {
-  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(v);
+  const hasDecimals = v % 1 !== 0;
+  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: hasDecimals ? 2 : 0, maximumFractionDigits: 2 }).format(v);
 }
 
 
@@ -111,7 +113,7 @@ function BalanceCheck({ system, manual }: { system: number; manual: string }) {
     </span>
   ) : (
     <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-      <AlertCircle size={9} /> {diff > 0 ? '+' : ''}{new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(diff)}
+      <AlertCircle size={9} /> {diff > 0 ? '+' : ''}{fmtCompact(diff)}
     </span>
   );
 }
