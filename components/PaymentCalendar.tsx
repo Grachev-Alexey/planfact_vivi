@@ -57,7 +57,20 @@ const DAY_SHORT = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
 function fmtCompact(v: number | undefined): string {
   if (!v || v === 0) return '';
   const hasDecimals = v % 1 !== 0;
-  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: hasDecimals ? 2 : 0, maximumFractionDigits: 2 }).format(v);
+  if (!hasDecimals) return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(v);
+  const intPart = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.trunc(v));
+  const decPart = Math.abs(Math.round((v % 1) * 100)).toString().padStart(2, '0');
+  return `${intPart},${decPart}`;
+}
+
+function FmtWithCents({ v, className }: { v: number; className?: string }) {
+  const abs = Math.abs(v);
+  const hasDecimals = abs % 1 !== 0;
+  const intPart = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.trunc(abs));
+  const sign = v < 0 ? '−' : '';
+  if (!hasDecimals) return <span className={className}>{sign}{intPart}</span>;
+  const decPart = Math.abs(Math.round((abs % 1) * 100)).toString().padStart(2, '0');
+  return <span className={className}>{sign}{intPart}<span className="text-[8px] opacity-60">,{decPart}</span></span>;
 }
 
 function fmtFull(v: number): string {
@@ -1183,9 +1196,7 @@ const SummaryRow: React.FC<SummaryRowProps> = ({
       className="border-r border-slate-200 text-right px-2 py-1.5"
       style={{ position: 'sticky', left: labelW, zIndex: 10, width: totalW, minWidth: totalW, background: rowBg }}
     >
-      <span className={`${textClass} ${bold ? 'font-bold' : 'font-medium'}`}>
-        {total ? fmtCompact(total) : '—'}
-      </span>
+      {total ? <FmtWithCents v={total} className={`${textClass} ${bold ? 'font-bold' : 'font-medium'}`} /> : <span className="text-slate-400">—</span>}
     </td>
     {days.map(d => {
       const v = values[d] || 0;
@@ -1198,9 +1209,7 @@ const SummaryRow: React.FC<SummaryRowProps> = ({
           style={{ background: isToday ? todayBg : rowBg, opacity: past && !v ? 0.4 : 1 }}
         >
           {v > 0 && (
-            <span className={`${textClass} ${bold ? 'font-bold' : 'font-medium'}`} style={{ fontSize: 11 }}>
-              {fmtCompact(v)}
-            </span>
+            <FmtWithCents v={v} className={`${textClass} ${bold ? 'font-bold' : 'font-medium'}`} />
           )}
         </td>
       );
@@ -1315,9 +1324,7 @@ const BalanceRow: React.FC<BalanceRowProps> = ({
       className="border-r border-slate-200 text-right px-2 py-1.5"
       style={{ position: 'sticky', left: labelW, zIndex: 10, width: totalW, minWidth: totalW, background: rowBg, fontWeight: bold ? 700 : 600 }}
     >
-      <span className={total >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-        {total < 0 ? '−' : ''}{fmtCompact(Math.abs(total))}
-      </span>
+      <FmtWithCents v={total} className={total >= 0 ? 'text-emerald-700' : 'text-rose-700'} />
     </td>
     {days.map(d => {
       const v = values[d] ?? 0;
@@ -1329,12 +1336,10 @@ const BalanceRow: React.FC<BalanceRowProps> = ({
           style={{ background: isToday ? todayBg : rowBg }}
         >
           {v !== 0 && (
-            <span
+            <FmtWithCents
+              v={v}
               className={`text-[11px] ${v >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}
-              style={{ fontWeight: bold ? 700 : 600 }}
-            >
-              {v < 0 ? '−' : ''}{fmtCompact(Math.abs(v))}
-            </span>
+            />
           )}
         </td>
       );
