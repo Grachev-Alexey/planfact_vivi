@@ -12,6 +12,8 @@ interface PREntry {
   username: string;
   contractorName: string;
   createdAt: string;
+  paymentDate: string | null;
+  accrualDate: string | null;
 }
 
 interface CategoryRow {
@@ -90,6 +92,112 @@ interface ToastItem {
   message: string;
   type: 'success' | 'error';
   exiting: boolean;
+}
+
+function parseNum(s: string) { return parseFloat(s.replace(/\s/g, '').replace(',', '.')) || 0; }
+
+function BalanceCheck({ system, manual }: { system: number; manual: string }) {
+  if (!manual.trim()) return null;
+  const m = parseNum(manual);
+  const diff = system - m;
+  const ok = Math.abs(diff) < 1;
+  return ok ? (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+      <CheckCircle2 size={9} /> ОК
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+      <AlertCircle size={9} /> {diff > 0 ? '+' : ''}{new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(diff)}
+    </span>
+  );
+}
+
+interface AccountBalancesPanelProps {
+  accounts: AccountBalance[];
+  accountsOpen: boolean;
+  setAccountsOpen: (v: boolean) => void;
+  manualBalance: string;
+  setManualBalance: (v: string) => void;
+}
+
+function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualBalance, setManualBalance }: AccountBalancesPanelProps) {
+  const [perAccount, setPerAccount] = React.useState<Record<number, string>>({});
+  const [showZero, setShowZero] = React.useState(false);
+
+  const total = accounts.reduce((s, a) => s + a.balance, 0);
+  const nonZero = accounts.filter(a => Math.abs(a.balance) >= 1);
+  const visible = showZero ? accounts : nonZero;
+
+  const setAcc = (id: number, v: string) => setPerAccount(prev => ({ ...prev, [id]: v }));
+
+  return (
+    <div className="shrink-0 mx-4 lg:mx-6 mb-2">
+      <button
+        onClick={() => setAccountsOpen(!accountsOpen)}
+        className="w-full flex items-center gap-2.5 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm hover:bg-slate-50 transition-colors text-left"
+      >
+        <Landmark size={14} className="text-slate-400 shrink-0" />
+        <span className="text-xs font-semibold text-slate-600">Остатки на счетах</span>
+        <span className={`text-sm font-bold tabular-nums ml-1 ${total < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+          {fmtFull(total)}
+        </span>
+        {manualBalance && <BalanceCheck system={total} manual={manualBalance} />}
+        <span className="ml-auto text-slate-400 shrink-0">{accountsOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}</span>
+      </button>
+
+      {accountsOpen && (
+        <div className="mt-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          {/* Per-account rows */}
+          <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+            {visible.map(acc => (
+              <div key={acc.id} className="flex items-center gap-2 px-4 py-2">
+                <span className="text-[12px] text-slate-600 flex-1 min-w-0 truncate">{acc.name}</span>
+                <span className={`text-[12px] font-semibold tabular-nums shrink-0 ${acc.balance < 0 ? 'text-rose-600' : acc.balance === 0 ? 'text-slate-400' : 'text-slate-800'}`}>
+                  {fmtFull(acc.balance)}
+                </span>
+                <input
+                  type="text"
+                  value={perAccount[acc.id] ?? ''}
+                  onChange={e => setAcc(acc.id, e.target.value)}
+                  placeholder="в банке"
+                  className="w-28 text-[11px] border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-400 bg-slate-50 text-right"
+                />
+                <div className="w-16 flex justify-end">
+                  <BalanceCheck system={acc.balance} manual={perAccount[acc.id] ?? ''} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Toggle zero accounts */}
+          {accounts.length !== visible.length && (
+            <div className="border-t border-slate-100 px-4 py-1.5">
+              <button
+                onClick={() => setShowZero(v => !v)}
+                className="text-[11px] text-slate-400 hover:text-teal-600 transition-colors"
+              >
+                {showZero ? '↑ Скрыть нулевые' : `↓ Показать ещё ${accounts.length - nonZero.length} нулевых`}
+              </button>
+            </div>
+          )}
+
+          {/* Total comparison */}
+          <div className="border-t border-slate-200 px-4 py-2.5 bg-slate-50 flex items-center gap-3">
+            <span className="text-[11px] text-slate-500 shrink-0 font-medium">Итого по всем:</span>
+            <span className={`text-[12px] font-bold tabular-nums shrink-0 ${total < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{fmtFull(total)}</span>
+            <input
+              type="text"
+              value={manualBalance}
+              onChange={e => setManualBalance(e.target.value)}
+              placeholder="Банк (итого)..."
+              className="flex-1 text-[11px] border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+            />
+            <BalanceCheck system={total} manual={manualBalance} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export const PaymentCalendar: React.FC = () => {
@@ -574,70 +682,13 @@ export const PaymentCalendar: React.FC = () => {
       )}
 
       {data && (
-        <div className="shrink-0 mx-4 lg:mx-6 mb-2">
-          <button
-            onClick={() => setAccountsOpen(o => !o)}
-            className="w-full flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm hover:bg-slate-50 transition-colors text-left"
-          >
-            <Landmark size={14} className="text-slate-500 shrink-0" />
-            <span className="text-xs font-semibold text-slate-700">Остатки на счетах</span>
-            <span className="text-xs font-bold text-slate-800 ml-1">
-              {fmtFull((data.accountBalances ?? []).reduce((s, a) => s + a.balance, 0))}
-            </span>
-            {manualBalance && (() => {
-              const manual = parseFloat(manualBalance.replace(/\s/g, '').replace(',', '.'));
-              const total = (data.accountBalances ?? []).reduce((s, a) => s + a.balance, 0);
-              const diff = Math.abs(total - manual);
-              return diff < 1 ? (
-                <span className="ml-2 flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                  <CheckCircle2 size={10} /> Совпадает
-                </span>
-              ) : (
-                <span className="ml-2 flex items-center gap-1 text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                  <AlertCircle size={10} /> Расхождение {fmtFull(total - manual)}
-                </span>
-              );
-            })()}
-            <span className="ml-auto text-slate-400">{accountsOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}</span>
-          </button>
-
-          {accountsOpen && (
-            <div className="mt-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-              <div className="divide-y divide-slate-100">
-                {(data.accountBalances ?? []).map(acc => (
-                  <div key={acc.id} className="flex items-center justify-between px-4 py-2">
-                    <span className="text-xs text-slate-600">{acc.name}</span>
-                    <span className={`text-xs font-semibold tabular-nums ${acc.balance >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
-                      {fmtFull(acc.balance)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t border-slate-200 px-4 py-2.5 bg-slate-50 flex items-center gap-3">
-                <label className="text-[11px] text-slate-500 shrink-0">Баланс по банку сегодня:</label>
-                <input
-                  type="text"
-                  value={manualBalance}
-                  onChange={e => setManualBalance(e.target.value)}
-                  placeholder="Введите сумму..."
-                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
-                />
-                {manualBalance && (() => {
-                  const manual = parseFloat(manualBalance.replace(/\s/g, '').replace(',', '.'));
-                  const total = (data.accountBalances ?? []).reduce((s, a) => s + a.balance, 0);
-                  const diff = total - manual;
-                  const ok = Math.abs(diff) < 1;
-                  return (
-                    <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg ${ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-                      {ok ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                      {ok ? 'Совпадает' : `Расхождение: ${diff > 0 ? '+' : ''}${fmtFull(diff)}`}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          )}
-        </div>
+        <AccountBalancesPanel
+          accounts={data.accountBalances ?? []}
+          accountsOpen={accountsOpen}
+          setAccountsOpen={setAccountsOpen}
+          manualBalance={manualBalance}
+          setManualBalance={setManualBalance}
+        />
       )}
 
       {data && !loading && (

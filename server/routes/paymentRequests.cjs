@@ -282,4 +282,33 @@ router.delete('/payment-requests/:id', async (req, res) => {
   }
 });
 
+router.patch('/payment-requests/:id', async (req, res) => {
+  try {
+    const { description, amount, paymentDate, accrualDate } = req.body;
+    const updates = [];
+    const params = [];
+    let idx = 1;
+
+    if (description !== undefined) { updates.push(`description = $${idx++}`); params.push(description); }
+    if (amount !== undefined && !isNaN(parseFloat(amount))) { updates.push(`amount = $${idx++}`); params.push(parseFloat(amount)); }
+    if (paymentDate !== undefined) { updates.push(`payment_date = $${idx++}`); params.push(paymentDate || null); }
+    if (accrualDate !== undefined) { updates.push(`accrual_date = $${idx++}`); params.push(accrualDate || null); }
+
+    if (updates.length === 0) return res.status(400).json({ error: 'Nothing to update' });
+
+    updates.push('updated_at = NOW()');
+    params.push(req.params.id);
+
+    const result = await db.query(
+      `UPDATE payment_requests SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      params
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(toCamelCase(result.rows[0]));
+  } catch (err) {
+    console.error('Error patching payment request:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

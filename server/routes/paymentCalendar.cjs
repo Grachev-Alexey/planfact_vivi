@@ -100,6 +100,8 @@ router.get('/payment-calendar', async (req, res) => {
         username: pr.username || '',
         contractorName: pr.contractor_name || '',
         createdAt: pr.created_at,
+        paymentDate: pr.payment_date ? (pr.payment_date instanceof Date ? pr.payment_date : new Date(pr.payment_date)).toISOString().slice(0, 10) : null,
+        accrualDate: pr.accrual_date ? (pr.accrual_date instanceof Date ? pr.accrual_date : new Date(pr.accrual_date)).toISOString().slice(0, 10) : null,
       });
     }
 
