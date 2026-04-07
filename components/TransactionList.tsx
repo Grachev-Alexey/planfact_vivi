@@ -35,9 +35,9 @@ function getTxStatus(tx: Transaction): 'pending' | 'approved' | 'paid' | 'verifi
 }
 
 const TX_STATUS_BADGE: Record<string, React.ReactNode> = {
-  verified: <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium shrink-0">Проверена</span>,
-  paid:     <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium shrink-0">Оплачена</span>,
-  approved: <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 font-medium shrink-0">Утверждена</span>,
+  verified: <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-medium shrink-0">Проверено</span>,
+  paid:     <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium shrink-0">Оплачено</span>,
+  approved: <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 font-medium shrink-0">Утверждено</span>,
   pending:  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium shrink-0">Ожидает</span>,
 };
 
@@ -189,9 +189,9 @@ export const TransactionList: React.FC = () => {
   const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
   const confirmedOptions = useMemo(() => [
     { id: 'pending',           label: 'Ожидает (выплата)' },
-    { id: 'approved',          label: 'Утверждена (выплата)' },
-    { id: 'paid',              label: 'Оплачена (выплата)' },
-    { id: 'verified',          label: 'Проверена (выплата)' },
+    { id: 'approved',          label: 'Утверждено (выплата)' },
+    { id: 'paid',              label: 'Оплачено (выплата)' },
+    { id: 'verified',          label: 'Проверено (выплата)' },
     { id: 'income_confirmed',  label: 'Подтверждённый доход' },
     { id: 'income_unconfirmed',label: 'Неподтверждённый доход' },
   ], []);
