@@ -842,7 +842,7 @@ export const TransactionList: React.FC = () => {
                         <div className="flex items-center justify-between">
                           <span>{group.title}</span>
                           <span className="text-[10px] font-normal text-slate-400">
-                            итого: {formatCurrency(Math.abs(dayNet))} ₽
+                            {formatCurrency(Math.abs(dayNet))}
                           </span>
                         </div>
                       </td>
