@@ -18,7 +18,6 @@ const rulesRoutes = require('./routes/rules.cjs');
 
 const app = express();
 const PORT = process.env.PORT || 3010;
-const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -37,8 +36,9 @@ app.use('/api', paymentCalendarRoutes);
 app.use('/api', incomePlanRoutes);
 app.use('/api', rulesRoutes);
 
-if (isProduction) {
-  const distPath = path.join(__dirname, '..', 'dist');
+const fs = require('fs');
+const distPath = path.join(__dirname, '..', 'dist');
+if (fs.existsSync(distPath)) {
   app.use(express.static(distPath, { maxAge: '30d' }));
   app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
@@ -46,5 +46,5 @@ if (isProduction) {
 }
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`ViVi Finance Server running on http://0.0.0.0:${PORT}${isProduction ? ' (production)' : ''}`);
+  console.log(`ViVi Finance Server running on http://0.0.0.0:${PORT}`);
 });
