@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp, Download, Landmark, AlertCircle, CheckCircle2, Plus, X } from 'lucide-react';
-import ExcelJS from 'exceljs';
 import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { PaymentCalendarEntryModal } from './PaymentCalendarEntryModal';
@@ -640,7 +639,7 @@ export const PaymentCalendar: React.FC = () => {
     const catMap: Record<string, CategoryRow> = {};
     for (const cat of data.expenseCategories) catMap[cat.id] = cat;
 
-    // ExcelJS workbook
+    const ExcelJS = (await import('exceljs')).default;
     const wb = new ExcelJS.Workbook();
     wb.creator = 'ViVi Finance';
     wb.created = getMoscowNow();
@@ -657,10 +656,10 @@ export const PaymentCalendar: React.FC = () => {
       left:   { style: 'thin' as const, color: { argb: 'FF' + color } },
       right:  { style: 'thin' as const, color: { argb: 'FF' + color } },
     });
-    const fill = (color: string): ExcelJS.Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + color } });
+    const fill = (color: string): any => ({ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + color } });
 
     const applyCell = (
-      cell: ExcelJS.Cell,
+      cell: any,
       opts: {
         fg: string; textColor: string; bold?: boolean; sz?: number;
         align?: Align; numFmt?: string; wrapText?: boolean; indent?: number;
@@ -680,9 +679,9 @@ export const PaymentCalendar: React.FC = () => {
     };
 
     const styleRow = (
-      row: ExcelJS.Row,
+      row: any,
       height: number,
-      fn: (cell: ExcelJS.Cell, colIdx: number) => void
+      fn: (cell: any, colIdx: number) => void
     ) => {
       row.height = height;
       row.eachCell({ includeEmpty: true }, (cell, col) => fn(cell, col - 1));

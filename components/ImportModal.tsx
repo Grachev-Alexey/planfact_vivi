@@ -3,8 +3,6 @@ import { useFinance } from '../context/FinanceContext';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from './ui/Modal';
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, X } from 'lucide-react';
-import * as XLSX from 'xlsx';
-
 interface ImportRow {
   date: string;
   amount: number;
@@ -60,7 +58,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose }) => 
     return partial ? partial.id : '';
   }, []);
 
-  const parseDate = (val: any): string => {
+  const parseDate = (val: any, XLSX: any): string => {
     if (!val) return '';
     if (typeof val === 'number') {
       const d = XLSX.SSF.parse_date_code(val);
@@ -78,18 +76,17 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose }) => 
     return '';
   };
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
     setResult(null);
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const data = evt.target?.result;
-      const wb = XLSX.read(data, { type: 'binary', cellDates: false });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { raw: true, defval: '' });
+    const XLSX = await import('xlsx');
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: 'array', cellDates: false });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const json: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { raw: true, defval: '' });
 
       const colMap: Record<string, string> = {};
       if (json.length > 0) {
@@ -115,7 +112,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose }) => 
         const raw: Record<string, string> = {};
         Object.entries(row).forEach(([k, v]) => { raw[k] = String(v); });
 
-        const dateStr = parseDate(row[colMap['date']]);
+        const dateStr = parseDate(row[colMap['date']], XLSX);
         if (!dateStr) errors.push('Некорректная дата');
 
         const amountRaw = row[colMap['amount']];
@@ -152,7 +149,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose }) => 
         const confirmedRaw = String(row[colMap['confirmed']] || '').trim().toLowerCase();
         const confirmed = ['да', 'yes', 'true', '1', '+'].includes(confirmedRaw);
 
-        const accrualDate = parseDate(row[colMap['accrualDate']]);
+        const accrualDate = parseDate(row[colMap['accrualDate']], XLSX);
 
         return {
           raw,
@@ -161,9 +158,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose }) => 
         };
       });
 
-      setParsedRows(rows);
-    };
-    reader.readAsBinaryString(file);
+    setParsedRows(rows);
   };
 
   const validRows = useMemo(() => parsedRows.filter(r => r.errors.length === 0), [parsedRows]);
@@ -190,7 +185,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose }) => 
     }
   };
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     const accName1 = accounts.length > 0 ? accounts[0].name : 'Название счета';
     const accName2 = accounts.length > 1 ? accounts[1].name : accName1;
     const incCat = categories.find(c => c.type === 'income');
@@ -236,6 +231,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose }) => 
         'Дата начисления': '',
       },
     ];
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(templateData);
     ws['!cols'] = [
       { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 20 }, { wch: 20 },

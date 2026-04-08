@@ -4,7 +4,6 @@ import { Category } from '../types';
 import { formatCurrency } from '../utils/format';
 import { Download, ChevronDown, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import * as XLSX from 'xlsx';
 import { getMoscowNow } from '../utils/moscow';
 
 type ReportTab = 'pnl' | 'dds' | 'categories' | 'studios';
@@ -178,7 +177,7 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
     });
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const rows: any[] = [];
     const exportPnlTree = (cats: typeof categories, depth: number) => {
       cats.forEach(cat => {
@@ -192,6 +191,7 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
     rows.push({ 'Статья': 'РАСХОДЫ', ...Object.fromEntries(months.map(m => [m.label, ''])), 'Итого': grandTotalExpense });
     exportPnlTree(expenseCategories, 1);
     rows.push({ 'Статья': 'ПРИБЫЛЬ', ...Object.fromEntries(months.map(m => [m.label, totalIncome(m.month, m.year) - totalExpense(m.month, m.year)])), 'Итого': grandTotalIncome - grandTotalExpense });
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'ПиУ');
@@ -328,7 +328,7 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
     });
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const rows: any[] = [];
     const header = { 'Статьи учета': '', ...Object.fromEntries(activeStudios.map(s => [s.name, ''])) };
     
@@ -346,6 +346,7 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
     rows.push({ ...header, 'Статьи учета': 'Выплаты', ...Object.fromEntries(activeStudios.map(s => [s.name, getTypeTotal('expense', s.id)])) });
     exportCatTree(expenseCategories, 0);
 
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'ДДС');

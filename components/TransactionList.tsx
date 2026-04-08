@@ -10,7 +10,6 @@ import { TransactionForm } from './TransactionForm';
 import { FilterSelect } from './ui/FilterSelect';
 import { DatePicker } from './ui/DatePicker';
 import { ImportModal } from './ImportModal';
-import * as XLSX from 'xlsx';
 import { getMoscowNow } from '../utils/moscow';
 
 const toLocalDate = (d: Date): string => {
@@ -293,7 +292,7 @@ export const TransactionList: React.FC = () => {
   const totalTransfers = filteredTransactions.filter(t => t.type === 'transfer').reduce((sum, t) => sum + t.amount, 0);
   const netResult = totalIncome - totalExpense;
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const data = filteredTransactions.map(tx => {
       const account = lookupMaps.accounts.get(tx.accountId)?.name || '';
       const toAccount = tx.toAccountId ? lookupMaps.accounts.get(tx.toAccountId)?.name || '' : '';
@@ -309,6 +308,7 @@ export const TransactionList: React.FC = () => {
         'Контрагент': contractor, 'Студия': studio, 'Описание': tx.description
       };
     });
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Операции");
