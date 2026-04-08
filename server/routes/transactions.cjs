@@ -203,15 +203,61 @@ router.put('/transactions/:id', async (req, res) => {
       );
     }
 
-    // Sync status back to payment_request if this is a PR-linked transaction
-    if (old.external_id && old.external_id.startsWith('pr-') && finalStatus !== undefined) {
+    // Sync changes back to payment_request if this is a PR-linked transaction
+    if (old.external_id && old.external_id.startsWith('pr-')) {
       const prId = old.external_id.substring(3);
-      const prStatusMap = { pending: 'pending', approved: 'approved', paid: 'paid', verified: 'paid' };
-      const prNewStatus = prStatusMap[finalStatus] || 'pending';
-      await db.query(
-        `UPDATE payment_requests SET status = $1, updated_at = NOW() WHERE id = $2`,
-        [prNewStatus, prId]
-      );
+      const prUpdates = [];
+      const prParams = [];
+      let prIdx = 1;
+
+      if (finalStatus !== undefined) {
+        const prStatusMap = { pending: 'pending', approved: 'approved', paid: 'paid', verified: 'verified' };
+        prUpdates.push(`status = $${prIdx++}`);
+        prParams.push(prStatusMap[finalStatus] || 'pending');
+      }
+      if (finalAmount !== undefined && Number(finalAmount) !== Number(old.amount)) {
+        prUpdates.push(`amount = $${prIdx++}`);
+        prParams.push(finalAmount);
+      }
+      if (finalDate && finalDate !== (old.date instanceof Date ? old.date.toISOString().split('T')[0] : String(old.date || '').split('T')[0])) {
+        prUpdates.push(`payment_date = $${prIdx++}`);
+        prParams.push(finalDate);
+      }
+      if (finalDescription !== undefined && finalDescription !== (old.description || '')) {
+        prUpdates.push(`description = $${prIdx++}`);
+        prParams.push(finalDescription);
+      }
+      if (finalCategoryId !== undefined && String(finalCategoryId || '') !== String(old.category_id || '')) {
+        prUpdates.push(`category_id = $${prIdx++}`);
+        prParams.push(finalCategoryId || null);
+      }
+      if (finalStudioId !== undefined && String(finalStudioId || '') !== String(old.studio_id || '')) {
+        prUpdates.push(`studio_id = $${prIdx++}`);
+        prParams.push(finalStudioId || null);
+      }
+      if (finalContractorId !== undefined && String(finalContractorId || '') !== String(old.contractor_id || '')) {
+        prUpdates.push(`contractor_id = $${prIdx++}`);
+        prParams.push(finalContractorId || null);
+      }
+      if (finalAccountId !== undefined && String(finalAccountId || '') !== String(old.account_id || '')) {
+        prUpdates.push(`account_id = $${prIdx++}`);
+        prParams.push(finalAccountId || null);
+      }
+      const finalAcrcualDateStr = finalAcrcualDate || null;
+      const oldAcrcualDateStr = old.accrual_date instanceof Date ? old.accrual_date.toISOString().split('T')[0] : (old.accrual_date || null);
+      if (finalAcrcualDateStr !== oldAcrcualDateStr) {
+        prUpdates.push(`accrual_date = $${prIdx++}`);
+        prParams.push(finalAcrcualDateStr);
+      }
+
+      if (prUpdates.length > 0) {
+        prUpdates.push('updated_at = NOW()');
+        prParams.push(prId);
+        await db.query(
+          `UPDATE payment_requests SET ${prUpdates.join(', ')} WHERE id = $${prIdx}`,
+          prParams
+        );
+      }
     }
 
     const newAccountName = accountId ? (await db.query('SELECT name FROM accounts WHERE id=$1', [accountId])).rows[0]?.name : null;

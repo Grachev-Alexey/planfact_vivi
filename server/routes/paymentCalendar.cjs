@@ -247,6 +247,11 @@ router.patch('/payment-calendar/move-payment', async (req, res) => {
       `UPDATE payment_requests SET payment_date = $1 WHERE id = ANY($2::int[])`,
       [newDate, ids]
     );
+    const externalIds = ids.map(id => `pr-${id}`);
+    await db.query(
+      `UPDATE transactions SET date = $1, updated_at = NOW() WHERE external_id = ANY($2::text[])`,
+      [newDate, externalIds]
+    );
     res.json({ ok: true, moved: ids.length });
   } catch (err) {
     console.error('Error moving payments:', err);
@@ -281,13 +286,23 @@ router.post('/payment-calendar/split-payment', async (req, res) => {
       `UPDATE payment_requests SET amount = $1, payment_date = $2 WHERE id = $3`,
       [parseFloat(parts[0].amount), parts[0].date, id]
     );
+    await db.query(
+      `UPDATE transactions SET amount = $1, date = $2, updated_at = NOW() WHERE external_id = $3`,
+      [parseFloat(parts[0].amount), parts[0].date, `pr-${id}`]
+    );
 
     for (let i = 1; i < parts.length; i++) {
-      await db.query(
+      const newPr = await db.query(
         `INSERT INTO payment_requests
            (user_id, amount, category_id, studio_id, contractor_id, account_id, description, payment_date, accrual_date, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
         [o.user_id, parseFloat(parts[i].amount), o.category_id, o.studio_id, o.contractor_id, o.account_id, o.description, parts[i].date, o.accrual_date, o.status]
+      );
+      const newPrId = newPr.rows[0].id;
+      await db.query(
+        `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, contractor_id, description, confirmed, accrual_date, external_id, status)
+         VALUES ($1, $2, 'expense', $3, $4, $5, $6, $7, false, $8, $9, $10)`,
+        [parts[i].date, parseFloat(parts[i].amount), o.account_id, o.category_id, o.studio_id, o.contractor_id, o.description, o.accrual_date, `pr-${newPrId}`, o.status || 'pending']
       );
     }
 

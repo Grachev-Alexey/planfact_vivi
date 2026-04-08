@@ -187,7 +187,7 @@ router.put('/payment-requests/:id', async (req, res) => {
 
     const request = toCamelCase(result.rows[0]);
 
-    // Bidirectional sync: update linked transaction status (and date/account when paid)
+    // Bidirectional sync: update linked transaction status (and date/account/amount when paid)
     const externalId = `pr-${req.params.id}`;
     const txStatusMap = { pending: 'pending', approved: 'approved', paid: 'paid', rejected: null, verified: 'verified' };
     const txNewStatus = txStatusMap[status] ?? null;
@@ -196,6 +196,7 @@ router.put('/payment-requests/:id', async (req, res) => {
       const txParams = [txNewStatus, false];
       let txIdx = 3;
       if (status === 'paid') {
+        if (paidAmount) { txUpdates.push(`amount = $${txIdx++}`); txParams.push(paidAmount); }
         if (paidDate) { txUpdates.push(`date = $${txIdx++}`); txParams.push(paidDate); }
         if (accountId) { txUpdates.push(`account_id = $${txIdx++}`); txParams.push(accountId); }
       }
@@ -304,6 +305,24 @@ router.patch('/payment-requests/:id', async (req, res) => {
       params
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+
+    // Sync changes to linked transaction
+    const externalId = `pr-${req.params.id}`;
+    const txUpdates = [];
+    const txParams = [];
+    let txIdx = 1;
+    if (description !== undefined) { txUpdates.push(`description = $${txIdx++}`); txParams.push(description); }
+    if (amount !== undefined && !isNaN(parseFloat(amount))) { txUpdates.push(`amount = $${txIdx++}`); txParams.push(parseFloat(amount)); }
+    if (paymentDate !== undefined) { txUpdates.push(`date = $${txIdx++}`); txParams.push(paymentDate || null); }
+    if (accrualDate !== undefined) { txUpdates.push(`accrual_date = $${txIdx++}`); txParams.push(accrualDate || null); }
+    if (txUpdates.length > 0) {
+      txParams.push(externalId);
+      await db.query(
+        `UPDATE transactions SET ${txUpdates.join(', ')}, updated_at = NOW() WHERE external_id = $${txIdx}`,
+        txParams
+      );
+    }
+
     res.json(toCamelCase(result.rows[0]));
   } catch (err) {
     console.error('Error patching payment request:', err);
