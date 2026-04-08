@@ -165,9 +165,9 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
           {/* Per-account rows */}
           <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
             {visible.map(acc => (
-              <div key={acc.id} className="flex items-center gap-2 px-4 py-2">
-                <span className="text-[12px] text-slate-600 flex-1 min-w-0 truncate">{acc.name}</span>
-                <span className={`text-[12px] font-semibold tabular-nums shrink-0 ${acc.balance < 0 ? 'text-rose-600' : acc.balance === 0 ? 'text-slate-400' : 'text-slate-800'}`}>
+              <div key={acc.id} className="flex items-center px-4 py-2" style={{ gap: '8px' }}>
+                <span className="text-[12px] text-slate-600 truncate" style={{ flex: '1 1 0', minWidth: 0 }}>{acc.name}</span>
+                <span className={`text-[12px] font-semibold tabular-nums whitespace-nowrap ${acc.balance < 0 ? 'text-rose-600' : acc.balance === 0 ? 'text-slate-400' : 'text-slate-800'}`} style={{ flexShrink: 0 }}>
                   {fmtFull(acc.balance)}
                 </span>
                 <input
@@ -176,9 +176,10 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
                   onChange={e => setPerAccountValue(acc.id, e.target.value)}
                   onBlur={() => onSaveAccountBalance(acc.id, perAccount[acc.id] ?? '')}
                   placeholder="Фактически..."
-                  className="w-28 text-[11px] border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-400 bg-slate-50 text-right"
+                  className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-400 bg-slate-50 text-right"
+                  style={{ width: '112px', flexShrink: 0 }}
                 />
-                <div className="w-16 flex justify-end">
+                <div style={{ width: '100px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
                   <BalanceCheck system={acc.balance} manual={perAccount[acc.id] ?? ''} />
                 </div>
               </div>
