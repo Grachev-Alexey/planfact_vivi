@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp, Download, Landmark, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp, Download, Landmark, AlertCircle, CheckCircle2, Plus, X } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { useAuth } from '../context/AuthContext';
+import { useFinance } from '../context/FinanceContext';
 import { PaymentCalendarEntryModal } from './PaymentCalendarEntryModal';
 import { getMoscowNow } from '../utils/moscow';
 
@@ -132,17 +133,18 @@ interface AccountBalancesPanelProps {
   setAccountsOpen: (v: boolean) => void;
   manualBalance: string;
   setManualBalance: (v: string) => void;
+  perAccount: Record<number, string>;
+  setPerAccountValue: (id: number, v: string) => void;
+  onSaveAccountBalance: (accountId: number, value: string) => void;
+  onSaveTotalBalance: (value: string) => void;
 }
 
-function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualBalance, setManualBalance }: AccountBalancesPanelProps) {
-  const [perAccount, setPerAccount] = React.useState<Record<number, string>>({});
+function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualBalance, setManualBalance, perAccount, setPerAccountValue, onSaveAccountBalance, onSaveTotalBalance }: AccountBalancesPanelProps) {
   const [showZero, setShowZero] = React.useState(false);
 
   const total = accounts.reduce((s, a) => s + a.balance, 0);
   const nonZero = accounts.filter(a => Math.abs(a.balance) >= 1);
   const visible = showZero ? accounts : nonZero;
-
-  const setAcc = (id: number, v: string) => setPerAccount(prev => ({ ...prev, [id]: v }));
 
   return (
     <div className="shrink-0 mx-4 lg:mx-6 mb-2">
@@ -172,7 +174,8 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
                 <input
                   type="text"
                   value={perAccount[acc.id] ?? ''}
-                  onChange={e => setAcc(acc.id, e.target.value)}
+                  onChange={e => setPerAccountValue(acc.id, e.target.value)}
+                  onBlur={() => onSaveAccountBalance(acc.id, perAccount[acc.id] ?? '')}
                   placeholder="Фактически..."
                   className="w-28 text-[11px] border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-400 bg-slate-50 text-right"
                 />
@@ -203,6 +206,7 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
               type="text"
               value={manualBalance}
               onChange={e => setManualBalance(e.target.value)}
+              onBlur={() => onSaveTotalBalance(manualBalance)}
               placeholder="Банк (итого)..."
               className="flex-1 text-[11px] border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
             />
@@ -210,6 +214,190 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+interface SearchSelectProps {
+  options: { id: string; name: string }[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}
+function SearchSelect({ options, value, onChange, placeholder }: SearchSelectProps) {
+  const [q, setQ] = React.useState('');
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const selected = options.find(o => o.id === value);
+  const filtered = q ? options.filter(o => o.name.toLowerCase().includes(q.toLowerCase())) : options;
+
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(!open)} className="w-full text-left px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white hover:border-slate-300 truncate">
+        {selected ? selected.name : <span className="text-slate-400">{placeholder}</span>}
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+          <input
+            autoFocus
+            type="text"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Поиск..."
+            className="w-full px-3 py-1.5 text-sm border-b border-slate-100 outline-none"
+          />
+          {filtered.map(o => (
+            <button key={o.id} type="button" onClick={() => { onChange(o.id); setOpen(false); setQ(''); }}
+              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-teal-50 ${o.id === value ? 'bg-teal-50 font-medium text-teal-700' : ''}`}
+            >
+              {o.name}
+            </button>
+          ))}
+          {filtered.length === 0 && <div className="px-3 py-2 text-sm text-slate-400">Не найдено</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewPaymentRequestModal({ day, month, year, userId, onClose, onSuccess }: {
+  day: number; month: number; year: number; userId: string;
+  onClose: () => void; onSuccess: (msg: string) => void;
+}) {
+  const { categories, studios, contractors, accounts } = useFinance();
+  const [amount, setAmount] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [studioId, setStudioId] = useState('');
+  const [contractorId, setContractorId] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  const paymentDate = `${year}-${pad2(month)}-${pad2(day)}`;
+
+  const expenseCategories = categories.filter(c => c.type === 'expense');
+
+  React.useEffect(() => {
+    if (!accountId && accounts.length > 0) setAccountId(accounts[0].id);
+  }, [accounts, accountId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || parseFloat(amount) <= 0) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/payment-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+        body: JSON.stringify({
+          userId,
+          amount: parseFloat(amount),
+          categoryId: categoryId || null,
+          studioId: studioId || null,
+          contractorId: contractorId || null,
+          accountId: accountId || null,
+          description,
+          paymentDate,
+          accrualDate: paymentDate,
+        }),
+      });
+      if (res.ok) {
+        onSuccess(`Запрос на ${pad2(day)}.${pad2(month)} создан`);
+        onClose();
+      }
+    } catch {
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
+          <h3 className="font-bold text-slate-800">Запрос на выплату — {pad2(day)}.{pad2(month)}.{year}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-3">
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Сумма *</label>
+            <input
+              autoFocus
+              type="number"
+              step="0.01"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              onWheel={e => (e.target as HTMLInputElement).blur()}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-teal-500"
+              placeholder="0.00"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Статья расхода</label>
+            <SearchSelect
+              options={expenseCategories.map(c => ({ id: c.id, name: c.name }))}
+              value={categoryId}
+              onChange={setCategoryId}
+              placeholder="Выберите статью"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Студия</label>
+              <SearchSelect
+                options={studios.map(s => ({ id: s.id, name: s.name }))}
+                value={studioId}
+                onChange={setStudioId}
+                placeholder="Студия"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Счёт</label>
+              <SearchSelect
+                options={accounts.map(a => ({ id: a.id, name: a.name }))}
+                value={accountId}
+                onChange={setAccountId}
+                placeholder="Счёт"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Контрагент</label>
+            <SearchSelect
+              options={contractors.map(c => ({ id: c.id, name: c.name }))}
+              value={contractorId}
+              onChange={setContractorId}
+              placeholder="Контрагент"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Описание</label>
+            <input
+              type="text"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-teal-500"
+              placeholder="Описание..."
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200">
+              Отмена
+            </button>
+            <button type="submit" disabled={submitting || !amount} className="flex-1 px-3 py-2.5 text-sm text-white bg-teal-600 hover:bg-teal-700 rounded-lg font-medium disabled:opacity-50">
+              {submitting ? 'Создаю...' : 'Создать'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -226,11 +414,13 @@ export const PaymentCalendar: React.FC = () => {
   const [catsOpen, setCatsOpen] = useState(true);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [manualBalance, setManualBalance] = useState('');
+  const [perAccountBalances, setPerAccountBalances] = useState<Record<number, string>>({});
   const [dragState, setDragState] = useState<{ catId: string; day: number; entryIds: number[] } | null>(null);
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
   const [activeCell, setActiveCell] = useState<{ catName: string; catId: string; day: number; entries: PREntry[] } | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [incomePlanManual, setIncomePlanManual] = useState<Record<number, number>>({});
+  const [newPRDay, setNewPRDay] = useState<number | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const todayColRef = useRef<HTMLTableCellElement>(null);
   const dragJustEndedRef = useRef(false);
@@ -265,6 +455,38 @@ export const PaymentCalendar: React.FC = () => {
     } catch {}
   }, [monthStr, user]);
 
+  const loadCalendarBalances = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/calendar-balances?month=${monthStr}`, {
+        headers: { 'x-user-id': String(user?.id || '') },
+      });
+      if (r.ok) {
+        const data = await r.json();
+        const pa: Record<number, string> = {};
+        for (const [accId, val] of Object.entries(data.accounts || {})) {
+          pa[Number(accId)] = String(val);
+        }
+        setPerAccountBalances(pa);
+        setManualBalance(data.total != null ? String(data.total) : '');
+      }
+    } catch {}
+  }, [monthStr, user]);
+
+  const saveCalendarBalance = useCallback(async (accountId: number | null, value: string, isTotal: boolean) => {
+    try {
+      await fetch('/api/calendar-balances', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+        body: JSON.stringify({
+          month: monthStr,
+          accountId: isTotal ? null : accountId,
+          value: value.trim() === '' ? null : parseNum(value),
+          isTotal,
+        }),
+      });
+    } catch {}
+  }, [monthStr, user]);
+
   const loadIncomePlan = useCallback(async () => {
     try {
       const r = await fetch(`/api/income-plan?year=${year}&month=${month}`);
@@ -291,7 +513,7 @@ export const PaymentCalendar: React.FC = () => {
     }, 2800);
   }, []);
 
-  useEffect(() => { load(); loadIncomePlan(); }, [load, loadIncomePlan]);
+  useEffect(() => { load(); loadIncomePlan(); loadCalendarBalances(); }, [load, loadIncomePlan, loadCalendarBalances]);
 
   useEffect(() => {
     if (data && todayDay > 0 && todayColRef.current) {
@@ -725,6 +947,10 @@ export const PaymentCalendar: React.FC = () => {
           setAccountsOpen={setAccountsOpen}
           manualBalance={manualBalance}
           setManualBalance={setManualBalance}
+          perAccount={perAccountBalances}
+          setPerAccountValue={(id, v) => setPerAccountBalances(prev => ({ ...prev, [id]: v }))}
+          onSaveAccountBalance={(accountId, value) => saveCalendarBalance(accountId, value, false)}
+          onSaveTotalBalance={(value) => saveCalendarBalance(null, value, true)}
         />
       )}
 
@@ -768,9 +994,11 @@ export const PaymentCalendar: React.FC = () => {
                                 ? 'bg-white text-slate-300'
                                 : 'bg-white text-slate-500'
                         }`}
-                      style={{ position: 'sticky', top: 0, zIndex: 20, width: COL_W, minWidth: COL_W, cursor: dragState ? 'copy' : 'default' }}
+                      style={{ position: 'sticky', top: 0, zIndex: 20, width: COL_W, minWidth: COL_W, cursor: dragState ? 'copy' : 'pointer' }}
                       onDragOver={e => handleDragOver(e, d)}
                       onDrop={e => handleDrop(e, d)}
+                      onClick={() => !dragState && setNewPRDay(d)}
+                      title="Нажмите для создания запроса на выплату"
                     >
                       <div className="font-bold" style={{ fontSize: 12 }}>{d}</div>
                       <div className="opacity-70" style={{ fontSize: 9 }}>{DAY_SHORT[dow]}</div>
@@ -1033,6 +1261,17 @@ export const PaymentCalendar: React.FC = () => {
           onClose={() => setActiveCell(null)}
           onRefresh={silentLoad}
           onSuccess={showToast}
+        />
+      )}
+
+      {newPRDay !== null && (
+        <NewPaymentRequestModal
+          day={newPRDay}
+          month={month}
+          year={year}
+          userId={user?.id || ''}
+          onClose={() => setNewPRDay(null)}
+          onSuccess={(msg) => { showToast(msg); silentLoad(); }}
         />
       )}
 

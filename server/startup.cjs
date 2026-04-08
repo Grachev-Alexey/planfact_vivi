@@ -362,6 +362,26 @@ const initDB = async () => {
       )
     `);
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS calendar_balances (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        month TEXT NOT NULL,
+        manual_balance NUMERIC(15,2) NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(account_id, month)
+      )
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS calendar_balances_total (
+        id SERIAL PRIMARY KEY,
+        month TEXT NOT NULL UNIQUE,
+        manual_balance NUMERIC(15,2) NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
       await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['grachev', 'cd5d56a8', 'admin']);

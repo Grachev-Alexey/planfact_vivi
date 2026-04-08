@@ -314,4 +314,69 @@ router.post('/payment-calendar/split-payment', async (req, res) => {
   }
 });
 
+router.get('/calendar-balances', async (req, res) => {
+  const caller = await requireAdmin(req, res);
+  if (!caller) return;
+  const { month } = req.query;
+  if (!month) return res.status(400).json({ error: 'month required' });
+  try {
+    const perAccount = await db.query(
+      'SELECT account_id, manual_balance FROM calendar_balances WHERE month = $1',
+      [month]
+    );
+    const totalRes = await db.query(
+      'SELECT manual_balance FROM calendar_balances_total WHERE month = $1',
+      [month]
+    );
+    const accounts = {};
+    for (const r of perAccount.rows) {
+      accounts[r.account_id] = parseFloat(r.manual_balance);
+    }
+    res.json({
+      accounts,
+      total: totalRes.rows.length > 0 ? parseFloat(totalRes.rows[0].manual_balance) : null,
+    });
+  } catch (err) {
+    console.error('Error fetching calendar balances:', err);
+    res.status(500).json({ error: 'Error fetching calendar balances' });
+  }
+});
+
+router.put('/calendar-balances', async (req, res) => {
+  const caller = await requireAdmin(req, res);
+  if (!caller) return;
+  const { month, accountId, value, isTotal } = req.body;
+  if (!month) return res.status(400).json({ error: 'month required' });
+  try {
+    if (isTotal) {
+      if (value === null || value === '' || value === undefined) {
+        await db.query('DELETE FROM calendar_balances_total WHERE month = $1', [month]);
+      } else {
+        await db.query(
+          `INSERT INTO calendar_balances_total (month, manual_balance, updated_at)
+           VALUES ($1, $2, NOW())
+           ON CONFLICT (month) DO UPDATE SET manual_balance = $2, updated_at = NOW()`,
+          [month, parseFloat(value)]
+        );
+      }
+    } else {
+      if (!accountId) return res.status(400).json({ error: 'accountId required' });
+      if (value === null || value === '' || value === undefined) {
+        await db.query('DELETE FROM calendar_balances WHERE account_id = $1 AND month = $2', [accountId, month]);
+      } else {
+        await db.query(
+          `INSERT INTO calendar_balances (account_id, month, manual_balance, updated_at)
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (account_id, month) DO UPDATE SET manual_balance = $3, updated_at = NOW()`,
+          [accountId, month, parseFloat(value)]
+        );
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving calendar balance:', err);
+    res.status(500).json({ error: 'Error saving calendar balance' });
+  }
+});
+
 module.exports = router;

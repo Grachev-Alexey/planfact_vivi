@@ -29,6 +29,10 @@ type LookupMaps = {
 };
 
 function getTxStatus(tx: Transaction): 'pending' | 'approved' | 'paid' | 'verified' | null {
+  if (tx.type === 'income') {
+    if (tx.status === 'verified') return 'verified';
+    return null;
+  }
   if (tx.type !== 'expense') return null;
   if (tx.externalId?.startsWith('pr-')) return (tx.prStatus as 'pending' | 'approved' | 'paid' | 'verified') || 'pending';
   if (tx.status && ['pending', 'approved', 'paid', 'verified'].includes(tx.status)) return tx.status as 'pending' | 'approved' | 'paid' | 'verified';
@@ -124,7 +128,9 @@ const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
           )}
           {tx.type === 'expense'
             ? TX_STATUS_BADGE[getTxStatus(tx) || ''] ?? null
-            : tx.confirmed && <CheckCircle2 size={13} className="text-teal-500 shrink-0" />
+            : tx.type === 'income' && getTxStatus(tx) === 'verified'
+              ? TX_STATUS_BADGE['verified']
+              : tx.type === 'income' && tx.confirmed && <CheckCircle2 size={13} className="text-teal-500 shrink-0" />
           }
           <span>{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}</span>
         </div>
@@ -193,6 +199,7 @@ export const TransactionList: React.FC = () => {
     { id: '__group_income', label: 'Доход', isGroup: true },
     { id: 'income_unconfirmed', label: 'Не подтверждённый' },
     { id: 'income_confirmed',   label: 'Подтверждённый' },
+    { id: 'income_verified',    label: 'Проверено' },
     { id: '__group_expense', label: 'Расход', isGroup: true },
     { id: 'pending',            label: 'Ожидает' },
     { id: 'approved',           label: 'Утверждено' },
@@ -221,13 +228,14 @@ export const TransactionList: React.FC = () => {
       const matchesContractor = filterContractorIds.length === 0 || filterContractorIds.includes(String(t.contractorId));
       const matchesCategory = filterCategoryIds.length === 0 || filterCategoryIds.includes(String(t.categoryId));
       const matchesStudio = filterStudioIds.length === 0 || filterStudioIds.includes(String(t.studioId));
-      let effectiveStatus: string | null = null;
+      let effectiveStatuses: string[] = [];
       if (t.type === 'income') {
-        effectiveStatus = t.confirmed ? 'income_confirmed' : 'income_unconfirmed';
+        effectiveStatuses.push(t.confirmed ? 'income_confirmed' : 'income_unconfirmed');
+        if (t.status === 'verified') effectiveStatuses.push('income_verified');
       } else if (t.type === 'expense') {
-        effectiveStatus = getTxStatus(t) ?? 'pending';
+        effectiveStatuses.push(getTxStatus(t) ?? 'pending');
       }
-      const matchesConfirmed = filterConfirmed.length === 0 || (effectiveStatus !== null && filterConfirmed.includes(effectiveStatus));
+      const matchesConfirmed = filterConfirmed.length === 0 || effectiveStatuses.some(s => filterConfirmed.includes(s));
 
       const txDate = t.date.length > 10 ? t.date.slice(0, 10) : t.date;
       const matchesDateFrom = !filterDateFrom || txDate >= filterDateFrom;
@@ -416,6 +424,25 @@ export const TransactionList: React.FC = () => {
     setSelectedIds(new Set());
     if (refreshData) refreshData();
     alert(`Сверка завершена. Успешно: ${successCount}, Ошибок: ${failCount}`);
+  };
+
+  const handleBulkIncomeVerified = async () => {
+    const ids = [...selectedIds];
+    const incomeTxs = transactions.filter(t => ids.includes(t.id) && t.type === 'income');
+    if (incomeTxs.length === 0) return;
+    setIsDeleting(true);
+    try {
+      await fetch('/api/transactions-batch/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': '1' },
+        body: JSON.stringify({ ids: incomeTxs.map(t => t.id), status: 'verified' }),
+      });
+    } catch (err) {
+      console.error('Batch income verified error:', err);
+    }
+    setSelectedIds(new Set());
+    setIsDeleting(false);
+    if (refreshData) refreshData();
   };
 
   const handleBulkExpenseStatus = async (newStatus: 'approved' | 'paid' | 'verified') => {
@@ -683,6 +710,15 @@ export const TransactionList: React.FC = () => {
                   Снять подтв.
                 </button>
               )}
+              {hasIncomeSelected && (
+                <button
+                  onClick={() => handleBulkIncomeVerified()}
+                  disabled={isDeleting || isVerifying}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
+                >
+                  <CheckCircle2 size={12} /> Проверено
+                </button>
+              )}
               {hasExpenseSelected && (
                 <button
                   onClick={() => handleBulkExpenseStatus('approved')}
@@ -795,25 +831,39 @@ export const TransactionList: React.FC = () => {
                   <td colSpan={8} className="p-12 text-center text-slate-400 text-sm">Нет операций</td>
                 </tr>
               )}
-              {groupedTransactions.map(group => (
-                <React.Fragment key={group.title}>
-                  <tr>
-                    <td colSpan={8} className="px-3 py-2 bg-slate-50/80 text-xs font-semibold text-slate-500 border-b border-slate-100">
-                      {group.title}
-                    </td>
-                  </tr>
-                  {group.items.map(tx => (
-                    <TransactionRow
-                      key={tx.id}
-                      tx={tx}
-                      isSelected={selectedIds.has(tx.id)}
-                      maps={lookupMaps}
-                      onToggle={toggleSelect}
-                      onEdit={setEditingTx}
-                    />
-                  ))}
-                </React.Fragment>
-              ))}
+              {groupedTransactions.map(group => {
+                const dayIncome = group.items.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+                const dayExpense = group.items.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                const dayNet = dayIncome - dayExpense;
+                return (
+                  <React.Fragment key={group.title}>
+                    <tr>
+                      <td colSpan={8} className="px-3 py-2 bg-slate-50/80 text-xs font-semibold text-slate-500 border-b border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <span>{group.title}</span>
+                          <span className="flex items-center gap-3 text-[11px] font-medium">
+                            {dayIncome > 0 && <span className="text-emerald-600">+{formatCurrency(dayIncome)}</span>}
+                            {dayExpense > 0 && <span className="text-rose-600">-{formatCurrency(dayExpense)}</span>}
+                            <span className={`font-semibold ${dayNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              итого: {dayNet >= 0 ? '+' : ''}{formatCurrency(dayNet)}
+                            </span>
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                    {group.items.map(tx => (
+                      <TransactionRow
+                        key={tx.id}
+                        tx={tx}
+                        isSelected={selectedIds.has(tx.id)}
+                        maps={lookupMaps}
+                        onToggle={toggleSelect}
+                        onEdit={setEditingTx}
+                      />
+                    ))}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

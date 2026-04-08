@@ -45,6 +45,13 @@ A finance management application (Russian language UI) built with React + Vite f
 - **credit_date_rules**: Per-account rules for auto-calculating credit_date (delay_days, weekend_rule: next_business_day|saturday_ok|previous_business_day|no_adjustment)
 - **auto_transfer_rules**: Automatic transfer rules between accounts (schedule, skip_weekends, amount or transfer_all)
 - **holidays**: Russian holidays/non-working days (date, name, affects_credit). Used by credit date calculation — if affects_credit=true, the day is treated like a weekend for date shifting. Holidays are cached server-side (5min TTL). UI supports year-by-year management and bulk pre-fill of standard Russian public holidays.
+- **calendar_balances**: Per-account manual balance entries for payment calendar (account_id, month, manual_balance). Persisted on blur so admins can compare system vs actual bank balances.
+- **calendar_balances_total**: Total manual balance per month for payment calendar reconciliation.
+
+### Transaction Features
+- **Daily totals**: Transaction list shows per-day income/expense/net totals in the day group header
+- **Income "Проверено" status**: Income transactions can be marked as "verified" (status='verified'). Shown as a teal badge. Filterable via "income_verified" filter option. Bulk action available.
+- **Payment calendar day click**: Clicking a day header in payment calendar opens a form to create a payment request pre-filled with that date
 
 ### API
 - All frontend API calls use `/api` prefix, proxied by Vite to backend on port 3001
