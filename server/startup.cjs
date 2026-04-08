@@ -315,10 +315,15 @@ const initDB = async () => {
         weekend_rule TEXT NOT NULL DEFAULT 'next_business_day',
         name TEXT DEFAULT '',
         enabled BOOLEAN DEFAULT true,
+        category_id INTEGER,
+        studio_id INTEGER,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+
+    try { await db.query(`ALTER TABLE credit_date_rules ADD COLUMN IF NOT EXISTS category_id INTEGER`); } catch(e) {}
+    try { await db.query(`ALTER TABLE credit_date_rules ADD COLUMN IF NOT EXISTS studio_id INTEGER`); } catch(e) {}
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS auto_transfer_rules (
@@ -333,10 +338,17 @@ const initDB = async () => {
         description TEXT DEFAULT '',
         enabled BOOLEAN DEFAULT true,
         last_run_date DATE,
+        leave_min_balance NUMERIC(15,2) DEFAULT 0,
+        specific_days TEXT DEFAULT '[]',
+        max_amount NUMERIC(15,2),
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+
+    try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS leave_min_balance NUMERIC(15,2) DEFAULT 0`); } catch(e) {}
+    try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS specific_days TEXT DEFAULT '[]'`); } catch(e) {}
+    try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS max_amount NUMERIC(15,2)`); } catch(e) {}
 
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {

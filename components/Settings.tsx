@@ -345,7 +345,7 @@ export const Settings: React.FC = () => {
 
        <div className="flex-1 p-3 sm:p-8 overflow-y-auto">
          {activeTab === 'rules' ? (
-           <div className="max-w-3xl">
+           <div className="max-w-4xl">
              <RulesSettings />
            </div>
          ) : activeTab === 'yclients' ? (
