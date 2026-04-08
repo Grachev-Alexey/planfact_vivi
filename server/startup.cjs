@@ -352,6 +352,16 @@ const initDB = async () => {
     try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS max_amount NUMERIC(15,2)`); } catch(e) {}
     try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS interval_value INTEGER DEFAULT 1`); } catch(e) {}
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS holidays (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL UNIQUE,
+        name TEXT NOT NULL DEFAULT '',
+        affects_credit BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
       await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['grachev', 'cd5d56a8', 'admin']);

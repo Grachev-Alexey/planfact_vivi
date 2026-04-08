@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
-const { calculateCreditDate } = require('../utils/creditDate.cjs');
+const { calculateCreditDate, loadHolidays, clearHolidayCache } = require('../utils/creditDate.cjs');
 const { getMoscowNow, getMoscowToday } = require('../utils/moscow.cjs');
 
 const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -126,7 +126,8 @@ router.post('/credit-date-rules/calculate', async (req, res) => {
       return res.json({ creditDate: null });
     }
     const rule = ruleRes.rows[0];
-    const creditDate = calculateCreditDate(date, rule.delay_days, rule.weekend_rule, rule.day_delays);
+    const holidays = await loadHolidays();
+    const creditDate = calculateCreditDate(date, rule.delay_days, rule.weekend_rule, rule.day_delays, holidays);
     res.json({ creditDate });
   } catch (err) {
     console.error('Error calculating credit date:', err);
@@ -328,6 +329,95 @@ router.post('/auto-transfer-rules/execute', async (req, res) => {
     res.json({ success: true, executed });
   } catch (err) {
     console.error('Error executing auto transfer rules:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/holidays', async (req, res) => {
+  try {
+    const { year } = req.query;
+    let query = 'SELECT * FROM holidays';
+    const params = [];
+    if (year) {
+      query += ' WHERE EXTRACT(YEAR FROM date) = $1';
+      params.push(year);
+    }
+    query += ' ORDER BY date';
+    const result = await db.query(query, params);
+    res.json(result.rows.map(r => ({
+      id: r.id,
+      date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date).split('T')[0],
+      name: r.name,
+      affectsCredit: r.affects_credit,
+    })));
+  } catch (err) {
+    console.error('Error fetching holidays:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/holidays', async (req, res) => {
+  try {
+    const { date, name, affectsCredit } = req.body;
+    if (!date) return res.status(400).json({ error: 'Date required' });
+    const result = await db.query(
+      'INSERT INTO holidays (date, name, affects_credit) VALUES ($1, $2, $3) ON CONFLICT (date) DO UPDATE SET name = $2, affects_credit = $3 RETURNING *',
+      [date, name || '', affectsCredit !== false]
+    );
+    const r = result.rows[0];
+    clearHolidayCache();
+    res.json({ id: r.id, date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date).split('T')[0], name: r.name, affectsCredit: r.affects_credit });
+  } catch (err) {
+    console.error('Error creating holiday:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/holidays/bulk', async (req, res) => {
+  try {
+    const { holidays } = req.body;
+    if (!Array.isArray(holidays)) return res.status(400).json({ error: 'holidays array required' });
+    let added = 0;
+    for (const h of holidays) {
+      if (!h.date) continue;
+      const r = await db.query(
+        'INSERT INTO holidays (date, name, affects_credit) VALUES ($1, $2, $3) ON CONFLICT (date) DO NOTHING',
+        [h.date, h.name || '', h.affectsCredit !== false]
+      );
+      if (r.rowCount > 0) added++;
+    }
+    clearHolidayCache();
+    res.json({ success: true, added });
+  } catch (err) {
+    console.error('Error bulk creating holidays:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.put('/holidays/:id', async (req, res) => {
+  try {
+    const { date, name, affectsCredit } = req.body;
+    const result = await db.query(
+      'UPDATE holidays SET date = COALESCE($1, date), name = COALESCE($2, name), affects_credit = COALESCE($3, affects_credit) WHERE id = $4 RETURNING *',
+      [date || null, name !== undefined ? name : null, affectsCredit !== undefined ? affectsCredit : null, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const r = result.rows[0];
+    clearHolidayCache();
+    res.json({ id: r.id, date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date).split('T')[0], name: r.name, affectsCredit: r.affects_credit });
+  } catch (err) {
+    console.error('Error updating holiday:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.delete('/holidays/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM holidays WHERE id = $1', [req.params.id]);
+    clearHolidayCache();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting holiday:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

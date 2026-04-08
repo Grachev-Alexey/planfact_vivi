@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
-import { Plus, Trash2, Check, X, Pencil, Power, PowerOff, Play, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Check, X, Pencil, Power, PowerOff, Play, ChevronDown, ChevronUp, CalendarDays, Download } from 'lucide-react';
+import { getMoscowNow } from '../utils/moscow';
 
 interface CreditDateRule {
   id: number;
@@ -67,6 +68,32 @@ const DAYS_OF_WEEK: { id: string; short: string }[] = [
   { id: 'sun', short: 'Вс' },
 ];
 
+interface Holiday {
+  id: number;
+  date: string;
+  name: string;
+  affectsCredit: boolean;
+}
+
+function getRussianHolidays(year: number): { date: string; name: string }[] {
+  return [
+    { date: `${year}-01-01`, name: 'Новогодние каникулы' },
+    { date: `${year}-01-02`, name: 'Новогодние каникулы' },
+    { date: `${year}-01-03`, name: 'Новогодние каникулы' },
+    { date: `${year}-01-04`, name: 'Новогодние каникулы' },
+    { date: `${year}-01-05`, name: 'Новогодние каникулы' },
+    { date: `${year}-01-06`, name: 'Новогодние каникулы' },
+    { date: `${year}-01-07`, name: 'Рождество Христово' },
+    { date: `${year}-01-08`, name: 'Новогодние каникулы' },
+    { date: `${year}-02-23`, name: 'День защитника Отечества' },
+    { date: `${year}-03-08`, name: 'Международный женский день' },
+    { date: `${year}-05-01`, name: 'Праздник Весны и Труда' },
+    { date: `${year}-05-09`, name: 'День Победы' },
+    { date: `${year}-06-12`, name: 'День России' },
+    { date: `${year}-11-04`, name: 'День народного единства' },
+  ];
+}
+
 function parseJsonArray(v: any): any[] {
   if (Array.isArray(v)) return v;
   if (typeof v === 'string') { try { return JSON.parse(v); } catch { return []; } }
@@ -83,15 +110,20 @@ export const RulesSettings: React.FC = () => {
   const { accounts, categories, studios } = useFinance();
   const [creditRules, setCreditRules] = useState<CreditDateRule[]>([]);
   const [transferRules, setTransferRules] = useState<AutoTransferRule[]>([]);
-  const [rulesTab, setRulesTab] = useState<'credit' | 'transfer'>('credit');
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [rulesTab, setRulesTab] = useState<'credit' | 'transfer' | 'holidays'>('credit');
   const [editingCr, setEditingCr] = useState<Partial<CreditDateRule> | null>(null);
   const [editingTr, setEditingTr] = useState<Partial<AutoTransferRule> | null>(null);
   const [showAdvancedTr, setShowAdvancedTr] = useState(false);
   const [useDayDelays, setUseDayDelays] = useState(false);
+  const [holidayYear, setHolidayYear] = useState(getMoscowNow().getFullYear());
+  const [editingHoliday, setEditingHoliday] = useState<Partial<Holiday> | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const loadCreditRules = () => { fetch('/api/credit-date-rules').then(r => r.json()).then(setCreditRules).catch(() => {}); };
   const loadTransferRules = () => { fetch('/api/auto-transfer-rules').then(r => r.json()).then(setTransferRules).catch(() => {}); };
-  useEffect(() => { loadCreditRules(); loadTransferRules(); }, []);
+  const loadHolidays = (yr?: number) => { fetch(`/api/holidays?year=${yr || holidayYear}`).then(r => r.json()).then(setHolidays).catch(() => {}); };
+  useEffect(() => { loadCreditRules(); loadTransferRules(); loadHolidays(); }, []);
 
   const startEditCr = (rule?: CreditDateRule) => {
     if (rule) {
@@ -274,6 +306,10 @@ export const RulesSettings: React.FC = () => {
         <button onClick={() => setRulesTab('transfer')}
           className={`pb-3 text-sm font-semibold transition-colors border-b-2 px-1 ${rulesTab === 'transfer' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
           Авто-перемещения
+        </button>
+        <button onClick={() => { setRulesTab('holidays'); loadHolidays(); }}
+          className={`pb-3 text-sm font-semibold transition-colors border-b-2 px-1 ${rulesTab === 'holidays' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
+          Праздники
         </button>
       </div>
 
@@ -650,6 +686,136 @@ export const RulesSettings: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {rulesTab === 'holidays' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm text-slate-500">Праздничные и нерабочие дни учитываются при расчёте даты зачисления (аналогично выходным).</p>
+              <p className="text-xs text-slate-400 mt-1">Отметьте «Влияет на зачисление» для дней, когда банки не проводят операции.</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-0.5">
+                <button onClick={() => { const y = holidayYear - 1; setHolidayYear(y); loadHolidays(y); }}
+                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+                  <ChevronDown size={14} className="rotate-90" />
+                </button>
+                <span className="text-sm font-medium text-slate-700 px-2 min-w-[48px] text-center">{holidayYear}</span>
+                <button onClick={() => { const y = holidayYear + 1; setHolidayYear(y); loadHolidays(y); }}
+                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+                  <ChevronUp size={14} className="rotate-90" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={() => setEditingHoliday({ date: '', name: '', affectsCredit: true })}
+              className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <Plus size={16} /> Добавить
+            </Button>
+            <Button onClick={async () => {
+              const existing = new Set(holidays.map(h => h.date));
+              const toAdd = getRussianHolidays(holidayYear).filter(h => !existing.has(h.date));
+              if (toAdd.length === 0) { alert('Все стандартные праздники уже добавлены на ' + holidayYear + ' год'); return; }
+              setBulkLoading(true);
+              try {
+                await fetch('/api/holidays/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ holidays: toAdd.map(h => ({ ...h, affectsCredit: true })) }) });
+                loadHolidays(holidayYear);
+              } catch {}
+              setBulkLoading(false);
+            }}
+              disabled={bulkLoading}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <Download size={16} /> {bulkLoading ? 'Загрузка...' : `Заполнить праздники РФ (${holidayYear})`}
+            </Button>
+          </div>
+
+          {editingHoliday && (
+            <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelCls}>Дата *</label>
+                  <input type="date" value={editingHoliday.date || ''} onChange={e => setEditingHoliday({ ...editingHoliday, date: e.target.value })} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Название</label>
+                  <input value={editingHoliday.name || ''} onChange={e => setEditingHoliday({ ...editingHoliday, name: e.target.value })} className={inputCls} placeholder="Например: Новый год" />
+                </div>
+                <div className="flex items-end pb-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={editingHoliday.affectsCredit !== false} onChange={e => setEditingHoliday({ ...editingHoliday, affectsCredit: e.target.checked })} className="rounded accent-teal-600" />
+                    <span className="text-sm text-slate-600">Влияет на зачисление</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
+                <button onClick={() => setEditingHoliday(null)} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-colors">Отмена</button>
+                <Button onClick={async () => {
+                  if (!editingHoliday.date) { alert('Укажите дату'); return; }
+                  try {
+                    const method = editingHoliday.id ? 'PUT' : 'POST';
+                    const url = editingHoliday.id ? `/api/holidays/${editingHoliday.id}` : '/api/holidays';
+                    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingHoliday) });
+                    setEditingHoliday(null);
+                    loadHolidays(holidayYear);
+                  } catch {}
+                }} className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
+                  <Check size={16} /> Сохранить
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            {holidays.length === 0 && !editingHoliday && (
+              <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <CalendarDays size={32} className="mx-auto text-slate-300 mb-2" />
+                <p className="text-sm text-slate-400">Нет праздников на {holidayYear} год.</p>
+                <p className="text-xs text-slate-300 mt-1">Нажмите «Заполнить праздники РФ» для быстрого добавления.</p>
+              </div>
+            )}
+            {holidays.map(h => {
+              const d = new Date(h.date + 'T00:00:00');
+              const dayName = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });
+              return (
+                <div key={h.id} className={`bg-white rounded-xl px-4 py-3 border transition-all ${h.affectsCredit ? 'border-slate-200 shadow-sm' : 'border-slate-100 opacity-60'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-700">{h.name || 'Без названия'}</span>
+                        {h.affectsCredit && (
+                          <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-medium">влияет на зачисление</span>
+                        )}
+                        {!h.affectsCredit && (
+                          <span className="text-[10px] bg-slate-50 text-slate-400 px-1.5 py-0.5 rounded font-medium">не влияет</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5">{dayName}</div>
+                    </div>
+                    <div className="flex items-center gap-1 ml-3 shrink-0">
+                      <button onClick={async () => {
+                        await fetch(`/api/holidays/${h.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ affectsCredit: !h.affectsCredit }) });
+                        loadHolidays(holidayYear);
+                      }}
+                        className={`p-1.5 rounded transition-colors ${h.affectsCredit ? 'text-amber-500 hover:text-amber-700' : 'text-slate-300 hover:text-slate-500'}`}
+                        title={h.affectsCredit ? 'Не влияет на зачисление' : 'Влияет на зачисление'}>
+                        {h.affectsCredit ? <Power size={14} /> : <PowerOff size={14} />}
+                      </button>
+                      <button onClick={() => setEditingHoliday(h)} className="p-1.5 text-slate-400 hover:text-teal-600 rounded transition-colors"><Pencil size={14} /></button>
+                      <button onClick={async () => {
+                        if (!confirm(`Удалить «${h.name || h.date}»?`)) return;
+                        await fetch(`/api/holidays/${h.id}`, { method: 'DELETE' });
+                        loadHolidays(holidayYear);
+                      }} className="p-1.5 text-slate-400 hover:text-rose-500 rounded transition-colors"><Trash2 size={14} /></button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

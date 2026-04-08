@@ -40,10 +40,11 @@ A finance management application (Russian language UI) built with React + Vite f
 - `server/utils/logger.cjs` - Activity logging with Russian translations
 
 ### Database Tables
-- users (+ studio_id for master role), activity_logs, accounts, categories, studios, contractors, transactions, legal_entities, payment_requests, master_incomes, credit_date_rules, auto_transfer_rules
+- users (+ studio_id for master role), activity_logs, accounts, categories, studios, contractors, transactions, legal_entities, payment_requests, master_incomes, credit_date_rules, auto_transfer_rules, holidays
 - **transactions.credit_date**: DATE field for income transactions — actual date when money is credited to the bank account (may differ from transaction date). Used in all balance calculations via `COALESCE(t.credit_date, t.date)`.
 - **credit_date_rules**: Per-account rules for auto-calculating credit_date (delay_days, weekend_rule: next_business_day|saturday_ok|previous_business_day|no_adjustment)
 - **auto_transfer_rules**: Automatic transfer rules between accounts (schedule, skip_weekends, amount or transfer_all)
+- **holidays**: Russian holidays/non-working days (date, name, affects_credit). Used by credit date calculation — if affects_credit=true, the day is treated like a weekend for date shifting. Holidays are cached server-side (5min TTL). UI supports year-by-year management and bulk pre-fill of standard Russian public holidays.
 
 ### API
 - All frontend API calls use `/api` prefix, proxied by Vite to backend on port 3001

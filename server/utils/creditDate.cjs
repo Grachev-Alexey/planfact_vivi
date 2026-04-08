@@ -2,7 +2,45 @@ const db = require('../db.cjs');
 
 const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
-function calculateCreditDate(txDate, delayDays, weekendRule, dayDelays) {
+let holidayCache = { dates: new Set(), ts: 0 };
+const CACHE_TTL = 5 * 60 * 1000;
+
+async function loadHolidays() {
+  const now = Date.now();
+  if (now - holidayCache.ts < CACHE_TTL && holidayCache.dates.size > 0) {
+    return holidayCache.dates;
+  }
+  try {
+    const result = await db.query('SELECT date FROM holidays WHERE affects_credit = true');
+    const dates = new Set();
+    for (const row of result.rows) {
+      const d = row.date instanceof Date ? row.date.toISOString().split('T')[0] : String(row.date).split('T')[0];
+      dates.add(d);
+    }
+    holidayCache = { dates, ts: now };
+    return dates;
+  } catch (err) {
+    console.error('Error loading holidays:', err);
+    return holidayCache.dates;
+  }
+}
+
+function clearHolidayCache() {
+  holidayCache = { dates: new Set(), ts: 0 };
+}
+
+function fmtDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function isNonWorkingDay(d, holidays) {
+  const dow = d.getDay();
+  if (dow === 0 || dow === 6) return true;
+  if (holidays && holidays.has(fmtDate(d))) return true;
+  return false;
+}
+
+function calculateCreditDate(txDate, delayDays, weekendRule, dayDelays, holidays) {
   const d = new Date(txDate);
   const txDayOfWeek = d.getDay();
   const txDayName = DAY_NAMES[txDayOfWeek];
@@ -14,28 +52,39 @@ function calculateCreditDate(txDate, delayDays, weekendRule, dayDelays) {
 
   d.setDate(d.getDate() + effectiveDelay);
 
-  const dayOfWeek = d.getDay();
+  const holidaySet = holidays || null;
+
   switch (weekendRule) {
     case 'next_business_day':
-      if (dayOfWeek === 0) d.setDate(d.getDate() + 1);
-      else if (dayOfWeek === 6) d.setDate(d.getDate() + 2);
+      while (isNonWorkingDay(d, holidaySet)) {
+        d.setDate(d.getDate() + 1);
+      }
       break;
-    case 'saturday_ok':
-      if (dayOfWeek === 0) d.setDate(d.getDate() + 1);
+    case 'saturday_ok': {
+      const dow = d.getDay();
+      if (dow === 0 || (holidaySet && holidaySet.has(fmtDate(d)))) {
+        d.setDate(d.getDate() + 1);
+        while (isNonWorkingDay(d, holidaySet)) {
+          d.setDate(d.getDate() + 1);
+        }
+      }
       break;
+    }
     case 'previous_business_day':
-      if (dayOfWeek === 0) d.setDate(d.getDate() - 2);
-      else if (dayOfWeek === 6) d.setDate(d.getDate() - 1);
+      while (isNonWorkingDay(d, holidaySet)) {
+        d.setDate(d.getDate() - 1);
+      }
       break;
     case 'no_adjustment':
       break;
     default:
-      if (dayOfWeek === 0) d.setDate(d.getDate() + 1);
-      else if (dayOfWeek === 6) d.setDate(d.getDate() + 2);
+      while (isNonWorkingDay(d, holidaySet)) {
+        d.setDate(d.getDate() + 1);
+      }
       break;
   }
 
-  return d.toISOString().split('T')[0];
+  return fmtDate(d);
 }
 
 async function autoCalculateCreditDate(txDate, accountId, categoryId, studioId) {
@@ -69,11 +118,12 @@ async function autoCalculateCreditDate(txDate, accountId, categoryId, studioId) 
     if (ruleRes.rows.length === 0) return null;
 
     const rule = ruleRes.rows[0];
-    return calculateCreditDate(txDate, rule.delay_days, rule.weekend_rule, rule.day_delays);
+    const holidays = await loadHolidays();
+    return calculateCreditDate(txDate, rule.delay_days, rule.weekend_rule, rule.day_delays, holidays);
   } catch (err) {
     console.error('Error auto-calculating credit date:', err);
     return null;
   }
 }
 
-module.exports = { calculateCreditDate, autoCalculateCreditDate };
+module.exports = { calculateCreditDate, autoCalculateCreditDate, loadHolidays, clearHolidayCache };
