@@ -39,8 +39,16 @@ app.use('/api', rulesRoutes);
 const fs = require('fs');
 const distPath = path.join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath, { maxAge: '30d' }));
+  app.use(express.static(distPath, {
+    maxAge: '30d',
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    }
+  }));
   app.get('*', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
