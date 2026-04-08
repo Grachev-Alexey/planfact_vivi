@@ -164,29 +164,33 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
         <div className="mt-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
           {/* Per-account rows */}
           <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
-            {visible.map(acc => (
-              <div key={acc.id} className="flex items-center px-4 py-2" style={{ gap: '8px' }}>
-                <span className="text-[12px] text-slate-600 truncate" style={{ flex: '1 1 0', minWidth: 0 }}>{acc.name}</span>
-                <span className={`text-[12px] font-semibold tabular-nums whitespace-nowrap ${acc.balance < 0 ? 'text-rose-600' : acc.balance === 0 ? 'text-slate-400' : 'text-slate-800'}`} style={{ flexShrink: 0 }}>
-                  {fmtFull(acc.balance)}
-                </span>
-                <input
-                  type="text"
-                  value={perAccount[acc.id] ?? ''}
-                  onChange={e => setPerAccountValue(acc.id, e.target.value)}
-                  onBlur={() => onSaveAccountBalance(acc.id, perAccount[acc.id] ?? '')}
-                  placeholder="Фактически..."
-                  className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-400 bg-slate-50 text-right"
-                  style={{ width: '112px', flexShrink: 0 }}
-                />
-                <div style={{ width: '100px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-                  <BalanceCheck system={acc.balance} manual={perAccount[acc.id] ?? ''} />
+            {visible.map(acc => {
+              const manVal = perAccount[acc.id] ?? '';
+              return (
+                <div key={acc.id} className="flex items-center px-4 py-2.5" style={{ gap: '10px' }}>
+                  <span className="text-[12px] text-slate-700 truncate" style={{ flex: '1 1 0', minWidth: 0 }}>{acc.name}</span>
+                  <span className={`text-[12px] font-semibold tabular-nums whitespace-nowrap ${acc.balance < 0 ? 'text-rose-600' : acc.balance === 0 ? 'text-slate-400' : 'text-slate-800'}`} style={{ flexShrink: 0 }}>
+                    {fmtFull(acc.balance)}
+                  </span>
+                  <div className="relative" style={{ width: '130px', flexShrink: 0 }}>
+                    <input
+                      type="text"
+                      value={manVal}
+                      onChange={e => setPerAccountValue(acc.id, e.target.value)}
+                      onBlur={() => onSaveAccountBalance(acc.id, manVal)}
+                      placeholder="—"
+                      className="w-full text-[12px] tabular-nums border border-slate-200 rounded-lg pl-[42px] pr-2.5 py-1.5 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 bg-white text-right transition-colors"
+                    />
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">Банк</span>
+                  </div>
+                  <div style={{ width: '110px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                    <BalanceCheck system={acc.balance} manual={manVal} />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Toggle zero accounts */}
           {accounts.length !== visible.length && (
             <div className="border-t border-slate-100 px-4 py-1.5">
               <button
@@ -198,18 +202,20 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
             </div>
           )}
 
-          {/* Total comparison */}
-          <div className="border-t border-slate-200 px-4 py-2.5 bg-slate-50 flex items-center gap-3">
-            <span className="text-[11px] text-slate-500 shrink-0 font-medium">Итого по всем:</span>
-            <span className={`text-[12px] font-bold tabular-nums shrink-0 ${total < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{fmtFull(total)}</span>
-            <input
-              type="text"
-              value={manualBalance}
-              onChange={e => setManualBalance(e.target.value)}
-              onBlur={() => onSaveTotalBalance(manualBalance)}
-              placeholder="Банк (итого)..."
-              className="flex-1 text-[11px] border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
-            />
+          <div className="border-t border-slate-200 px-4 py-2.5 bg-slate-50/80 flex items-center" style={{ gap: '10px' }}>
+            <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap" style={{ flexShrink: 0 }}>Итого по всем:</span>
+            <span className={`text-[13px] font-bold tabular-nums whitespace-nowrap ${total < 0 ? 'text-rose-600' : 'text-slate-800'}`} style={{ flexShrink: 0 }}>{fmtFull(total)}</span>
+            <div className="relative" style={{ flex: '1 1 0', minWidth: '120px' }}>
+              <input
+                type="text"
+                value={manualBalance}
+                onChange={e => setManualBalance(e.target.value)}
+                onBlur={() => onSaveTotalBalance(manualBalance)}
+                placeholder="—"
+                className="w-full text-[12px] tabular-nums border border-slate-200 rounded-lg pl-[42px] pr-2.5 py-1.5 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 bg-white text-right transition-colors"
+              />
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">Банк</span>
+            </div>
             <BalanceCheck system={total} manual={manualBalance} />
           </div>
         </div>
