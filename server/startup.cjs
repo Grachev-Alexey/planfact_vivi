@@ -324,6 +324,7 @@ const initDB = async () => {
 
     try { await db.query(`ALTER TABLE credit_date_rules ADD COLUMN IF NOT EXISTS category_id INTEGER`); } catch(e) {}
     try { await db.query(`ALTER TABLE credit_date_rules ADD COLUMN IF NOT EXISTS studio_id INTEGER`); } catch(e) {}
+    try { await db.query(`ALTER TABLE credit_date_rules ADD COLUMN IF NOT EXISTS day_delays TEXT DEFAULT '{}'`); } catch(e) {}
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS auto_transfer_rules (
@@ -349,6 +350,7 @@ const initDB = async () => {
     try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS leave_min_balance NUMERIC(15,2) DEFAULT 0`); } catch(e) {}
     try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS specific_days TEXT DEFAULT '[]'`); } catch(e) {}
     try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS max_amount NUMERIC(15,2)`); } catch(e) {}
+    try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS interval_value INTEGER DEFAULT 1`); } catch(e) {}
 
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
