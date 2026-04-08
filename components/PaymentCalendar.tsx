@@ -878,12 +878,14 @@ export const PaymentCalendar: React.FC = () => {
   const totalExpensePlan = days.reduce((s, d) => s + (data?.expensePlan[d] || 0), 0);
   const totalExpenseFact = days.reduce((s, d) => s + (data?.expenseFact[d] || 0), 0);
   const totalBalance = (data?.startingBalance ?? 0) + totalIncomeFact - totalExpenseFact;
-  const totalBalancePlan = (data?.startingBalance ?? 0) + totalIncomePlan - totalExpensePlan;
+  const totalBalancePlan = (data?.planStartingBalance ?? data?.startingBalance ?? 0) + totalIncomePlan - totalExpensePlan;
 
   const startingBalance = data?.startingBalance ?? 0;
 
+  const planStartingBalance = data?.planStartingBalance ?? startingBalance;
+
   const balancePlan: Record<number, number> = (() => {
-    let running = startingBalance;
+    let running = planStartingBalance;
     const result: Record<number, number> = {};
     for (const d of days) {
       running += (incomePlanManual[d] || 0) - (data?.expensePlan[d] || 0);

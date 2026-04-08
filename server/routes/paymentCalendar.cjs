@@ -216,12 +216,51 @@ router.get('/payment-calendar', async (req, res) => {
       balance[d] = running;
     }
 
+    // Plan starting balance = initial_balances + planned_income_prior - planned_expenses_prior
+    // Initial balances sum
+    const initialBalRes = await db.query(
+      `SELECT COALESCE(SUM(COALESCE(initial_balance, 0)), 0) AS total FROM accounts`
+    );
+    const initialBalTotal = parseFloat(initialBalRes.rows[0]?.total || 0);
+
+    // Planned income for all prior months (from income_daily_plan)
+    const incomePlanPriorRes = await db.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total
+       FROM income_daily_plan
+       WHERE (year < $1) OR (year = $1 AND month < $2)`,
+      [year, mon]
+    );
+    const incomePlanPrior = parseFloat(incomePlanPriorRes.rows[0]?.total || 0);
+
+    // Planned expenses for prior months = payment_requests + direct expense transactions
+    const prExpensePriorRes = await db.query(
+      `SELECT COALESCE(SUM(pr.amount), 0) AS total
+       FROM payment_requests pr
+       WHERE pr.status != 'rejected'
+         AND pr.payment_date < $1`,
+      [startDate]
+    );
+    const prExpensePrior = parseFloat(prExpensePriorRes.rows[0]?.total || 0);
+
+    const directExpensePriorRes = await db.query(
+      `SELECT COALESCE(SUM(t.amount), 0) AS total
+       FROM transactions t
+       WHERE t.type = 'expense'
+         AND (t.external_id IS NULL OR t.external_id NOT LIKE 'pr-%')
+         AND t.date < $1`,
+      [startDate]
+    );
+    const directExpensePrior = parseFloat(directExpensePriorRes.rows[0]?.total || 0);
+
+    const planStartingBalance = initialBalTotal + incomePlanPrior - prExpensePrior - directExpensePrior;
+
     const expenseCategories = Object.values(categoryMap)
       .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 
     res.json({
       daysInMonth,
       startingBalance,
+      planStartingBalance,
       accountBalances,
       incomePlan,
       incomeFact,
