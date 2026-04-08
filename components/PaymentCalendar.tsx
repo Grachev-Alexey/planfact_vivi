@@ -178,7 +178,7 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/50">
                 <th className="text-left px-4 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">Счёт</th>
-                <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">Система</th>
+                <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">ПланФакт</th>
                 <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide" style={{ width: '140px' }}>Банк</th>
                 <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide" style={{ width: '110px' }}>Разница</th>
               </tr>
