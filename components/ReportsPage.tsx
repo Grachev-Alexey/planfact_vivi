@@ -5,6 +5,7 @@ import { formatCurrency } from '../utils/format';
 import { Download, ChevronDown, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import * as XLSX from 'xlsx';
+import { getMoscowNow } from '../utils/moscow';
 
 type ReportTab = 'pnl' | 'dds' | 'categories' | 'studios';
 
@@ -24,7 +25,7 @@ export const ReportsPage: React.FC = () => {
   const { transactions, categories, studios, accounts } = useFinance();
   const [activeTab, setActiveTab] = useState<ReportTab>('pnl');
 
-  const now = new Date();
+  const now = getMoscowNow();
   const [startMonth, setStartMonth] = useState(0);
   const [startYear, setStartYear] = useState(now.getFullYear());
   const [endMonth, setEndMonth] = useState(now.getMonth());

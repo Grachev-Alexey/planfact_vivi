@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Transaction, Account, Category, Studio, Contractor, LegalEntity } from '../types';
 import { useAuth } from './AuthContext';
+import { getMoscowToday } from '../utils/moscow';
 
 type DictType = 'categories' | 'contractors' | 'accounts' | 'studios' | 'legal_entities';
 
@@ -136,7 +137,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     const tempId = `_temp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const optimistic: Transaction = {
       id: tempId,
-      date: txData.date || new Date().toISOString().split('T')[0],
+      date: txData.date || getMoscowToday(),
       amount: Number(txData.amount) || 0,
       type: txData.type || 'expense',
       accountId: String(txData.accountId || ''),

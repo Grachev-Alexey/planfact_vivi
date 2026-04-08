@@ -5,6 +5,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   Legend, CartesianGrid, BarChart,
 } from 'recharts';
+import { getMoscowNow, getMoscowYear } from '../utils/moscow';
 
 const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
@@ -40,7 +41,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export const Dashboard: React.FC = () => {
   const { transactions, accounts, studios } = useFinance();
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [year, setYear] = useState(getMoscowYear());
 
 
 
@@ -107,7 +108,7 @@ export const Dashboard: React.FC = () => {
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-slate-800">Показатели</h1>
           <div className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+            {getMoscowNow().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-4 flex-wrap">

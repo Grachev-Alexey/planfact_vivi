@@ -8,6 +8,7 @@ import { Plus, Clock, CheckCircle2, XCircle, LogOut, Send, ChevronDown, ChevronR
 import { formatCurrency, formatDate } from '../utils/format';
 import { FilterSelect } from './ui/FilterSelect';
 import { DateRangePicker } from './ui/DateRangePicker';
+import { getMoscowNow, getMoscowToday } from '../utils/moscow';
 import { DatePicker } from './ui/DatePicker';
 import { Category } from '../types';
 
@@ -442,8 +443,8 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
 
   const groupedRequests = useMemo(() => {
     const groups: { [key: string]: PaymentRequest[] } = {};
-    const today = new Date();
-    const yesterday = new Date();
+    const today = getMoscowNow();
+    const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     paginatedRequests.forEach(req => {
       let key: string;
@@ -531,7 +532,7 @@ export const PaymentRequestPage: React.FC<PaymentRequestPageProps> = ({ isAdmin 
   const handlePayClick = (req: PaymentRequest) => {
     setPayAccountId(req.accountId?.toString() || '');
     setPayAmount(String(req.amount));
-    setPayDate(new Date().toISOString().split('T')[0]);
+    setPayDate(getMoscowToday());
     setPayComment('');
     setShowPayModal(req.id);
   };

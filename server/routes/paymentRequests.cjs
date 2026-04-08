@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
 const { logAction } = require('../utils/logger.cjs');
+const { getMoscowToday } = require('../utils/moscow.cjs');
 
 router.get('/payment-requests', async (req, res) => {
   try {
@@ -65,7 +66,7 @@ router.post('/payment-requests', async (req, res) => {
     const pr = result.rows[0];
     const request = toCamelCase(pr);
 
-    const txDate = pr.payment_date || new Date().toISOString().split('T')[0];
+    const txDate = pr.payment_date || getMoscowToday();
     const txAccrualDate = pr.accrual_date || null;
     const txAccountId = pr.account_id;
 

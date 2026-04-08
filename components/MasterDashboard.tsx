@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Loader2, ChevronLeft, ChevronRight, Sparkles, Users, Star, Wallet, Calendar, TrendingUp, Tag, CreditCard } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
+import { getMoscowNow, getMoscowToday } from '../utils/moscow';
 
 interface StatsData {
   summary: {
@@ -53,10 +54,10 @@ const MONTH_NAMES = [
 
 const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-function fmt(d: Date) { return d.toISOString().split('T')[0]; }
+function fmt(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 
 function getDateRange(period: PeriodKey, customStart?: string, customEnd?: string): { startDate: string; endDate: string } {
-  const today = new Date();
+  const today = getMoscowNow();
   switch (period) {
     case 'today':
       return { startDate: fmt(today), endDate: fmt(today) };
@@ -86,7 +87,7 @@ const CustomCalendar: React.FC<{
   onSelect: (start: string, end: string) => void;
 }> = ({ startDate, endDate, onSelect }) => {
   const [viewMonth, setViewMonth] = useState(() => {
-    const d = startDate ? new Date(startDate + 'T00:00:00') : new Date();
+    const d = startDate ? new Date(startDate + 'T00:00:00') : getMoscowNow();
     return { year: d.getFullYear(), month: d.getMonth() };
   });
   const [selecting, setSelecting] = useState<'start' | 'end' | null>(null);
@@ -114,7 +115,7 @@ const CustomCalendar: React.FC<{
   const isInRange = (day: number) => { const d = getDateStr(day), s = tempStart || startDate, e = tempEnd || endDate; return !!(s && e && d >= s && d <= e); };
   const isStart = (day: number) => getDateStr(day) === (tempStart || startDate);
   const isEnd = (day: number) => getDateStr(day) === (tempEnd || endDate);
-  const isToday = (day: number) => { const t = new Date(); return day === t.getDate() && viewMonth.month === t.getMonth() && viewMonth.year === t.getFullYear(); };
+  const isToday = (day: number) => { const t = getMoscowNow(); return day === t.getDate() && viewMonth.month === t.getMonth() && viewMonth.year === t.getFullYear(); };
 
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstDayOfWeek; i++) cells.push(null);
@@ -194,7 +195,7 @@ export const MasterDashboard: React.FC = () => {
     if (key === 'custom') {
       setShowCustom(true);
       if (!customStart || !customEnd) {
-        const today = new Date(), monthAgo = new Date(today);
+        const today = getMoscowNow(), monthAgo = new Date(today);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
         setCustomStart(fmt(monthAgo)); setCustomEnd(fmt(today));
       }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
+import { getMoscowNow } from '../utils/moscow';
 
 import {
   LogOut, Send, Search, ChevronDown, Check, Plus, Clock,
@@ -742,7 +743,7 @@ export const MasterIncomePage: React.FC = () => {
 
   const isToday = (dateStr: string) => {
     const d = new Date(dateStr);
-    const now = new Date();
+    const now = getMoscowNow();
     return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   };
 
@@ -939,7 +940,7 @@ export const MasterIncomePage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-lg font-bold text-slate-800">Записи на сегодня</h1>
-                  <p className="text-xs text-slate-500 mt-0.5">{new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{getMoscowNow().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
                 </div>
                 {todayTotal > 0 && (
                   <div className="text-right">
@@ -1402,13 +1403,15 @@ export const MasterIncomePage: React.FC = () => {
             const fromIdx = (safePage - 1) * HISTORY_PAGE_SIZE + 1;
             const toIdx = Math.min(safePage * HISTORY_PAGE_SIZE, incomes.length);
 
-            const now = new Date();
-            const todayStr = now.toISOString().split('T')[0];
-            const yesterdayStr = new Date(now.getTime() - 86400000).toISOString().split('T')[0];
+            const now = getMoscowNow();
+            const fmtLocal = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+            const todayStr = fmtLocal(now);
+            const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+            const yesterdayStr = fmtLocal(yest);
 
             const dateLabel = (dateStr: string) => {
               const d = new Date(dateStr);
-              const ds = d.toISOString().split('T')[0];
+              const ds = fmtLocal(d);
               if (ds === todayStr) return 'Сегодня';
               if (ds === yesterdayStr) return 'Вчера';
               return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });

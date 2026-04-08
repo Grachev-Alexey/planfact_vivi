@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
 const { calculateCreditDate } = require('../utils/creditDate.cjs');
+const { getMoscowNow, getMoscowToday } = require('../utils/moscow.cjs');
 
 const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
@@ -201,8 +202,8 @@ router.delete('/auto-transfer-rules/:id', async (req, res) => {
 
 router.post('/auto-transfer-rules/execute', async (req, res) => {
   try {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const now = getMoscowNow();
+    const today = getMoscowToday();
     const dayOfWeek = now.getDay();
     const dayName = DAY_NAMES[dayOfWeek];
     const dayOfMonth = now.getDate();

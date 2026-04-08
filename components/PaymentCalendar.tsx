@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp, Downlo
 import ExcelJS from 'exceljs';
 import { useAuth } from '../context/AuthContext';
 import { PaymentCalendarEntryModal } from './PaymentCalendarEntryModal';
+import { getMoscowNow } from '../utils/moscow';
 
 interface PREntry {
   id: number;
@@ -215,7 +216,7 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
 
 export const PaymentCalendar: React.FC = () => {
   const { user } = useAuth();
-  const today = new Date();
+  const today = getMoscowNow();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [data, setData] = useState<CalendarData | null>(null);
@@ -420,7 +421,7 @@ export const PaymentCalendar: React.FC = () => {
     // ExcelJS workbook
     const wb = new ExcelJS.Workbook();
     wb.creator = 'ViVi Finance';
-    wb.created = new Date();
+    wb.created = getMoscowNow();
     const ws = wb.addWorksheet('Платёжный календарь', {
       views: [{ state: 'frozen', xSplit: 2, ySplit: 1 }],
     });

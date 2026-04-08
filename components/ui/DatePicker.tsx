@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
+import { getMoscowNow } from '../../utils/moscow';
 
 interface DatePickerProps {
   value: string;
@@ -37,7 +38,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => {
     if (value) return new Date(value + 'T00:00:00');
-    return new Date();
+    return getMoscowNow();
   });
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -113,7 +114,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
     return days;
   }, [year, month]);
 
-  const todayStr = fmt(new Date());
+  const todayStr = fmt(getMoscowNow());
 
   const handleDayClick = (date: string) => {
     onChange(date);

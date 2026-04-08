@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
+import { getMoscowNow } from '../../utils/moscow';
 
 interface DateRangePickerProps {
   dateFrom: string;
@@ -53,7 +54,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({ dateFrom, date
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => {
     if (dateFrom) return new Date(dateFrom + 'T00:00:00');
-    return new Date();
+    return getMoscowNow();
   });
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -129,7 +130,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({ dateFrom, date
   };
   const isStart = (date: string) => date === dateFrom;
   const isEnd = (date: string) => date === dateTo;
-  const isToday = (date: string) => date === fmt(new Date());
+  const isToday = (date: string) => date === fmt(getMoscowNow());
 
   const handleDayClick = (date: string) => {
     if (!dateFrom || (dateFrom && dateTo)) {
@@ -148,7 +149,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({ dateFrom, date
   const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
   const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
 
-  const today = new Date();
+  const today = getMoscowNow();
   const presets = [
     { label: 'Сегодня', fn: () => { const d = fmt(today); onChangeFrom(d); onChangeTo(d); } },
     { label: 'Вчера', fn: () => { const d = new Date(today); d.setDate(d.getDate() - 1); const s = fmt(d); onChangeFrom(s); onChangeTo(s); } },

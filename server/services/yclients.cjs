@@ -1,4 +1,5 @@
 const db = require('../db.cjs');
+const { getMoscowNow, getMoscowToday } = require('../utils/moscow.cjs');
 
 const YCLIENTS_PARTNER_TOKEN = process.env.YCLIENTS_PARTNER_TOKEN;
 const YCLIENTS_USER_TOKEN = process.env.YCLIENTS_USER_TOKEN;
@@ -359,16 +360,16 @@ async function verifyTransaction(transactionId) {
     const records = await getRecords(tx.yclients_id, txDate, txDate);
     const result = matchTransaction(tx, records, contractorName, contractorPhone);
 
-    const now = new Date();
+    const nowMsk = getMoscowNow();
     await db.query(
       `UPDATE transactions SET yclients_status = $1, yclients_record_id = $2, yclients_data = $3, yclients_checked_at = $4 WHERE id = $5`,
-      [result.status, result.data?.recordId || null, result.data ? JSON.stringify(result.data) : null, now, transactionId]
+      [result.status, result.data?.recordId || null, result.data ? JSON.stringify(result.data) : null, nowMsk, transactionId]
     );
 
     return {
       status: result.status,
       data: result.data,
-      checkedAt: now.toISOString(),
+      checkedAt: nowMsk.toISOString(),
     };
   } catch (err) {
     console.error('YClients verification error:', err);
@@ -405,10 +406,10 @@ async function verifyBatch(studioId, dateFrom, dateTo) {
     const contractor = tx.contractor_id ? contractorMap[tx.contractor_id] || null : null;
     const result = matchTransaction(tx, records, contractor?.name || null, contractor?.phone || null);
 
-    const now = new Date();
+    const nowMsk = getMoscowNow();
     await db.query(
       `UPDATE transactions SET yclients_status = $1, yclients_record_id = $2, yclients_data = $3, yclients_checked_at = $4 WHERE id = $5`,
-      [result.status, result.data?.recordId || null, result.data ? JSON.stringify(result.data) : null, now, tx.id]
+      [result.status, result.data?.recordId || null, result.data ? JSON.stringify(result.data) : null, nowMsk, tx.id]
     );
 
     results.push({ transactionId: tx.id, ...result });
@@ -653,7 +654,7 @@ function groupRecordsByVisitAll(records) {
 }
 
 async function getTodaySchedule(companyId) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getMoscowToday();
   const records = await getRecords(companyId, today, today);
   return groupRecordsByVisitAll(records);
 }
@@ -662,7 +663,7 @@ async function getTodaySchedule(companyId) {
 // This resolves the case where field outer IDs differ between companies for the same field.
 async function checkClientAbonement(companyId, clientId) {
   try {
-    const today = new Date();
+    const today = getMoscowNow();
     const yesterday = new Date(today - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const twoYearsAgo = new Date(today - 730 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 

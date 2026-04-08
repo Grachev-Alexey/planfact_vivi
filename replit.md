@@ -22,8 +22,9 @@ A finance management application (Russian language UI) built with React + Vite f
 
 ### Backend
 - **Framework**: Express.js (port 3001, CommonJS `.cjs` files)
-- **Database**: PostgreSQL (Replit built-in)
+- **Database**: PostgreSQL (external)
 - **Server files**: Located in `server/` directory with `.cjs` extension
+- **Timezone**: All dates/times use Moscow time (UTC+3) exclusively. DB session timezone set to 'Europe/Moscow'. Server uses `getMoscowNow()`/`getMoscowToday()` from `server/utils/moscow.cjs`. Frontend uses same from `utils/moscow.ts`. Never use bare `new Date()` for business dates.
 
 ### Key Files
 - `index.html` - Entry HTML

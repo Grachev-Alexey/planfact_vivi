@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs');
 const { verifyTransaction, verifyBatch, getVisitsByPhone, getTodaySchedule, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap, checkClientAbonement } = require('../services/yclients.cjs');
+const { getMoscowToday } = require('../utils/moscow.cjs');
 
 router.get('/yclients/client-type', async (req, res) => {
   const userId = req.headers['x-user-id'];
@@ -46,7 +47,7 @@ router.get('/yclients/search-by-phone', async (req, res) => {
     }
 
     const companyId = studioRes.rows[0].yclients_id;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getMoscowToday();
 
     const visits = await getVisitsByPhone(companyId, today, phone);
     res.json({ visits });
@@ -76,7 +77,7 @@ router.get('/yclients/today-schedule', async (req, res) => {
     const companyId = studioRes.rows[0].yclients_id;
     const visits = await getTodaySchedule(companyId);
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getMoscowToday();
     const incomesRes = await db.query(
       `SELECT SUM(amount) as total, 
               array_agg(client_phone) as phones,

@@ -11,6 +11,7 @@ import { FilterSelect } from './ui/FilterSelect';
 import { DatePicker } from './ui/DatePicker';
 import { ImportModal } from './ImportModal';
 import * as XLSX from 'xlsx';
+import { getMoscowNow } from '../utils/moscow';
 
 const toLocalDate = (d: Date): string => {
   const y = d.getFullYear();
@@ -263,8 +264,8 @@ export const TransactionList: React.FC = () => {
     
     paginatedTransactions.forEach(tx => {
       const date = new Date(tx.date);
-      const today = new Date();
-      const yesterday = new Date();
+      const today = getMoscowNow();
+      const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
 
       let key: string;
@@ -467,40 +468,40 @@ export const TransactionList: React.FC = () => {
   const hasExpenseSelected = selectedTypes.has('expense');
 
   const datePresets = [
-    { label: 'Просроченные', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); setFilterDateFrom(''); setFilterDateTo(toLocalDate(d)); }},
-    { label: 'Будущие', fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); setFilterDateFrom(toLocalDate(d)); setFilterDateTo(''); }},
-    { label: 'Вчера', fn: () => { const d = new Date(); d.setDate(d.getDate() - 1); const s = toLocalDate(d); setFilterDateFrom(s); setFilterDateTo(s); }},
-    { label: 'Сегодня', fn: () => { const s = toLocalDate(new Date()); setFilterDateFrom(s); setFilterDateTo(s); }},
+    { label: 'Просроченные', fn: () => { const d = getMoscowNow(); d.setDate(d.getDate() - 1); setFilterDateFrom(''); setFilterDateTo(toLocalDate(d)); }},
+    { label: 'Будущие', fn: () => { const d = getMoscowNow(); d.setDate(d.getDate() + 1); setFilterDateFrom(toLocalDate(d)); setFilterDateTo(''); }},
+    { label: 'Вчера', fn: () => { const d = getMoscowNow(); d.setDate(d.getDate() - 1); const s = toLocalDate(d); setFilterDateFrom(s); setFilterDateTo(s); }},
+    { label: 'Сегодня', fn: () => { const s = toLocalDate(getMoscowNow()); setFilterDateFrom(s); setFilterDateTo(s); }},
     { label: 'Прошлая неделя', fn: () => {
-      const now = new Date(); const day = now.getDay() || 7;
+      const now = getMoscowNow(); const day = now.getDay() || 7;
       const mon = new Date(now); mon.setDate(now.getDate() - day - 6);
       const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
       setFilterDateFrom(toLocalDate(mon)); setFilterDateTo(toLocalDate(sun));
     }},
     { label: 'Эта неделя', fn: () => {
-      const now = new Date(); const day = now.getDay() || 7;
+      const now = getMoscowNow(); const day = now.getDay() || 7;
       const mon = new Date(now); mon.setDate(now.getDate() - day + 1);
       const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
       setFilterDateFrom(toLocalDate(mon)); setFilterDateTo(toLocalDate(sun));
     }},
     { label: 'Прошлый месяц', fn: () => {
-      const now = new Date(); const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear(); const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const now = getMoscowNow(); const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear(); const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       setFilterDateFrom(toLocalDate(new Date(y, m, 1))); setFilterDateTo(toLocalDate(new Date(y, m + 1, 0)));
     }},
     { label: 'Этот месяц', fn: () => {
-      const now = new Date();
+      const now = getMoscowNow();
       setFilterDateFrom(toLocalDate(new Date(now.getFullYear(), now.getMonth(), 1))); setFilterDateTo(toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
     }},
     { label: 'Прошлый квартал', fn: () => {
-      const now = new Date(); const q = Math.floor(now.getMonth() / 3); const pq = q === 0 ? 3 : q - 1; const y = q === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const now = getMoscowNow(); const q = Math.floor(now.getMonth() / 3); const pq = q === 0 ? 3 : q - 1; const y = q === 0 ? now.getFullYear() - 1 : now.getFullYear();
       setFilterDateFrom(toLocalDate(new Date(y, pq * 3, 1))); setFilterDateTo(toLocalDate(new Date(y, pq * 3 + 3, 0)));
     }},
     { label: 'Этот квартал', fn: () => {
-      const now = new Date(); const q = Math.floor(now.getMonth() / 3);
+      const now = getMoscowNow(); const q = Math.floor(now.getMonth() / 3);
       setFilterDateFrom(toLocalDate(new Date(now.getFullYear(), q * 3, 1))); setFilterDateTo(toLocalDate(new Date(now.getFullYear(), q * 3 + 3, 0)));
     }},
-    { label: 'Прошлый год', fn: () => { const y = new Date().getFullYear() - 1; setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`); }},
-    { label: 'Этот год', fn: () => { const y = new Date().getFullYear(); setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`); }},
+    { label: 'Прошлый год', fn: () => { const y = getMoscowNow().getFullYear() - 1; setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`); }},
+    { label: 'Этот год', fn: () => { const y = getMoscowNow().getFullYear(); setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`); }},
   ];
 
   const [showMobileFilters, setShowMobileFilters] = useState(false);

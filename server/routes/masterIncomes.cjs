@@ -4,6 +4,7 @@ const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
 const { logAction } = require('../utils/logger.cjs');
 const { autoCalculateCreditDate } = require('../utils/creditDate.cjs');
+const { getMoscowToday } = require('../utils/moscow.cjs');
 
 function normalizePhone(raw) {
   if (!raw) return '';
@@ -739,7 +740,7 @@ router.post('/master-incomes', async (req, res) => {
       const extCols = useExtId ? ['external_id'] : [];
       const extVals = useExtId ? [`mi-${mi.id}`] : [];
 
-      const txDate = new Date().toISOString().split('T')[0];
+      const txDate = getMoscowToday();
       const calculatedCreditDate = await autoCalculateCreditDate(txDate, accountId, categoryId, studioId);
 
       const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id', 'client_type', 'credit_date'];
@@ -805,8 +806,8 @@ router.put('/master-incomes/:id', async (req, res) => {
     const old = oldRes.rows[0];
     
     // Check if created today
-    const createdDate = new Date(old.created_at).toISOString().split('T')[0];
-    const todayDate = new Date().toISOString().split('T')[0];
+    const createdDate = require('../utils/moscow.cjs').toMoscowDateString(old.created_at);
+    const todayDate = getMoscowToday();
     if (createdDate !== todayDate) return res.status(403).json({ error: 'Можно редактировать только записи за сегодня' });
 
     const accountId = await resolveAccountId(master.studio_id, paymentType);
@@ -886,8 +887,8 @@ router.delete('/master-incomes/:id', async (req, res) => {
     if (oldRes.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
     const old = oldRes.rows[0];
 
-    const createdDate = new Date(old.created_at).toISOString().split('T')[0];
-    const todayDate = new Date().toISOString().split('T')[0];
+    const createdDate = require('../utils/moscow.cjs').toMoscowDateString(old.created_at);
+    const todayDate = getMoscowToday();
     if (createdDate !== todayDate) return res.status(403).json({ error: 'Можно удалять только записи за сегодня' });
 
     await db.query('DELETE FROM master_incomes WHERE id = $1', [id]);

@@ -7,6 +7,7 @@ import { Button } from './ui/Button';
 import { DatePicker } from './ui/DatePicker';
 import { ChevronDown, ChevronRight, Search, Plus, X, Check, RefreshCw, CheckCircle2, AlertTriangle, XCircle, ExternalLink } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
+import { getMoscowToday } from '../utils/moscow';
 
 interface SearchableSelectProps {
   value: string;
@@ -287,7 +288,7 @@ const YClientsSection: React.FC<{ transaction: Transaction }> = ({ transaction }
       const result = await res.json();
       setStatus(result.status);
       setData(result.data || null);
-      setCheckedAt(result.checkedAt || new Date().toISOString());
+      setCheckedAt(result.checkedAt || getMoscowNow().toISOString());
     } catch (e) {
       console.error(e);
     } finally {
@@ -381,7 +382,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
   
   const [type, setType] = useState<TransactionType>('income');
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getMoscowToday());
   const [categoryId, setCategoryId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [toAccountId, setToAccountId] = useState('');

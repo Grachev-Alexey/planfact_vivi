@@ -6,6 +6,7 @@ import {
   Building2, User, TrendingUp, Users, Calendar, CreditCard, Tag, Sparkles, RefreshCw, Wallet
 } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
+import { getMoscowNow } from '../utils/moscow';
 
 type PeriodKey = 'yesterday' | 'today' | 'month' | 'custom';
 
@@ -27,10 +28,10 @@ const PAYMENT_COLORS: Record<string, string> = {
   cash: '#64748b', card: '#0ea5e9', sbp: '#10b981', ukassa: '#8b5cf6', installment: '#f59e0b',
 };
 
-function fmt(d: Date) { return d.toISOString().split('T')[0]; }
+function fmt(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 
 function getDateRange(period: PeriodKey, customStart?: string, customEnd?: string) {
-  const today = new Date();
+  const today = getMoscowNow();
   switch (period) {
     case 'yesterday': { const y = new Date(today); y.setDate(y.getDate() - 1); return { startDate: fmt(y), endDate: fmt(y) }; }
     case 'today': return { startDate: fmt(today), endDate: fmt(today) };
@@ -94,7 +95,7 @@ interface AdminStatsData { overall: Summary; studios: StudioData[]; }
 
 const MiniCalendar: React.FC<{ startDate: string; endDate: string; onSelect: (s: string, e: string) => void }> = ({ startDate, endDate, onSelect }) => {
   const [viewMonth, setViewMonth] = useState(() => {
-    const d = startDate ? new Date(startDate + 'T00:00:00') : new Date();
+    const d = startDate ? new Date(startDate + 'T00:00:00') : getMoscowNow();
     return { year: d.getFullYear(), month: d.getMonth() };
   });
   const [selecting, setSelecting] = useState<'start' | 'end' | null>(null);
@@ -129,7 +130,7 @@ const MiniCalendar: React.FC<{ startDate: string; endDate: string; onSelect: (s:
           const d = getDateStr(day), s = tempStart || startDate, e = tempEnd || endDate;
           const inRange = !!(s && e && d >= s && d <= e);
           const isS = d === s, isE = d === e;
-          const isToday = (() => { const t = new Date(); return day === t.getDate() && viewMonth.month === t.getMonth() && viewMonth.year === t.getFullYear(); })();
+          const isToday = (() => { const t = getMoscowNow(); return day === t.getDate() && viewMonth.month === t.getMonth() && viewMonth.year === t.getFullYear(); })();
           return (
             <button key={i} onClick={() => handleDay(day)} className={`h-8 text-xs font-medium flex items-center justify-center transition-all ${inRange && !isS && !isE ? 'bg-teal-50 text-teal-700' : ''} ${isS || isE ? 'bg-teal-500 text-white rounded' : ''} ${!inRange && !isS && !isE ? 'text-slate-600 hover:bg-slate-50 rounded' : ''} ${isToday && !isS && !isE && !inRange ? 'ring-1 ring-teal-400 rounded' : ''}`}>{day}</button>
           );
@@ -625,7 +626,7 @@ export const AdminStats: React.FC = () => {
     if (key === 'custom') {
       setShowCustom(true);
       if (!customStart || !customEnd) {
-        const today = new Date(), monthAgo = new Date(today);
+        const today = getMoscowNow(), monthAgo = new Date(today);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
         setCustomStart(fmt(monthAgo)); setCustomEnd(fmt(today));
       }
