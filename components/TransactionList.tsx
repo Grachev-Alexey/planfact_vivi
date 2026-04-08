@@ -838,14 +838,14 @@ export const TransactionList: React.FC = () => {
                 return (
                   <React.Fragment key={group.title}>
                     <tr>
-                      <td colSpan={8} className="px-3 py-2 bg-slate-50/80 text-xs font-semibold text-slate-500 border-b border-slate-100">
+                      <td colSpan={8} className="px-3 py-1.5 bg-slate-50/80 text-xs font-semibold text-slate-500 border-b border-slate-100">
                         <div className="flex items-center justify-between">
                           <span>{group.title}</span>
-                          <span className="flex items-center gap-3 text-[11px] font-medium">
-                            {dayIncome > 0 && <span className="text-emerald-600">+{formatCurrency(dayIncome)}</span>}
-                            {dayExpense > 0 && <span className="text-rose-600">-{formatCurrency(dayExpense)}</span>}
-                            <span className={`font-semibold ${dayNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                              итого: {dayNet >= 0 ? '+' : ''}{formatCurrency(dayNet)}
+                          <span className="flex items-center gap-2 text-[10px] font-normal text-slate-400">
+                            {dayIncome > 0 && <span className="text-emerald-500/70">+{formatCurrency(dayIncome)}</span>}
+                            {dayExpense > 0 && <span className="text-rose-500/70">−{formatCurrency(dayExpense)}</span>}
+                            <span className={dayNet >= 0 ? 'text-slate-500' : 'text-rose-500/80'}>
+                              = {formatCurrency(Math.abs(dayNet))}
                             </span>
                           </span>
                         </div>
