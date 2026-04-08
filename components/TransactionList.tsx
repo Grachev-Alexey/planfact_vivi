@@ -841,12 +841,8 @@ export const TransactionList: React.FC = () => {
                       <td colSpan={8} className="px-3 py-1.5 bg-slate-50/80 text-xs font-semibold text-slate-500 border-b border-slate-100">
                         <div className="flex items-center justify-between">
                           <span>{group.title}</span>
-                          <span className="flex items-center gap-2 text-[10px] font-normal text-slate-400">
-                            {dayIncome > 0 && <span className="text-emerald-500/70">+{formatCurrency(dayIncome)}</span>}
-                            {dayExpense > 0 && <span className="text-rose-500/70">−{formatCurrency(dayExpense)}</span>}
-                            <span className={dayNet >= 0 ? 'text-slate-500' : 'text-rose-500/80'}>
-                              = {formatCurrency(Math.abs(dayNet))}
-                            </span>
+                          <span className="text-[10px] font-normal text-slate-400">
+                            итого: {formatCurrency(Math.abs(dayNet))} ₽
                           </span>
                         </div>
                       </td>
