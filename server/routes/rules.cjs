@@ -2,44 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
+const { calculateCreditDate } = require('../utils/creditDate.cjs');
 
 const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-
-function calculateCreditDate(txDate, delayDays, weekendRule, dayDelays) {
-  const d = new Date(txDate);
-  const txDayOfWeek = d.getDay();
-  const txDayName = DAY_NAMES[txDayOfWeek];
-
-  const delays = typeof dayDelays === 'string' ? JSON.parse(dayDelays || '{}') : (dayDelays || {});
-  const effectiveDelay = (delays && delays[txDayName] !== undefined && delays[txDayName] !== null && delays[txDayName] !== '')
-    ? parseInt(delays[txDayName])
-    : delayDays;
-
-  d.setDate(d.getDate() + effectiveDelay);
-
-  const dayOfWeek = d.getDay();
-  switch (weekendRule) {
-    case 'next_business_day':
-      if (dayOfWeek === 0) d.setDate(d.getDate() + 1);
-      else if (dayOfWeek === 6) d.setDate(d.getDate() + 2);
-      break;
-    case 'saturday_ok':
-      if (dayOfWeek === 0) d.setDate(d.getDate() + 1);
-      break;
-    case 'previous_business_day':
-      if (dayOfWeek === 0) d.setDate(d.getDate() - 2);
-      else if (dayOfWeek === 6) d.setDate(d.getDate() - 1);
-      break;
-    case 'no_adjustment':
-      break;
-    default:
-      if (dayOfWeek === 0) d.setDate(d.getDate() + 1);
-      else if (dayOfWeek === 6) d.setDate(d.getDate() + 2);
-      break;
-  }
-
-  return d.toISOString().split('T')[0];
-}
 
 function isLastDayOfMonth(date) {
   const d = new Date(date);

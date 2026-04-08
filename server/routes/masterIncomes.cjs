@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
 const { logAction } = require('../utils/logger.cjs');
+const { autoCalculateCreditDate } = require('../utils/creditDate.cjs');
 
 function normalizePhone(raw) {
   if (!raw) return '';
@@ -738,10 +739,13 @@ router.post('/master-incomes', async (req, res) => {
       const extCols = useExtId ? ['external_id'] : [];
       const extVals = useExtId ? [`mi-${mi.id}`] : [];
 
-      const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id', 'client_type'];
+      const txDate = new Date().toISOString().split('T')[0];
+      const calculatedCreditDate = await autoCalculateCreditDate(txDate, accountId, categoryId, studioId);
+
+      const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id', 'client_type', 'credit_date'];
       const paymentLabel = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
       const baseVals = [
-        new Date().toISOString().split('T')[0], 
+        txDate, 
         amount, 
         'income', 
         accountId, 
@@ -750,7 +754,8 @@ router.post('/master-incomes', async (req, res) => {
         `${paymentLabel}${description ? ' | ' + description : ''}`, 
         false,
         contractorId,
-        clientType || 'primary'
+        clientType || 'primary',
+        calculatedCreditDate
       ];
 
       const allCols = [...baseCols, ...extCols];

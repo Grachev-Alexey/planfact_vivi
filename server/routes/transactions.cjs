@@ -4,6 +4,7 @@ const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
 const { logAction } = require('../utils/logger.cjs');
 const crypto = require('crypto');
+const { autoCalculateCreditDate } = require('../utils/creditDate.cjs');
 
 let _hasExternalId = null;
 async function hasExternalIdColumn() {
@@ -103,8 +104,17 @@ router.post('/transactions', async (req, res) => {
     const finalStatus = status !== undefined ? (status || null) : (type === 'transfer' ? null : null);
     const finalConfirmed = status !== undefined ? (status === 'verified') : (type === 'transfer' ? true : (confirmed || false));
 
+    let finalCreditDate = null;
+    if (type === 'income') {
+      if (creditDate) {
+        finalCreditDate = creditDate;
+      } else {
+        finalCreditDate = await autoCalculateCreditDate(date, accountId, categoryId, studioId);
+      }
+    }
+
     const baseCols = ['date', 'amount', 'type', 'account_id', 'category_id', 'studio_id', 'description', 'to_account_id', 'contractor_id', 'confirmed', 'accrual_date', 'status', 'credit_date'];
-    const baseVals = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, finalConfirmed, accrualDate || null, finalStatus, (type === 'income' ? (creditDate || null) : null)];
+    const baseVals = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, finalConfirmed, accrualDate || null, finalStatus, finalCreditDate];
 
     const extraCols = [];
     const extraVals = [];
