@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const initDB = require('./startup.cjs');
 
 const authRoutes = require('./routes/auth.cjs');
@@ -16,7 +17,8 @@ const incomePlanRoutes = require('./routes/incomePlan.cjs');
 const rulesRoutes = require('./routes/rules.cjs');
 
 const app = express();
-const PORT = 3010;
+const PORT = process.env.PORT || 3010;
+const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -35,6 +37,14 @@ app.use('/api', paymentCalendarRoutes);
 app.use('/api', incomePlanRoutes);
 app.use('/api', rulesRoutes);
 
+if (isProduction) {
+  const distPath = path.join(__dirname, '..', 'dist');
+  app.use(express.static(distPath, { maxAge: '30d' }));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`ViVi Finance Server running on http://0.0.0.0:${PORT}`);
+  console.log(`ViVi Finance Server running on http://0.0.0.0:${PORT}${isProduction ? ' (production)' : ''}`);
 });

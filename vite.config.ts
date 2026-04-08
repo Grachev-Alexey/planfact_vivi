@@ -24,6 +24,19 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+          '@assets': path.resolve(__dirname, 'attached_assets'),
+        }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              vendor: ['react', 'react-dom', 'react-router-dom'],
+              charts: ['recharts'],
+              excel: ['exceljs', 'xlsx'],
+              ui: ['lucide-react'],
+            }
+          }
         }
       }
     };
