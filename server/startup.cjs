@@ -167,6 +167,9 @@ const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='yclients_checked_at') THEN
           ALTER TABLE transactions ADD COLUMN yclients_checked_at TIMESTAMP DEFAULT NULL;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='credit_date') THEN
+          ALTER TABLE transactions ADD COLUMN credit_date DATE;
+        END IF;
       END $$;
     `);
 
@@ -301,6 +304,37 @@ const initDB = async () => {
         day INT NOT NULL,
         amount NUMERIC(15,2) NOT NULL DEFAULT 0,
         UNIQUE(year, month, day)
+      )
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS credit_date_rules (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        delay_days INTEGER NOT NULL DEFAULT 1,
+        weekend_rule TEXT NOT NULL DEFAULT 'next_business_day',
+        name TEXT DEFAULT '',
+        enabled BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS auto_transfer_rules (
+        id SERIAL PRIMARY KEY,
+        from_account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        to_account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        schedule TEXT NOT NULL DEFAULT 'daily',
+        skip_weekends BOOLEAN DEFAULT false,
+        skip_days TEXT DEFAULT '[]',
+        amount NUMERIC(15,2),
+        transfer_all BOOLEAN DEFAULT false,
+        description TEXT DEFAULT '',
+        enabled BOOLEAN DEFAULT true,
+        last_run_date DATE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
 

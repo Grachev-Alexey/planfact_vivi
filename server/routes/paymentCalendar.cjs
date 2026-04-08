@@ -33,13 +33,13 @@ router.get('/payment-calendar', async (req, res) => {
 
     const incomeRes = await db.query(
       `SELECT
-        EXTRACT(DAY FROM t.date)::int AS day,
+        EXTRACT(DAY FROM COALESCE(t.credit_date, t.date))::int AS day,
         SUM(t.amount) AS plan_amount,
         SUM(CASE WHEN t.confirmed THEN t.amount ELSE 0 END) AS fact_amount
        FROM transactions t
        WHERE t.type = 'income'
-         AND t.date >= $1 AND t.date < $2
-       GROUP BY EXTRACT(DAY FROM t.date)
+         AND COALESCE(t.credit_date, t.date) >= $1 AND COALESCE(t.credit_date, t.date) < $2
+       GROUP BY EXTRACT(DAY FROM COALESCE(t.credit_date, t.date))
        ORDER BY day`,
       [startDate, nextMonthDate]
     );
@@ -174,6 +174,7 @@ router.get('/payment-calendar', async (req, res) => {
           ) FROM transactions t
           WHERE (t.account_id = a.id OR t.to_account_id = a.id)
             AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
+            AND COALESCE(t.credit_date, t.date) <= CURRENT_DATE
         ), 0) AS balance
       FROM accounts a
       ORDER BY a.name
@@ -194,7 +195,7 @@ router.get('/payment-calendar', async (req, res) => {
           ) FROM transactions t
           WHERE (t.account_id = a.id OR t.to_account_id = a.id)
             AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
-            AND t.date < $1
+            AND COALESCE(t.credit_date, t.date) < $1
         ), 0)
       ), 0) AS starting_balance
       FROM accounts a

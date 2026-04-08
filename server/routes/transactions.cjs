@@ -95,7 +95,7 @@ router.post('/transactions/bulk-import', async (req, res) => {
 
 // Create Transaction
 router.post('/transactions', async (req, res) => {
-  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate, status } = req.body;
+  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate, status, creditDate } = req.body;
   const currentUserId = req.headers['x-user-id'];
   
   try {
@@ -103,8 +103,8 @@ router.post('/transactions', async (req, res) => {
     const finalStatus = status !== undefined ? (status || null) : (type === 'transfer' ? null : null);
     const finalConfirmed = status !== undefined ? (status === 'verified') : (type === 'transfer' ? true : (confirmed || false));
 
-    const baseCols = ['date', 'amount', 'type', 'account_id', 'category_id', 'studio_id', 'description', 'to_account_id', 'contractor_id', 'confirmed', 'accrual_date', 'status'];
-    const baseVals = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, finalConfirmed, accrualDate || null, finalStatus];
+    const baseCols = ['date', 'amount', 'type', 'account_id', 'category_id', 'studio_id', 'description', 'to_account_id', 'contractor_id', 'confirmed', 'accrual_date', 'status', 'credit_date'];
+    const baseVals = [date, amount, type, accountId, categoryId || null, studioId || null, description || '', toAccountId || null, contractorId || null, finalConfirmed, accrualDate || null, finalStatus, (type === 'income' ? (creditDate || null) : null)];
 
     const extraCols = [];
     const extraVals = [];
@@ -145,7 +145,7 @@ router.post('/transactions', async (req, res) => {
 // Update Transaction
 router.put('/transactions/:id', async (req, res) => {
   const { id } = req.params;
-  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate, status } = req.body;
+  const { date, amount, type, accountId, categoryId, studioId, description, toAccountId, contractorId, confirmed, accrualDate, status, creditDate } = req.body;
   const currentUserId = req.headers['x-user-id'];
 
   try {
@@ -174,6 +174,7 @@ router.put('/transactions/:id', async (req, res) => {
     const finalToAccountId = toAccountId !== undefined ? (toAccountId || null) : old.to_account_id;
     const finalContractorId = contractorId !== undefined ? (contractorId || null) : old.contractor_id;
     const finalAcrcualDate = accrualDate !== undefined ? (accrualDate || null) : old.accrual_date;
+    const finalCreditDate = creditDate !== undefined ? (creditDate || null) : (old.credit_date || null);
 
     let finalStatus = status !== undefined ? (status || null) : (old.status || null);
     let finalConfirmed;
@@ -187,10 +188,10 @@ router.put('/transactions/:id', async (req, res) => {
 
     const query = `
       UPDATE transactions 
-      SET date=$1, amount=$2, type=$3, account_id=$4, category_id=$5, studio_id=$6, description=$7, to_account_id=$8, contractor_id=$9, confirmed=$10, accrual_date=$11, status=$12, updated_at=NOW()
-      WHERE id = $13 RETURNING *
+      SET date=$1, amount=$2, type=$3, account_id=$4, category_id=$5, studio_id=$6, description=$7, to_account_id=$8, contractor_id=$9, confirmed=$10, accrual_date=$11, status=$12, credit_date=$13, updated_at=NOW()
+      WHERE id = $14 RETURNING *
     `;
-    const values = [finalDate, finalAmount, finalType, finalAccountId, finalCategoryId, finalStudioId, finalDescription, finalToAccountId, finalContractorId, finalConfirmed, finalAcrcualDate, finalStatus, id];
+    const values = [finalDate, finalAmount, finalType, finalAccountId, finalCategoryId, finalStudioId, finalDescription, finalToAccountId, finalContractorId, finalConfirmed, finalAcrcualDate, finalStatus, (finalType === 'income' ? finalCreditDate : null), id];
 
     const result = await db.query(query, values);
 

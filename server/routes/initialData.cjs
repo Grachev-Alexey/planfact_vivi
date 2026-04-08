@@ -25,6 +25,7 @@ router.get('/init', async (req, res) => {
             FROM transactions t
             WHERE (t.account_id = a.id OR t.to_account_id = a.id)
               AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
+              AND COALESCE(t.credit_date, t.date) <= CURRENT_DATE
         ), 0)) as balance
       FROM accounts a WHERE a.is_archived = FALSE ORDER BY a.name
     `;

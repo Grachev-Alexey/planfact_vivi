@@ -40,7 +40,8 @@ export const ReportsPage: React.FC = () => {
         ? (t.status === 'paid' || t.status === 'verified' || t.confirmed)
         : t.confirmed;
       if (!isActive) return false;
-      const d = new Date(t.date);
+      const effectiveDate = (t.type === 'income' && t.creditDate) ? t.creditDate : t.date;
+      const d = new Date(effectiveDate);
       if (d < start || d > end) return false;
       if (filterAccountId && String(t.accountId) !== filterAccountId) return false;
       if (filterStudioId && String(t.studioId) !== filterStudioId) return false;
@@ -61,7 +62,10 @@ export const ReportsPage: React.FC = () => {
 
   const yearOptions = useMemo(() => {
     const years = new Set<number>();
-    transactions.forEach(t => years.add(new Date(t.date).getFullYear()));
+    transactions.forEach(t => {
+      const ed = (t.type === 'income' && t.creditDate) ? t.creditDate : t.date;
+      years.add(new Date(ed).getFullYear());
+    });
     years.add(now.getFullYear());
     return [...years].sort();
   }, [transactions]);
@@ -144,9 +148,14 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
     return children.flatMap(c => [c.id, ...getAllDescendantIds(c.id)]);
   };
 
+  const txEffDate = (t: any) => {
+    const ed = (t.type === 'income' && t.creditDate) ? t.creditDate : t.date;
+    return new Date(ed);
+  };
+
   const getAmount = (catId: string, month: number, year: number) => {
     const ids = [catId, ...getAllDescendantIds(catId)];
-    return tx.filter(t => ids.includes(t.categoryId || '') && new Date(t.date).getMonth() === month && new Date(t.date).getFullYear() === year)
+    return tx.filter(t => ids.includes(t.categoryId || '') && txEffDate(t).getMonth() === month && txEffDate(t).getFullYear() === year)
       .reduce((s, t) => s + t.amount, 0);
   };
 
@@ -155,8 +164,8 @@ const PnLReport: React.FC<PnLProps> = ({ tx, months, categories }) => {
     return tx.filter(t => ids.includes(t.categoryId || '')).reduce((s, t) => s + t.amount, 0);
   };
 
-  const totalIncome = (m: number, y: number) => tx.filter(t => t.type === 'income' && new Date(t.date).getMonth() === m && new Date(t.date).getFullYear() === y).reduce((s, t) => s + t.amount, 0);
-  const totalExpense = (m: number, y: number) => tx.filter(t => t.type === 'expense' && new Date(t.date).getMonth() === m && new Date(t.date).getFullYear() === y).reduce((s, t) => s + t.amount, 0);
+  const totalIncome = (m: number, y: number) => tx.filter(t => t.type === 'income' && txEffDate(t).getMonth() === m && txEffDate(t).getFullYear() === y).reduce((s, t) => s + t.amount, 0);
+  const totalExpense = (m: number, y: number) => tx.filter(t => t.type === 'expense' && txEffDate(t).getMonth() === m && txEffDate(t).getFullYear() === y).reduce((s, t) => s + t.amount, 0);
   const grandTotalIncome = tx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const grandTotalExpense = tx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 

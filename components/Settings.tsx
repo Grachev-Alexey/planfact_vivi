@@ -5,6 +5,7 @@ import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Users, Trash2, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, ToggleLeft, ToggleRight, ArrowUp, ArrowDown, Settings2, Check, Loader2, RefreshCw } from 'lucide-react';
 import { formatDate } from '../utils/format';
+import { RulesSettings } from './RulesSettings';
 
 interface YcField {
   id: string;
@@ -92,7 +93,7 @@ const entityOptions = [
 export const Settings: React.FC = () => {
   const { user } = useAuth();
   const { studios } = useFinance();
-  const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'yclients'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'yclients' | 'rules'>('users');
 
   const [ycConfig, setYcConfig] = useState<YcFormConfig>({ commentEnabled: false, commentEditable: false, fields: [] });
   const [ycSaving, setYcSaving] = useState(false);
@@ -333,11 +334,21 @@ export const Settings: React.FC = () => {
                >
                    YClients
                </button>
+               <button
+                onClick={() => setActiveTab('rules')}
+                className={`pb-3 sm:pb-4 text-base sm:text-xl font-bold transition-colors border-b-2 px-1 ${activeTab === 'rules' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+               >
+                   Правила
+               </button>
            </div>
        </div>
 
        <div className="flex-1 p-3 sm:p-8 overflow-y-auto">
-         {activeTab === 'yclients' ? (
+         {activeTab === 'rules' ? (
+           <div className="max-w-3xl">
+             <RulesSettings />
+           </div>
+         ) : activeTab === 'yclients' ? (
            <div className="max-w-2xl space-y-5">
              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">

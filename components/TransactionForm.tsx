@@ -391,6 +391,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
   const [confirmed, setConfirmed] = useState(false);
   const [txStatus, setTxStatus] = useState<string>('pending');
   const [accrualDate, setAccrualDate] = useState('');
+  const [creditDate, setCreditDate] = useState('');
+  const [creditDateAuto, setCreditDateAuto] = useState(false);
   const [showNewContractor, setShowNewContractor] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const initialized = useRef(false);
@@ -419,6 +421,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
         }
       }
       setAccrualDate(initialData.accrualDate ? initialData.accrualDate.split('T')[0] : '');
+      setCreditDate(initialData.creditDate ? initialData.creditDate.split('T')[0] : '');
+      if (initialData.creditDate) setCreditDateAuto(false);
       initialized.current = true;
     } else if (accounts.length > 0 || studios.length > 0) {
       if (accounts.length > 0) setAccountId(accounts[0].id);
@@ -426,6 +430,27 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       initialized.current = true;
     }
   }, [initialData, accounts, studios]);
+
+  useEffect(() => {
+    if (type !== 'income' || !accountId || !date || !initialized.current) return;
+    if (!creditDateAuto && creditDate) return;
+    const controller = new AbortController();
+    fetch('/api/credit-date-rules/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId, date }),
+      signal: controller.signal,
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.creditDate) {
+          setCreditDate(data.creditDate);
+          setCreditDateAuto(true);
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [type, accountId, date]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -454,6 +479,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       description,
       accrualDate: accrualDate || undefined,
     };
+    if (type === 'income') {
+      payload.creditDate = creditDate || undefined;
+    }
     if (type === 'expense') {
       payload.status = txStatus;
       payload.confirmed = txStatus === 'verified';
@@ -636,6 +664,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
         {type === 'expense' && (
           <FormRow label="Дата начисления">
             <DatePicker value={accrualDate} onChange={setAccrualDate} placeholder="дд.мм.гггг" />
+          </FormRow>
+        )}
+
+        {type === 'income' && (
+          <FormRow label="Дата зачисления">
+            <DatePicker value={creditDate} onChange={(v: string) => { setCreditDate(v); setCreditDateAuto(false); }} placeholder="дд.мм.гггг" />
           </FormRow>
         )}
 

@@ -48,7 +48,8 @@ export const Dashboard: React.FC = () => {
 
   const yearTx = useMemo(() =>
     transactions.filter(t => {
-      const d = new Date(t.date);
+      const effectiveDate = (t.type === 'income' && t.creditDate) ? t.creditDate : t.date;
+      const d = new Date(effectiveDate);
       if (d.getFullYear() !== year) return false;
       if (t.type === 'expense') return t.status === 'paid' || t.status === 'verified' || t.confirmed;
       return t.confirmed;
@@ -58,7 +59,10 @@ export const Dashboard: React.FC = () => {
 
   const monthlyData = useMemo(() => {
     return MONTHS_SHORT.map((name, i) => {
-      const monthTx = yearTx.filter(t => new Date(t.date).getMonth() === i);
+      const monthTx = yearTx.filter(t => {
+        const effectiveDate = (t.type === 'income' && t.creditDate) ? t.creditDate : t.date;
+        return new Date(effectiveDate).getMonth() === i;
+      });
       const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
       const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
       const profit = income - expense;
