@@ -665,7 +665,7 @@ router.post('/master-incomes', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;
 
-  const { amount, paymentType, categoryId, clientName, clientType, description, yclientsData, visitOnly } = req.body;
+  const { amount, paymentType, categoryId, clientName, clientType, description, yclientsData, visitOnly, forDate } = req.body;
   const clientPhone = normalizePhone(req.body.clientPhone);
 
   const isVisitOnly = visitOnly === true && parseFloat(amount) === 0;
@@ -677,6 +677,16 @@ router.post('/master-incomes', async (req, res) => {
     if (!PAYMENT_TYPE_SUFFIXES[paymentType]) {
       return res.status(400).json({ error: 'Invalid paymentType' });
     }
+  }
+
+  let effectiveDate = getMoscowToday();
+  if (forDate === 'yesterday') {
+    const m = getMoscowNow();
+    m.setDate(m.getDate() - 1);
+    const y = m.getFullYear();
+    const mo = String(m.getMonth() + 1).padStart(2, '0');
+    const d = String(m.getDate()).padStart(2, '0');
+    effectiveDate = `${y}-${mo}-${d}`;
   }
 
   const studioId = master.studio_id;
@@ -726,9 +736,10 @@ router.post('/master-incomes', async (req, res) => {
   try {
     const ycDataVal = yclientsData ? JSON.stringify(yclientsData) : null;
     const effectivePaymentType = isVisitOnly ? 'visit_only' : paymentType;
+    const createdAtClause = forDate === 'yesterday' ? `'${effectiveDate} 23:59:00+03'::timestamptz` : 'NOW()';
     const result = await db.query(
-      `INSERT INTO master_incomes (user_id, studio_id, amount, payment_type, category_id, client_name, client_phone, client_type, description, account_id, yclients_data)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      `INSERT INTO master_incomes (user_id, studio_id, amount, payment_type, category_id, client_name, client_phone, client_type, description, account_id, yclients_data, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, ${createdAtClause}) RETURNING *`,
       [master.id, studioId, isVisitOnly ? 0 : amount, effectivePaymentType, categoryId || null, clientName || '', clientPhone || '', clientType || 'primary', description || '', accountId, ycDataVal]
     );
 
@@ -740,7 +751,7 @@ router.post('/master-incomes', async (req, res) => {
       const extCols = useExtId ? ['external_id'] : [];
       const extVals = useExtId ? [`mi-${mi.id}`] : [];
 
-      const txDate = getMoscowToday();
+      const txDate = effectiveDate;
       const calculatedCreditDate = await autoCalculateCreditDate(txDate, accountId, categoryId, studioId);
 
       const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id', 'client_type', 'credit_date'];

@@ -292,6 +292,8 @@ export const MasterIncomePage: React.FC = () => {
   const ycSectionRef = useRef<HTMLDivElement>(null);
   const [ycClientTypeLoading, setYcClientTypeLoading] = useState(false);
 
+  const [forDate, setForDate] = useState<'today' | 'yesterday'>('today');
+
   const [editingIncome, setEditingIncome] = useState<MasterIncome | null>(null);
   const [editAmount, setEditAmount] = useState('');
   const [editPaymentType, setEditPaymentType] = useState('');
@@ -636,6 +638,7 @@ export const MasterIncomePage: React.FC = () => {
             clientType,
             description: entry.description,
             ...(yclientsDataSnapshot ? { yclientsData: yclientsDataSnapshot } : {}),
+            ...(forDate === 'yesterday' ? { forDate: 'yesterday' } : {}),
           }),
         });
 
@@ -681,6 +684,7 @@ export const MasterIncomePage: React.FC = () => {
     setYcRecordData(null);
     setYcComment('');
     setYcFieldValues({});
+    setForDate('today');
     fetchSchedule();
   };
 
@@ -1373,13 +1377,34 @@ export const MasterIncomePage: React.FC = () => {
                   <Plus size={15} /> Ещё оплата
                 </button>
 
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setForDate(d => d === 'today' ? 'yesterday' : 'today')}
+                    className={`text-[11px] transition-colors ${forDate === 'yesterday' ? 'text-amber-600' : 'text-slate-400 hover:text-slate-500'}`}
+                  >
+                    {forDate === 'yesterday' ? (
+                      <span className="flex items-center gap-1"><Clock size={11} /> За вчера</span>
+                    ) : (
+                      <span className="flex items-center gap-1"><Clock size={11} /> За вчера?</span>
+                    )}
+                  </button>
+                  {forDate === 'yesterday' && (
+                    <span className="text-[10px] text-amber-500">
+                      {(() => { const d = getMoscowNow(); d.setDate(d.getDate() - 1); return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }); })()}
+                    </span>
+                  )}
+                </div>
+
                 <button
                   onClick={handleSubmitAll}
                   disabled={submitting}
-                  className="w-full py-4 bg-teal-600 text-white rounded-2xl font-bold text-base hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20"
+                  className={`w-full py-4 text-white rounded-2xl font-bold text-base transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg ${forDate === 'yesterday' ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20' : 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/20'}`}
                 >
                   {submitting ? (
                     <><Loader2 size={18} className="animate-spin" /> Сохраняем...</>
+                  ) : forDate === 'yesterday' ? (
+                    <>Сохранить за вчера</>
                   ) : (
                     <>Сохранить</>
                   )}

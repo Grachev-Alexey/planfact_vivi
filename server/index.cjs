@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const initDB = require('./startup.cjs');
 
 const authRoutes = require('./routes/auth.cjs');
@@ -22,8 +23,6 @@ const PORT = process.env.PORT || 3010;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-initDB();
-
 app.use('/api', authRoutes);
 app.use('/api', transactionRoutes);
 app.use('/api', dictionaryRoutes);
@@ -36,8 +35,8 @@ app.use('/api', paymentCalendarRoutes);
 app.use('/api', incomePlanRoutes);
 app.use('/api', rulesRoutes);
 
-const fs = require('fs');
 const distPath = path.join(__dirname, '..', 'dist');
+
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath, {
     maxAge: '30d',
@@ -47,12 +46,23 @@ if (fs.existsSync(distPath)) {
       }
     }
   }));
-  app.get('*', (req, res) => {
+
+  app.get(/.*/, (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`ViVi Finance Server running on http://0.0.0.0:${PORT}`);
-});
+async function startServer() {
+  try {
+    await initDB();
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`ViVi Finance Server running on http://0.0.0.0:${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+}
+
+startServer();
