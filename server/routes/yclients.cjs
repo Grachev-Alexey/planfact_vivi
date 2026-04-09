@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs');
 const { verifyTransaction, verifyBatch, getVisitsByPhone, getTodaySchedule, updateClientInfo, getRecord, updateRecord, getClientDetails, updateClientCustomFields, getAvailableCustomFields, buildGlobalFieldCodeMap, checkClientAbonement } = require('../services/yclients.cjs');
-const { getMoscowToday } = require('../utils/moscow.cjs');
+const { getMoscowToday, getMoscowNow } = require('../utils/moscow.cjs');
 
 router.get('/yclients/client-type', async (req, res) => {
   const userId = req.headers['x-user-id'];
