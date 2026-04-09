@@ -75,16 +75,26 @@ router.get('/yclients/today-schedule', async (req, res) => {
     }
 
     const companyId = studioRes.rows[0].yclients_id;
-    const visits = await getTodaySchedule(companyId);
 
-    const today = getMoscowToday();
+    let scheduleDate = getMoscowToday();
+    if (req.query.date === 'yesterday') {
+      const m = getMoscowNow();
+      m.setDate(m.getDate() - 1);
+      const y = m.getFullYear();
+      const mo = String(m.getMonth() + 1).padStart(2, '0');
+      const d = String(m.getDate()).padStart(2, '0');
+      scheduleDate = `${y}-${mo}-${d}`;
+    }
+
+    const visits = await getTodaySchedule(companyId, scheduleDate);
+
     const incomesRes = await db.query(
       `SELECT SUM(amount) as total, 
               array_agg(client_phone) as phones,
               array_agg(yclients_data) as yc_data_arr
        FROM master_incomes 
        WHERE user_id = $1 AND DATE(created_at) = $2`,
-      [userId, today]
+      [userId, scheduleDate]
     );
     const todayTotal = parseFloat(incomesRes.rows[0]?.total) || 0;
 

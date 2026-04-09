@@ -317,12 +317,16 @@ export const MasterIncomePage: React.FC = () => {
     }
   }, [user]);
 
-  const fetchSchedule = useCallback(async () => {
+  const fetchSchedule = useCallback(async (dateParam?: 'today' | 'yesterday') => {
     if (!user) return;
     setScheduleLoading(true);
     setScheduleError(null);
+    const d = dateParam ?? forDate;
     try {
-      const res = await fetch('/api/yclients/today-schedule', {
+      const url = d === 'yesterday'
+        ? '/api/yclients/today-schedule?date=yesterday'
+        : '/api/yclients/today-schedule';
+      const res = await fetch(url, {
         headers: { 'x-user-id': String(user.id) },
       });
       if (!res.ok) throw new Error('Ошибка загрузки');
@@ -336,7 +340,7 @@ export const MasterIncomePage: React.FC = () => {
     } finally {
       setScheduleLoading(false);
     }
-  }, [user]);
+  }, [user, forDate]);
 
   useEffect(() => { fetchIncomes(); fetchSchedule(); }, [fetchIncomes, fetchSchedule]);
 
@@ -943,8 +947,16 @@ export const MasterIncomePage: React.FC = () => {
             <div className="px-4 py-3 border-b border-slate-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-lg font-bold text-slate-800">Записи на сегодня</h1>
-                  <p className="text-xs text-slate-500 mt-0.5">{getMoscowNow().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                  <h1 className="text-lg font-bold text-slate-800">
+                    {forDate === 'yesterday' ? 'Записи за вчера' : 'Записи на сегодня'}
+                  </h1>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {(() => {
+                      const d = getMoscowNow();
+                      if (forDate === 'yesterday') d.setDate(d.getDate() - 1);
+                      return d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+                    })()}
+                  </p>
                 </div>
                 {todayTotal > 0 && (
                   <div className="text-right">
@@ -953,6 +965,18 @@ export const MasterIncomePage: React.FC = () => {
                   </div>
                 )}
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = forDate === 'today' ? 'yesterday' : 'today';
+                  setForDate(next);
+                  fetchSchedule(next);
+                }}
+                className={`mt-2 text-[11px] flex items-center gap-1 transition-colors ${forDate === 'yesterday' ? 'text-amber-600 hover:text-amber-700' : 'text-slate-400 hover:text-slate-500'}`}
+              >
+                <Clock size={11} />
+                {forDate === 'yesterday' ? 'Вернуться к сегодня' : 'Показать вчерашние записи'}
+              </button>
             </div>
 
             {scheduleLoading ? (
@@ -1377,24 +1401,12 @@ export const MasterIncomePage: React.FC = () => {
                   <Plus size={15} /> Ещё оплата
                 </button>
 
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setForDate(d => d === 'today' ? 'yesterday' : 'today')}
-                    className={`text-[11px] transition-colors ${forDate === 'yesterday' ? 'text-amber-600' : 'text-slate-400 hover:text-slate-500'}`}
-                  >
-                    {forDate === 'yesterday' ? (
-                      <span className="flex items-center gap-1"><Clock size={11} /> За вчера</span>
-                    ) : (
-                      <span className="flex items-center gap-1"><Clock size={11} /> За вчера?</span>
-                    )}
-                  </button>
-                  {forDate === 'yesterday' && (
-                    <span className="text-[10px] text-amber-500">
-                      {(() => { const d = getMoscowNow(); d.setDate(d.getDate() - 1); return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }); })()}
-                    </span>
-                  )}
-                </div>
+                {forDate === 'yesterday' && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700">
+                    <Clock size={11} />
+                    Запись за {(() => { const d = getMoscowNow(); d.setDate(d.getDate() - 1); return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }); })()}
+                  </div>
+                )}
 
                 <button
                   onClick={handleSubmitAll}

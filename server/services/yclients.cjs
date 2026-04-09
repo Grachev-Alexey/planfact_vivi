@@ -653,9 +653,9 @@ function groupRecordsByVisitAll(records) {
   return result;
 }
 
-async function getTodaySchedule(companyId) {
-  const today = getMoscowToday();
-  const records = await getRecords(companyId, today, today);
+async function getTodaySchedule(companyId, dateOverride) {
+  const date = dateOverride || getMoscowToday();
+  const records = await getRecords(companyId, date, date);
   return groupRecordsByVisitAll(records);
 }
 
