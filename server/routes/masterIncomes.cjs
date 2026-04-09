@@ -4,7 +4,7 @@ const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
 const { logAction } = require('../utils/logger.cjs');
 const { autoCalculateCreditDate } = require('../utils/creditDate.cjs');
-const { getMoscowToday } = require('../utils/moscow.cjs');
+const { getMoscowToday, getMoscowNow } = require('../utils/moscow.cjs');
 
 function normalizePhone(raw) {
   if (!raw) return '';

@@ -1,0 +1,34 @@
+[TAILING] Tailing last 15 lines for [vivi-backend] process (change the value with --lines option)
+/root/.pm2/logs/vivi-backend-out.log last 15 lines:
+1|vivi-bac |     5,            '9',
+1|vivi-bac |     'Наличные',   false,
+1|vivi-bac |     450,          'primary',
+1|vivi-bac |     null,         'mi-591'
+1|vivi-bac |   ]
+1|vivi-bac | }
+1|vivi-bac | ◇ injecting env (3) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+1|vivi-bac | Database initialized successfully
+1|vivi-bac | ViVi Finance Server running on http://0.0.0.0:3010
+1|vivi-bac | [client-type] Visits search: goods_transactions= 1 records= 3
+1|vivi-bac | [client-type] Has goods_transactions → abonement client
+1|vivi-bac | [client-type] Visits search: goods_transactions= 1 records= 3
+1|vivi-bac | [client-type] Has goods_transactions → abonement client
+1|vivi-bac | [client-type] Visits search: goods_transactions= 1 records= 1
+1|vivi-bac | [client-type] Has goods_transactions → abonement client
+
+/root/.pm2/logs/vivi-backend-error.log last 15 lines:
+1|vivi-bac |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+1|vivi-bac |     at async ModuleLoader.import (node:internal/modules/esm/loader:540:24)
+1|vivi-bac | (node:3914) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+1|vivi-bac | (Use `node --trace-deprecation ...` to show where the warning was created)
+1|vivi-bac | (node:182763) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+1|vivi-bac | (Use `node --trace-deprecation ...` to show where the warning was created)
+1|vivi-bac | ReferenceError: getMoscowNow is not defined
+1|vivi-bac |     at /var/www/vivi-finance/server/routes/masterIncomes.cjs:684:15
+1|vivi-bac |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+1|vivi-bac | ReferenceError: getMoscowNow is not defined
+1|vivi-bac |     at /var/www/vivi-finance/server/routes/masterIncomes.cjs:684:15
+1|vivi-bac |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+1|vivi-bac | ReferenceError: getMoscowNow is not defined
+1|vivi-bac |     at /var/www/vivi-finance/server/routes/masterIncomes.cjs:684:15
+1|vivi-bac |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
