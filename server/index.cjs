@@ -55,11 +55,43 @@ if (fs.existsSync(distPath)) {
   });
 }
 
+function startAutoTransferScheduler() {
+  const db = require('./db.cjs');
+  const http = require('http');
+
+  setInterval(async () => {
+    try {
+      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Moscow' }));
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const currentTime = `${hh}:${mm}`;
+      const today = now.toISOString().split('T')[0];
+
+      const rules = await db.query(
+        `SELECT id FROM auto_transfer_rules WHERE enabled = true AND execute_time = $1 AND (last_run_date IS NULL OR last_run_date < $2::date)`,
+        [currentTime, today]
+      );
+
+      if (rules.rows.length > 0) {
+        const ruleIds = rules.rows.map(r => r.id);
+        const body = JSON.stringify({ ruleIds });
+        const req = http.request({ hostname: '127.0.0.1', port: PORT, path: '/api/auto-transfer-rules/execute', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } });
+        req.on('error', (e) => console.error('Auto-transfer scheduler request error:', e.message));
+        req.write(body);
+        req.end();
+      }
+    } catch (err) {
+      console.error('Auto-transfer scheduler error:', err.message);
+    }
+  }, 60 * 1000);
+}
+
 async function startServer() {
   try {
     await initDB();
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`ViVi Finance Server running on http://0.0.0.0:${PORT}`);
+      startAutoTransferScheduler();
     });
   } catch (err) {
     console.error('Failed to start server:', err);

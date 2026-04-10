@@ -167,6 +167,7 @@ export const TransactionList: React.FC = () => {
     expense: true,
     transfer: true
   });
+  const [showTechTransfers, setShowTechTransfers] = useState(false);
   const [filterAccountIds, setFilterAccountIds] = useState<string[]>([]);
   const [filterContractorIds, setFilterContractorIds] = useState<string[]>([]);
   const [filterCategoryIds, setFilterCategoryIds] = useState<string[]>([]);
@@ -222,6 +223,8 @@ export const TransactionList: React.FC = () => {
         category.toLowerCase().includes(searchLower) ||
         account.toLowerCase().includes(searchLower);
       
+      if (!showTechTransfers && t.isTechnicalTransfer) return false;
+
       const matchesType = (t.type === 'income' && filterTypes.income) ||
                           (t.type === 'expense' && filterTypes.expense) ||
                           (t.type === 'transfer' && filterTypes.transfer);
@@ -248,7 +251,7 @@ export const TransactionList: React.FC = () => {
       
       return matchesSearch && matchesType && matchesAccount && matchesContractor && matchesCategory && matchesStudio && matchesConfirmed && matchesDateFrom && matchesDateTo && matchesAmountFrom && matchesAmountTo;
     });
-  }, [transactions, search, filterTypes, filterAccountIds, filterContractorIds, filterCategoryIds, filterStudioIds, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, lookupMaps]);
+  }, [transactions, search, filterTypes, showTechTransfers, filterAccountIds, filterContractorIds, filterCategoryIds, filterStudioIds, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, lookupMaps]);
 
   const sortedTransactions = useMemo(() => {
     return [...filteredTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -332,6 +335,7 @@ export const TransactionList: React.FC = () => {
     setFilterAmountTo('');
     setShowDatePicker(false);
     setFilterTypes({ income: true, expense: true, transfer: true });
+    setShowTechTransfers(false);
   };
 
   const filteredIds = useMemo(() => new Set(filteredTransactions.map(t => t.id)), [filteredTransactions]);
@@ -638,6 +642,10 @@ export const TransactionList: React.FC = () => {
                   <span className="text-[11px] text-slate-700">{item.label}</span>
                 </label>
               ))}
+              <label className="flex items-center gap-2 cursor-pointer py-0.5 mt-1 border-t border-slate-100 pt-1.5">
+                <input type="checkbox" checked={showTechTransfers} onChange={e => setShowTechTransfers(e.target.checked)} className="rounded accent-amber-500 h-3 w-3" />
+                <span className="text-[10px] text-slate-400">Тех. переводы</span>
+              </label>
             </div>
           </div>
 

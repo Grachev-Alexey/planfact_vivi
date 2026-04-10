@@ -6,20 +6,37 @@ const { toCamelCase } = require('../utils/helpers.cjs');
 router.get('/init', async (req, res) => {
   try {
     const transactionsQuery = `
-      SELECT t.*, pr.status as pr_status, sa.name as settlement_account_name
+      SELECT sub.* FROM (
+        SELECT t.*, pr.status as pr_status, sa.name as settlement_account_name,
+          CASE WHEN t.type = 'transfer' AND EXISTS (
+            SELECT 1 FROM settlement_rules sr
+            WHERE sr.enabled = true
+              AND sr.account_id = t.account_id
+              AND sr.settlement_account_id = t.to_account_id
+          ) THEN true ELSE false END AS is_technical_transfer
+        FROM transactions t
+        LEFT JOIN payment_requests pr ON t.external_id = 'pr-' || pr.id::text
+        LEFT JOIN accounts sa ON t.settlement_account_id = sa.id
+        ORDER BY t.date DESC, t.created_at DESC
+      ) sub
+      WHERE sub.is_technical_transfer = false
+      ORDER BY sub.date DESC, sub.created_at DESC
+      LIMIT 1000
+    `;
+    const techTransfersQuery = `
+      SELECT t.*, pr.status as pr_status, sa.name as settlement_account_name,
+        true AS is_technical_transfer
       FROM transactions t
       LEFT JOIN payment_requests pr ON t.external_id = 'pr-' || pr.id::text
       LEFT JOIN accounts sa ON t.settlement_account_id = sa.id
-      WHERE NOT (
-        t.type = 'transfer'
-        AND EXISTS (
-          SELECT 1 FROM settlement_rules sr
-          WHERE sr.enabled = true
-            AND sr.account_id = t.account_id
-            AND sr.settlement_account_id = t.to_account_id
-        )
+      WHERE t.type = 'transfer' AND EXISTS (
+        SELECT 1 FROM settlement_rules sr
+        WHERE sr.enabled = true
+          AND sr.account_id = t.account_id
+          AND sr.settlement_account_id = t.to_account_id
       )
-      ORDER BY t.date DESC, t.created_at DESC LIMIT 1000
+      ORDER BY t.date DESC, t.created_at DESC
+      LIMIT 200
     `;
     
     // Dynamic balance calculation
@@ -44,8 +61,9 @@ router.get('/init', async (req, res) => {
       FROM accounts a WHERE a.is_archived = FALSE ORDER BY a.name
     `;
 
-    const [txRes, accRes, catRes, stdRes, contrRes, leRes] = await Promise.all([
+    const [txRes, techTxRes, accRes, catRes, stdRes, contrRes, leRes] = await Promise.all([
       db.query(transactionsQuery),
+      db.query(techTransfersQuery),
       db.query(accountsQuery),
       db.query('SELECT * FROM categories ORDER BY name'),
       db.query('SELECT * FROM studios ORDER BY name'),
@@ -53,8 +71,10 @@ router.get('/init', async (req, res) => {
       db.query('SELECT * FROM legal_entities ORDER BY name')
     ]);
 
+    const allTransactions = [...txRes.rows, ...techTxRes.rows];
+
     res.json({
-      transactions: txRes.rows.map(toCamelCase),
+      transactions: allTransactions.map(toCamelCase),
       accounts: accRes.rows.map(toCamelCase),
       categories: catRes.rows.map(toCamelCase),
       studios: stdRes.rows.map(toCamelCase),

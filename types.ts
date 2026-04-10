@@ -69,4 +69,5 @@ export interface Transaction {
   status?: string | null;
   settlementAccountId?: string | null;
   settlementAccountName?: string | null;
+  isTechnicalTransfer?: boolean;
 }

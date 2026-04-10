@@ -43,7 +43,7 @@ A finance management application (Russian language UI) built with React + Vite f
 - users (+ studio_id for master role), activity_logs, accounts, categories, studios, contractors, transactions, legal_entities, payment_requests, master_incomes, credit_date_rules, auto_transfer_rules, holidays
 - **transactions.credit_date**: DATE field for income transactions — actual date when money is credited to the bank account (may differ from transaction date). Used in all balance calculations via `COALESCE(t.credit_date, t.date)`.
 - **credit_date_rules**: Per-account rules for auto-calculating credit_date (delay_days, weekend_rule: next_business_day|saturday_ok|previous_business_day|no_adjustment)
-- **auto_transfer_rules**: Automatic transfer rules between accounts (schedule, skip_weekends, amount or transfer_all)
+- **auto_transfer_rules**: Automatic transfer rules between accounts (schedule, skip_weekends, amount or transfer_all, execute_time for scheduled auto-execution)
 - **holidays**: Russian holidays/non-working days (date, name, affects_credit). Used by credit date calculation — if affects_credit=true, the day is treated like a weekend for date shifting. Holidays are cached server-side (5min TTL). UI supports year-by-year management and bulk pre-fill of standard Russian public holidays.
 - **calendar_balances**: Per-account manual balance entries for payment calendar (account_id, month, manual_balance). Persisted on blur so admins can compare system vs actual bank balances.
 - **calendar_balances_total**: Total manual balance per month for payment calendar reconciliation.
@@ -59,6 +59,7 @@ A finance management application (Russian language UI) built with React + Vite f
 - **Settlement rules mass-apply**: POST `/api/settlement-rules/apply-all` — backfills settlement_account_id for all existing income transactions
 
 ### Transaction Features
+- **Technical transfers**: Transfers matching settlement_rules (account_id → settlement_account_id) are flagged as `isTechnicalTransfer`. Hidden by default in transaction list; toggle "Тех. переводы" checkbox in filters to show them. Excluded from account balance calculations and reconciliation.
 - **Daily totals**: Transaction list shows per-day income/expense/net totals in the day group header
 - **Income "Проверено" status**: Income transactions can be marked as "verified" (status='verified'). Shown as a teal badge. Filterable via "income_verified" filter option. Bulk action available.
 - **Payment calendar day click**: Clicking a day header in payment calendar opens a form to create a payment request pre-filled with that date

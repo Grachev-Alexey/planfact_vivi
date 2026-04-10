@@ -207,16 +207,16 @@ router.get('/auto-transfer-rules', async (req, res) => {
 
 router.post('/auto-transfer-rules', async (req, res) => {
   try {
-    const { fromAccountId, toAccountId, schedule, skipWeekends, skipDays, amount, transferAll, description, leaveMinBalance, specificDays, maxAmount, intervalValue } = req.body;
+    const { fromAccountId, toAccountId, schedule, skipWeekends, skipDays, amount, transferAll, description, leaveMinBalance, specificDays, maxAmount, intervalValue, executeTime } = req.body;
     if (!fromAccountId || !toAccountId) return res.status(400).json({ error: 'fromAccountId and toAccountId required' });
     if (!transferAll && (!amount || parseFloat(amount) <= 0)) return res.status(400).json({ error: 'amount required when not transferring all' });
 
     const result = await db.query(
-      `INSERT INTO auto_transfer_rules (from_account_id, to_account_id, schedule, skip_weekends, skip_days, amount, transfer_all, description, leave_min_balance, specific_days, max_amount, interval_value)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      `INSERT INTO auto_transfer_rules (from_account_id, to_account_id, schedule, skip_weekends, skip_days, amount, transfer_all, description, leave_min_balance, specific_days, max_amount, interval_value, execute_time)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [fromAccountId, toAccountId, schedule || 'daily', skipWeekends || false, JSON.stringify(skipDays || []),
        transferAll ? null : amount, transferAll || false, description || '',
-       leaveMinBalance || 0, JSON.stringify(specificDays || []), maxAmount || null, intervalValue || 1]
+       leaveMinBalance || 0, JSON.stringify(specificDays || []), maxAmount || null, intervalValue || 1, executeTime || null]
     );
     res.json(toCamelCase(result.rows[0]));
   } catch (err) {
@@ -227,13 +227,13 @@ router.post('/auto-transfer-rules', async (req, res) => {
 
 router.put('/auto-transfer-rules/:id', async (req, res) => {
   try {
-    const { fromAccountId, toAccountId, schedule, skipWeekends, skipDays, amount, transferAll, description, enabled, leaveMinBalance, specificDays, maxAmount, intervalValue } = req.body;
+    const { fromAccountId, toAccountId, schedule, skipWeekends, skipDays, amount, transferAll, description, enabled, leaveMinBalance, specificDays, maxAmount, intervalValue, executeTime } = req.body;
     const result = await db.query(
-      `UPDATE auto_transfer_rules SET from_account_id=$1, to_account_id=$2, schedule=$3, skip_weekends=$4, skip_days=$5, amount=$6, transfer_all=$7, description=$8, enabled=$9, leave_min_balance=$10, specific_days=$11, max_amount=$12, interval_value=$13, updated_at=NOW()
+      `UPDATE auto_transfer_rules SET from_account_id=$1, to_account_id=$2, schedule=$3, skip_weekends=$4, skip_days=$5, amount=$6, transfer_all=$7, description=$8, enabled=$9, leave_min_balance=$10, specific_days=$11, max_amount=$12, interval_value=$13, execute_time=$15, updated_at=NOW()
        WHERE id=$14 RETURNING *`,
       [fromAccountId, toAccountId, schedule, skipWeekends || false, JSON.stringify(skipDays || []),
        transferAll ? null : amount, transferAll || false, description || '', enabled !== false,
-       leaveMinBalance || 0, JSON.stringify(specificDays || []), maxAmount || null, intervalValue || 1, req.params.id]
+       leaveMinBalance || 0, JSON.stringify(specificDays || []), maxAmount || null, intervalValue || 1, req.params.id, executeTime || null]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json(toCamelCase(result.rows[0]));
@@ -261,10 +261,20 @@ router.post('/auto-transfer-rules/execute', async (req, res) => {
     const dayName = DAY_NAMES[dayOfWeek];
     const dayOfMonth = now.getDate();
 
-    const rules = await db.query(
-      `SELECT * FROM auto_transfer_rules WHERE enabled = true AND (last_run_date IS NULL OR last_run_date < $1)`,
-      [today]
-    );
+    const { ruleIds } = req.body || {};
+    let rulesQuery;
+    if (ruleIds && Array.isArray(ruleIds) && ruleIds.length > 0) {
+      rulesQuery = await db.query(
+        `SELECT * FROM auto_transfer_rules WHERE enabled = true AND id = ANY($1) AND (last_run_date IS NULL OR last_run_date < $2)`,
+        [ruleIds, today]
+      );
+    } else {
+      rulesQuery = await db.query(
+        `SELECT * FROM auto_transfer_rules WHERE enabled = true AND (last_run_date IS NULL OR last_run_date < $1)`,
+        [today]
+      );
+    }
+    const rules = rulesQuery;
 
     const executed = [];
     for (const rule of rules.rows) {

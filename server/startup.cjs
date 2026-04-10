@@ -351,6 +351,7 @@ const initDB = async () => {
     try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS specific_days TEXT DEFAULT '[]'`); } catch(e) {}
     try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS max_amount NUMERIC(15,2)`); } catch(e) {}
     try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS interval_value INTEGER DEFAULT 1`); } catch(e) {}
+    try { await db.query(`ALTER TABLE auto_transfer_rules ADD COLUMN IF NOT EXISTS execute_time TEXT`); } catch(e) {}
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS holidays (

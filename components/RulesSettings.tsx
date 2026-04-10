@@ -37,6 +37,7 @@ interface AutoTransferRule {
   specificDays: string;
   maxAmount: number | null;
   intervalValue: number;
+  executeTime: string | null;
 }
 
 const WEEKEND_RULES: { id: string; label: string }[] = [
@@ -247,7 +248,7 @@ export const RulesSettings: React.FC = () => {
         transferAll: editingTr.transferAll || false, description: editingTr.description || '',
         enabled: editingTr.enabled !== false, leaveMinBalance: editingTr.leaveMinBalance || 0,
         specificDays: parseJsonArray(editingTr.specificDays), maxAmount: editingTr.maxAmount || null,
-        intervalValue: editingTr.intervalValue || 1,
+        intervalValue: editingTr.intervalValue || 1, executeTime: editingTr.executeTime || null,
       }),
     });
     setEditingTr(null); setShowAdvancedTr(false);
@@ -322,6 +323,11 @@ export const RulesSettings: React.FC = () => {
       case 'last_business_day': return 'Последний рабочий день';
       default: return rule.schedule;
     }
+  };
+
+  const formatScheduleWithTime = (rule: AutoTransferRule) => {
+    const sched = formatSchedule(rule);
+    return rule.executeTime ? `${sched} в ${rule.executeTime}` : sched;
   };
 
   const formatAmount = (rule: AutoTransferRule) => {
@@ -579,7 +585,7 @@ export const RulesSettings: React.FC = () => {
                 className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
                 <Play size={14} /> Выполнить сейчас
               </Button>
-              <Button onClick={() => { setEditingTr({ schedule: 'daily', enabled: true, transferAll: false, skipWeekends: false, leaveMinBalance: 0, specificDays: '[]', skipDays: '[]', maxAmount: null, intervalValue: 1 }); setShowAdvancedTr(false); }}
+              <Button onClick={() => { setEditingTr({ schedule: 'daily', enabled: true, transferAll: false, skipWeekends: false, leaveMinBalance: 0, specificDays: '[]', skipDays: '[]', maxAmount: null, intervalValue: 1, executeTime: null }); setShowAdvancedTr(false); }}
                 className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
                 <Plus size={16} /> Добавить
               </Button>
@@ -662,6 +668,13 @@ export const RulesSettings: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Время выполнения (МСК)</label>
+                  <input type="time" value={editingTr.executeTime || ''}
+                    onChange={e => setEditingTr({ ...editingTr, executeTime: e.target.value || null })}
+                    className={inputCls} />
+                  <p className="text-xs text-slate-400 mt-1">{editingTr.executeTime ? 'Автоматически в указанное время' : 'Не задано — только вручную'}</p>
+                </div>
                 <div>
                   <label className={labelCls}>Описание</label>
                   <input value={editingTr.description || ''} onChange={e => setEditingTr({ ...editingTr, description: e.target.value })} className={inputCls} placeholder="Авто-перемещение" />
@@ -766,7 +779,7 @@ export const RulesSettings: React.FC = () => {
                       {rule.fromAccountName} <span className="text-slate-400 mx-1">→</span> {rule.toAccountName}
                     </div>
                     <div className="text-xs text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
-                      <span>{formatSchedule(rule)}</span>
+                      <span>{formatScheduleWithTime(rule)}</span>
                       <span>·</span>
                       <span>{formatAmount(rule)}</span>
                       {rule.skipWeekends && <><span>·</span><span>без выходных</span></>}
