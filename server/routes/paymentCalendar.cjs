@@ -79,14 +79,17 @@ router.get('/payment-calendar', async (req, res) => {
 
     const incomePlan = {};
     const incomeFact = {};
+    const incomeAll = {};
     for (const r of incomeRes.rows) {
       const d = r.day;
       incomePlan[d] = (incomePlan[d] || 0) + parseFloat(r.plan_amount || 0);
       incomeFact[d] = (incomeFact[d] || 0) + parseFloat(r.fact_amount || 0);
+      incomeAll[d] = (incomeAll[d] || 0) + parseFloat(r.plan_amount || 0);
     }
 
     const expensePlan = {};
     const expenseFact = {};
+    const expenseAll = {};
     const categoryMap = {};
 
     for (const pr of prRes.rows) {
@@ -99,6 +102,7 @@ router.get('/payment-calendar', async (req, res) => {
       if (pr.status === 'paid' || pr.status === 'verified') {
         expenseFact[day] = (expenseFact[day] || 0) + paidAmount;
       }
+      expenseAll[day] = (expenseAll[day] || 0) + (pr.status === 'paid' || pr.status === 'verified' ? paidAmount : amount);
 
       const catId = pr.category_id != null ? String(pr.category_id) : '0';
       const catName = pr.category_name || 'Без категории';
@@ -132,6 +136,7 @@ router.get('/payment-calendar', async (req, res) => {
       if (txSt === 'paid' || txSt === 'verified') {
         expenseFact[day] = (expenseFact[day] || 0) + amount;
       }
+      expenseAll[day] = (expenseAll[day] || 0) + amount;
 
       const catId = tx.category_id != null ? String(tx.category_id) : '0';
       const catName = tx.category_name || 'Без категории';
@@ -159,7 +164,7 @@ router.get('/payment-calendar', async (req, res) => {
       });
     }
 
-    // Real account balances (current)
+    // Real account balances (current) — confirmed fact + unconfirmed (all)
     const accountsRes = await db.query(`
       SELECT a.id, a.name, a.currency,
         COALESCE(a.initial_balance, 0) + COALESCE((
@@ -175,14 +180,7 @@ router.get('/payment-calendar', async (req, res) => {
           WHERE (t.account_id = a.id OR t.to_account_id = a.id)
             AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
             AND COALESCE(t.credit_date, t.date) <= CURRENT_DATE
-        ), 0) AS balance
-      FROM accounts a
-      ORDER BY a.name
-    `);
-
-    // Balance at start of selected month
-    const startBalRes = await db.query(`
-      SELECT COALESCE(SUM(
+        ), 0) AS balance,
         COALESCE(a.initial_balance, 0) + COALESCE((
           SELECT SUM(
             CASE
@@ -194,19 +192,59 @@ router.get('/payment-calendar', async (req, res) => {
             END
           ) FROM transactions t
           WHERE (t.account_id = a.id OR t.to_account_id = a.id)
-            AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
-            AND COALESCE(t.credit_date, t.date) < $1
-        ), 0)
-      ), 0) AS starting_balance
+            AND t.status != 'rejected'
+            AND COALESCE(t.credit_date, t.date) <= CURRENT_DATE
+        ), 0) AS balance_with_unconfirmed
+      FROM accounts a
+      ORDER BY a.name
+    `);
+
+    // Balance at start of selected month (confirmed + unconfirmed)
+    const startBalRes = await db.query(`
+      SELECT
+        COALESCE(SUM(
+          COALESCE(a.initial_balance, 0) + COALESCE((
+            SELECT SUM(
+              CASE
+                WHEN t.type = 'income'   AND t.account_id    = a.id THEN  t.amount
+                WHEN t.type = 'expense'  AND t.account_id    = a.id THEN -t.amount
+                WHEN t.type = 'transfer' AND t.account_id    = a.id THEN -t.amount
+                WHEN t.type = 'transfer' AND t.to_account_id = a.id THEN  t.amount
+                ELSE 0
+              END
+            ) FROM transactions t
+            WHERE (t.account_id = a.id OR t.to_account_id = a.id)
+              AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
+              AND COALESCE(t.credit_date, t.date) < $1
+          ), 0)
+        ), 0) AS starting_balance,
+        COALESCE(SUM(
+          COALESCE(a.initial_balance, 0) + COALESCE((
+            SELECT SUM(
+              CASE
+                WHEN t.type = 'income'   AND t.account_id    = a.id THEN  t.amount
+                WHEN t.type = 'expense'  AND t.account_id    = a.id THEN -t.amount
+                WHEN t.type = 'transfer' AND t.account_id    = a.id THEN -t.amount
+                WHEN t.type = 'transfer' AND t.to_account_id = a.id THEN  t.amount
+                ELSE 0
+              END
+            ) FROM transactions t
+            WHERE (t.account_id = a.id OR t.to_account_id = a.id)
+              AND t.status != 'rejected'
+              AND COALESCE(t.credit_date, t.date) < $1
+          ), 0)
+        ), 0) AS starting_balance_unconfirmed
       FROM accounts a
     `, [startDate]);
 
     const startingBalance = parseFloat(startBalRes.rows[0]?.starting_balance || 0);
+    const startingBalanceUnconfirmed = parseFloat(startBalRes.rows[0]?.starting_balance_unconfirmed || 0);
     const accountBalances = accountsRes.rows.map(r => ({
       id: r.id,
       name: r.name,
       currency: r.currency || 'RUB',
       balance: parseFloat(r.balance || 0),
+      balanceUnconfirmed: parseFloat(r.balance_with_unconfirmed || 0),
     }));
 
     let running = startingBalance;
@@ -214,6 +252,13 @@ router.get('/payment-calendar', async (req, res) => {
     for (let d = 1; d <= daysInMonth; d++) {
       running += (incomeFact[d] || 0) - (expenseFact[d] || 0);
       balance[d] = running;
+    }
+
+    let runningUnconfirmed = startingBalanceUnconfirmed;
+    const balanceUnconfirmed = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      runningUnconfirmed += (incomeAll[d] || 0) - (expenseAll[d] || 0);
+      balanceUnconfirmed[d] = runningUnconfirmed;
     }
 
     // Plan starting balance = initial_balances + planned_income_prior - planned_expenses_prior
@@ -260,13 +305,17 @@ router.get('/payment-calendar', async (req, res) => {
     res.json({
       daysInMonth,
       startingBalance,
+      startingBalanceUnconfirmed,
       planStartingBalance,
       accountBalances,
       incomePlan,
       incomeFact,
+      incomeAll,
       expensePlan,
       expenseFact,
+      expenseAll,
       balance,
+      balanceUnconfirmed,
       expenseCategories,
     });
   } catch (err) {

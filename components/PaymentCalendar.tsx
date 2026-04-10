@@ -29,17 +29,22 @@ interface AccountBalance {
   name: string;
   currency: string;
   balance: number;
+  balanceUnconfirmed: number;
 }
 
 interface CalendarData {
   daysInMonth: number;
   startingBalance: number;
+  startingBalanceUnconfirmed: number;
   accountBalances: AccountBalance[];
   incomePlan: Record<number, number>;
   incomeFact: Record<number, number>;
+  incomeAll: Record<number, number>;
   expensePlan: Record<number, number>;
   expenseFact: Record<number, number>;
+  expenseAll: Record<number, number>;
   balance: Record<number, number>;
+  balanceUnconfirmed: Record<number, number>;
   expenseCategories: CategoryRow[];
 }
 
@@ -178,7 +183,8 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/50">
                 <th className="text-left px-4 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">Счёт</th>
-                <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">ПланФакт</th>
+                <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">Факт</th>
+                <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">С неподтв.</th>
                 <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide" style={{ width: '140px' }}>Банк</th>
                 <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide" style={{ width: '110px' }}>Разница</th>
               </tr>
@@ -186,11 +192,22 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
             <tbody className="divide-y divide-slate-100">
               {visible.map(acc => {
                 const manVal = perAccount[acc.id] ?? '';
+                const unconfDiff = acc.balanceUnconfirmed - acc.balance;
                 return (
                   <tr key={acc.id} className="hover:bg-slate-50/50">
                     <td className="px-4 py-2 text-slate-700 truncate" style={{ maxWidth: '200px' }}>{acc.name}</td>
                     <td className={`px-3 py-2 text-right font-semibold tabular-nums whitespace-nowrap ${acc.balance < 0 ? 'text-rose-600' : acc.balance === 0 ? 'text-slate-400' : 'text-slate-800'}`}>
                       {fmtFull(acc.balance)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                      <span className={`font-semibold ${acc.balanceUnconfirmed < 0 ? 'text-rose-600' : acc.balanceUnconfirmed === 0 ? 'text-slate-400' : 'text-amber-700'}`}>
+                        {fmtFull(acc.balanceUnconfirmed)}
+                      </span>
+                      {Math.abs(unconfDiff) >= 0.01 && (
+                        <span className={`ml-1 text-[10px] ${unconfDiff > 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
+                          ({unconfDiff > 0 ? '+' : ''}{fmtFull(unconfDiff)})
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-1.5" style={{ width: '140px' }}>
                       <input
@@ -229,6 +246,9 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
                   <td className="px-4 py-2.5 text-[11px] text-slate-500 font-medium">Итого по всем</td>
                   <td className={`px-3 py-2.5 text-right font-bold tabular-nums whitespace-nowrap ${total < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                     {fmtFull(total)}
+                  </td>
+                  <td className={`px-3 py-2.5 text-right font-bold tabular-nums whitespace-nowrap text-amber-700`}>
+                    {fmtFull(accounts.reduce((s, a) => s + (a.balanceUnconfirmed ?? a.balance), 0))}
                   </td>
                   <td className="px-3 py-1.5" style={{ width: '140px' }}>
                     <input
@@ -783,6 +803,8 @@ export const PaymentCalendar: React.FC = () => {
       { fg: 'FFFFFF', fgTotal: 'EFF6FF', textColor: '3B82F6' });
     addDataRow('  Факт', [nv(totalBalance), ...days.map(d => nv(data.balance[d] || 0))],
       { fg: 'EFF6FF', fgTotal: 'DBEAFE', textColor: '1D4ED8', bold: true, borderColor: 'BFDBFE' });
+    addDataRow('  С неподтв.', [nv(totalBalanceUnconfirmed), ...days.map(d => nv(data.balanceUnconfirmed?.[d] || 0))],
+      { fg: 'FEFCE8', fgTotal: 'FEF9C3', textColor: 'A16207', borderColor: 'FDE68A' });
 
     // ── Категории ──────────────────────────────────────────────────────────
     addSection('По статьям расходов', 'F1F5F9', '334155', 'CBD5E1');
@@ -911,10 +933,13 @@ export const PaymentCalendar: React.FC = () => {
   const totalIncomeUnconfirmed = days.reduce((s, d) => s + (data?.incomePlan[d] || 0), 0);
   const totalIncomePlan = days.reduce((s, d) => s + (incomePlanManual[d] || 0), 0);
   const totalIncomeFact = days.reduce((s, d) => s + (data?.incomeFact[d] || 0), 0);
+  const totalIncomeAll = days.reduce((s, d) => s + (data?.incomeAll?.[d] || 0), 0);
   const totalExpensePlan = days.reduce((s, d) => s + (data?.expensePlan[d] || 0), 0);
   const totalExpenseFact = days.reduce((s, d) => s + (data?.expenseFact[d] || 0), 0);
+  const totalExpenseAll = days.reduce((s, d) => s + (data?.expenseAll?.[d] || 0), 0);
   const totalBalance = (data?.startingBalance ?? 0) + totalIncomeFact - totalExpenseFact;
   const totalBalancePlan = (data?.planStartingBalance ?? data?.startingBalance ?? 0) + totalIncomePlan - totalExpensePlan;
+  const totalBalanceUnconfirmed = (data?.startingBalanceUnconfirmed ?? data?.startingBalance ?? 0) + totalIncomeAll - totalExpenseAll;
 
   const startingBalance = data?.startingBalance ?? 0;
 
@@ -1158,6 +1183,18 @@ export const PaymentCalendar: React.FC = () => {
                 todayBg="#dbeafe"
                 accentColor="#3b82f6"
                 bold
+              />
+              <BalanceRow
+                label="С неподтв."
+                total={totalBalanceUnconfirmed}
+                days={days}
+                values={data.balanceUnconfirmed}
+                todayDay={todayDay}
+                labelW={LABEL_W}
+                totalW={TOTAL_W}
+                rowBg="#fefce8"
+                todayBg="#fef9c3"
+                accentColor="#eab308"
               />
 
               {data.expenseCategories.length > 0 && (
