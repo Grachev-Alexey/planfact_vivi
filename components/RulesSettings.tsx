@@ -169,20 +169,30 @@ export const RulesSettings: React.FC = () => {
 
   const [applyingRuleId, setApplyingRuleId] = useState<number | null>(null);
   const [applyResult, setApplyResult] = useState<{ id: number; msg: string } | null>(null);
+  const [applyPanelId, setApplyPanelId] = useState<number | null>(null);
+  const [applyDateFrom, setApplyDateFrom] = useState('');
+  const [applyDateTo, setApplyDateTo] = useState('');
 
   const applyCreditRuleRetro = async (ruleId: number) => {
-    if (!confirm('Пересчитать даты зачисления для всех подходящих операций по этому правилу?')) return;
     setApplyingRuleId(ruleId);
     setApplyResult(null);
     try {
-      const res = await fetch(`/api/credit-date-rules/${ruleId}/apply`, { method: 'POST' });
+      const res = await fetch(`/api/credit-date-rules/${ruleId}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(applyDateFrom ? { dateFrom: applyDateFrom } : {}),
+          ...(applyDateTo ? { dateTo: applyDateTo } : {}),
+        }),
+      });
       const data = await res.json();
       setApplyResult({ id: ruleId, msg: data.message || `Обновлено: ${data.updated}` });
+      setApplyPanelId(null);
     } catch {
       setApplyResult({ id: ruleId, msg: 'Ошибка применения' });
     } finally {
       setApplyingRuleId(null);
-      setTimeout(() => setApplyResult(null), 4000);
+      setTimeout(() => setApplyResult(null), 5000);
     }
   };
 
@@ -472,9 +482,9 @@ export const RulesSettings: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 ml-3 shrink-0">
-                  <button onClick={() => applyCreditRuleRetro(rule.id)}
+                  <button onClick={() => { setApplyPanelId(applyPanelId === rule.id ? null : rule.id); setApplyDateFrom(''); setApplyDateTo(''); }}
                     disabled={applyingRuleId === rule.id}
-                    className="p-1.5 text-slate-400 hover:text-amber-600 rounded transition-colors disabled:opacity-50"
+                    className={`p-1.5 rounded transition-colors disabled:opacity-50 ${applyPanelId === rule.id ? 'text-amber-600 bg-amber-50' : 'text-slate-400 hover:text-amber-600'}`}
                     title="Применить к существующим операциям">
                     <RotateCw size={14} className={applyingRuleId === rule.id ? 'animate-spin' : ''} />
                   </button>
@@ -486,6 +496,33 @@ export const RulesSettings: React.FC = () => {
                   <button onClick={() => startEditCr(rule)} className="p-1.5 text-slate-400 hover:text-teal-600 rounded transition-colors"><Pencil size={14} /></button>
                   <button onClick={() => deleteCreditRule(rule.id)} className="p-1.5 text-slate-400 hover:text-rose-500 rounded transition-colors"><Trash2 size={14} /></button>
                 </div>
+                {applyPanelId === rule.id && (
+                  <div className="w-full mt-2 p-3 bg-amber-50/50 border border-amber-200 rounded-lg space-y-2.5">
+                    <p className="text-xs text-amber-700 font-medium">Пересчитать даты зачисления</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[11px] text-slate-500">с</label>
+                        <input type="date" value={applyDateFrom} onChange={e => setApplyDateFrom(e.target.value)}
+                          className="border border-slate-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400" />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[11px] text-slate-500">по</label>
+                        <input type="date" value={applyDateTo} onChange={e => setApplyDateTo(e.target.value)}
+                          className="border border-slate-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400" />
+                      </div>
+                      <button onClick={() => applyCreditRuleRetro(rule.id)}
+                        disabled={applyingRuleId === rule.id}
+                        className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 flex items-center gap-1">
+                        {applyingRuleId === rule.id ? <RotateCw size={12} className="animate-spin" /> : <Check size={12} />}
+                        Применить
+                      </button>
+                      <button onClick={() => setApplyPanelId(null)} className="px-2 py-1 text-xs text-slate-400 hover:text-slate-600 transition-colors">Отмена</button>
+                    </div>
+                    {!applyDateFrom && !applyDateTo && (
+                      <p className="text-[10px] text-slate-400">Если не указать даты — пересчитает все операции</p>
+                    )}
+                  </div>
+                )}
                 {applyResult?.id === rule.id && (
                   <div className="w-full mt-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
                     {applyResult.msg}

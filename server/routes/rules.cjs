@@ -138,6 +138,7 @@ router.post('/credit-date-rules/calculate', async (req, res) => {
 router.post('/credit-date-rules/:id/apply', async (req, res) => {
   try {
     const ruleId = req.params.id;
+    const { dateFrom, dateTo } = req.body || {};
     const ruleRes = await db.query('SELECT * FROM credit_date_rules WHERE id = $1', [ruleId]);
     if (ruleRes.rows.length === 0) return res.status(404).json({ error: 'Rule not found' });
     const rule = ruleRes.rows[0];
@@ -151,6 +152,14 @@ router.post('/credit-date-rules/:id/apply', async (req, res) => {
     if (rule.studio_id) {
       params.push(rule.studio_id);
       conditions.push(`t.studio_id = $${params.length}`);
+    }
+    if (dateFrom) {
+      params.push(dateFrom);
+      conditions.push(`t.date >= $${params.length}`);
+    }
+    if (dateTo) {
+      params.push(dateTo);
+      conditions.push(`t.date <= $${params.length}`);
     }
 
     const txRes = await db.query(
