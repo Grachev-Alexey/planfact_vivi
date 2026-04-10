@@ -89,17 +89,34 @@ export const ReconciliationPage: React.FC = () => {
     const days = viewMode === 'summary' ? summaryData?.days : accountData?.days;
     const bBefore = viewMode === 'summary' ? summaryData?.balanceBefore : accountData?.balanceBefore;
     if (!days) return { income: 0, expense: 0, transferNet: 0, closeBalance: 0, activeDays: 0, balanceBefore: 0 };
+    const upToToday = days.filter(d => d.date <= todayStr);
+    const lastDay = upToToday.length > 0 ? upToToday[upToToday.length - 1] : null;
     return {
-      income: days.reduce((s, d) => s + d.income, 0),
-      expense: days.reduce((s, d) => s + d.expense, 0),
-      transferNet: days.reduce((s, d) => s + d.transferIn - d.transferOut, 0),
-      closeBalance: days.length > 0 ? days[days.length - 1].closeBalance : (bBefore || 0),
-      activeDays: days.filter(d => d.income > 0 || d.expense > 0 || d.transferIn > 0 || d.transferOut > 0).length,
+      income: upToToday.reduce((s, d) => s + d.income, 0),
+      expense: upToToday.reduce((s, d) => s + d.expense, 0),
+      transferNet: upToToday.reduce((s, d) => s + d.transferIn - d.transferOut, 0),
+      closeBalance: lastDay ? lastDay.closeBalance : (bBefore || 0),
+      activeDays: upToToday.filter(d => d.income > 0 || d.expense > 0 || d.transferIn > 0 || d.transferOut > 0).length,
       balanceBefore: bBefore || 0,
     };
-  }, [viewMode, summaryData, accountData]);
+  }, [viewMode, summaryData, accountData, todayStr]);
 
   const balanceChange = totals.closeBalance - totals.balanceBefore;
+
+  const accountBalancesToday = useMemo(() => {
+    if (viewMode !== 'summary' || !summaryData?.days || !summaryData?.accounts) return {};
+    const upToToday = summaryData.days.filter(d => d.date <= todayStr);
+    const result: Record<number, number> = {};
+    for (const acc of summaryData.accounts) {
+      let bal = acc.balanceBefore;
+      for (const day of upToToday) {
+        const pa = day.perAccount.find(p => p.accountId === acc.id);
+        if (pa) bal = pa.closeBalance;
+      }
+      result[acc.id] = bal;
+    }
+    return result;
+  }, [viewMode, summaryData, todayStr]);
 
   if (!loading && accounts.length === 0) {
     return (
@@ -208,7 +225,8 @@ export const ReconciliationPage: React.FC = () => {
                   <SummaryCard label="Все счета" value={totals.balanceBefore} endValue={totals.closeBalance}
                     income={totals.income} expense={totals.expense} highlight />
                   {summaryData.accounts.map(acc => (
-                    <SummaryCard key={acc.id} label={acc.name} value={acc.balanceBefore} endValue={acc.closeBalance}
+                    <SummaryCard key={acc.id} label={acc.name} value={acc.balanceBefore}
+                      endValue={accountBalancesToday[acc.id] ?? acc.closeBalance}
                       onClick={() => switchToAccount(acc.id)} />
                   ))}
                 </div>
@@ -218,9 +236,9 @@ export const ReconciliationPage: React.FC = () => {
                   <SmallCard icon={<TrendingUp size={14} />} label="Поступления" value={totals.income} prefix="+" iconBg="bg-emerald-100" iconColor="text-emerald-600" valueColor="text-emerald-600" />
                   <SmallCard icon={<TrendingDown size={14} />} label="Расходы" value={totals.expense} prefix="−" iconBg="bg-rose-100" iconColor="text-rose-600" valueColor="text-rose-600"
                     sub={totals.transferNet !== 0 ? `переводы: ${fmtSigned(totals.transferNet)} ₽` : undefined} subColor={totals.transferNet > 0 ? 'text-blue-500' : 'text-orange-500'} />
-                  <SmallCard icon={<CircleDollarSign size={14} />} label="На конец" value={totals.closeBalance}
+                  <SmallCard icon={<CircleDollarSign size={14} />} label={month === now.getMonth() && year === now.getFullYear() ? 'Сейчас' : 'На конец'} value={totals.closeBalance}
                     iconBg={balanceChange >= 0 ? 'bg-teal-100' : 'bg-amber-100'} iconColor={balanceChange >= 0 ? 'text-teal-600' : 'text-amber-600'}
-                    sub={`${balanceChange >= 0 ? '↑' : '↓'} ${fmtSigned(balanceChange)} за месяц`} subColor={balanceChange >= 0 ? 'text-teal-500' : 'text-rose-500'} />
+                    sub={`${balanceChange >= 0 ? '↑' : '↓'} ${fmtSigned(balanceChange)} за период`} subColor={balanceChange >= 0 ? 'text-teal-500' : 'text-rose-500'} />
                 </div>
               )}
             </div>
@@ -380,7 +398,7 @@ const SummaryCard: React.FC<{
         {fmt(endValue)} <span className={`text-sm ${highlight ? 'text-teal-200' : 'text-slate-400'}`}>₽</span>
       </div>
       <div className={`text-[11px] tabular-nums font-medium mt-0.5 ${highlight ? 'text-teal-100' : change >= 0 ? 'text-teal-500' : 'text-rose-500'}`}>
-        {change >= 0 ? '↑' : '↓'} {fmtSigned(change)} за месяц
+        {change >= 0 ? '↑' : '↓'} {fmtSigned(change)} за период
       </div>
       {highlight && income !== undefined && expense !== undefined && (
         <div className="flex gap-3 mt-2 pt-2 border-t border-teal-400/30 text-[11px] tabular-nums">
