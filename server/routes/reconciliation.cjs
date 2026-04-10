@@ -295,7 +295,8 @@ router.get('/reconciliation/summary', async (req, res) => {
         const openBal = accountRunning[acc.id];
         const net = inc - exp - trOut + trIn;
         accountRunning[acc.id] = openBal + net;
-        totalIncome += inc; totalExpense += exp; totalTransferOut += trOut; totalTransferIn += trIn;
+        totalIncome += inc; totalExpense += exp;
+        totalTransferOut += trOut; totalTransferIn += trIn;
         if (inc > 0 || exp > 0 || trOut > 0 || trIn > 0) {
           perAccount.push({ accountId: acc.id, accountName: acc.name, income: inc, expense: exp, transferOut: trOut, transferIn: trIn, openBalance: openBal, closeBalance: accountRunning[acc.id] });
         }

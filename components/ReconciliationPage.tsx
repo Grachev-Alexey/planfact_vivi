@@ -295,7 +295,10 @@ export const ReconciliationPage: React.FC = () => {
                         {day.expense > 0 ? <span className="text-[13px] font-semibold tabular-nums text-rose-600">−{fmt(day.expense)}</span> : <span className="text-[13px] text-slate-200">—</span>}
                       </div>
                       <div className="text-right pr-2">
-                        {netTransfer !== 0 ? <span className={`text-[13px] font-semibold tabular-nums ${netTransfer > 0 ? 'text-blue-600' : 'text-orange-600'}`}>{fmtSigned(netTransfer)}</span> : <span className="text-[13px] text-slate-200">—</span>}
+                        {viewMode === 'summary'
+                          ? (day.transferOut > 0 ? <span className="text-[13px] font-semibold tabular-nums text-violet-600">↔ {fmt(day.transferOut)}</span> : <span className="text-[13px] text-slate-200">—</span>)
+                          : (netTransfer !== 0 ? <span className={`text-[13px] font-semibold tabular-nums ${netTransfer > 0 ? 'text-blue-600' : 'text-orange-600'}`}>{fmtSigned(netTransfer)}</span> : <span className="text-[13px] text-slate-200">—</span>)
+                        }
                       </div>
                       <div className="text-right">
                         <span className={`text-[13px] font-bold tabular-nums ${!hasMovement ? 'text-slate-300' : day.closeBalance < 0 ? 'text-rose-600' : 'text-slate-700'}`}>
