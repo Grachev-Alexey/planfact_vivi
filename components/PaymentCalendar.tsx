@@ -786,7 +786,7 @@ export const PaymentCalendar: React.FC = () => {
     addSection('= БАЛАНС', 'EFF6FF', '1E3A5F', 'BFDBFE');
     addDataRow('  План', [nv(totalBalancePlan), ...days.map(d => nv(balancePlan[d] || 0))],
       { fg: 'FFFFFF', fgTotal: 'EFF6FF', textColor: '3B82F6' });
-    addDataRow('  Ожидаемый', [nv(totalBalanceUnconfirmed), ...days.map(d => nv(data.balanceUnconfirmed?.[d] || 0))],
+    addDataRow('  С неподтв. доходом', [nv(totalBalanceUnconfirmed), ...days.map(d => nv(data.balanceUnconfirmed?.[d] || 0))],
       { fg: 'F8FAFC', fgTotal: 'E0F2FE', textColor: '475569', borderColor: 'CBD5E1' });
     addDataRow('  Факт', [nv(totalBalance), ...days.map(d => nv(data.balance[d] || 0))],
       { fg: 'EFF6FF', fgTotal: 'DBEAFE', textColor: '1D4ED8', bold: true, borderColor: 'BFDBFE' });
@@ -1157,7 +1157,7 @@ export const PaymentCalendar: React.FC = () => {
                 accentColor="#93c5fd"
               />
               <BalanceRow
-                label="Ожидаемый"
+                label="С неподтв. доходом"
                 total={totalBalanceUnconfirmed}
                 days={days}
                 values={data.balanceUnconfirmed}

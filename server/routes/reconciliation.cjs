@@ -17,7 +17,7 @@ router.get('/reconciliation', async (req, res) => {
     const incomeQuery = `
       SELECT COALESCE(t.credit_date, t.date)::date as day, SUM(t.amount) as total
       FROM transactions t
-      WHERE t.settlement_account_id = $1
+      WHERE (t.settlement_account_id = $1 OR (t.account_id = $1 AND t.settlement_account_id IS NULL))
         AND t.type = 'income'
         AND COALESCE(t.credit_date, t.date) >= $2::date
         AND COALESCE(t.credit_date, t.date) <= $3::date
@@ -66,7 +66,7 @@ router.get('/reconciliation', async (req, res) => {
       SELECT
         ${initialBal}::numeric + COALESCE((
           SELECT SUM(CASE
-            WHEN t.settlement_account_id = $1 AND t.type = 'income' THEN t.amount
+            WHEN (t.settlement_account_id = $1 OR (t.account_id = $1 AND t.settlement_account_id IS NULL)) AND t.type = 'income' THEN t.amount
             WHEN t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') THEN -t.amount
             WHEN t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) THEN -t.amount
             WHEN t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) THEN t.amount
@@ -88,7 +88,7 @@ router.get('/reconciliation', async (req, res) => {
       LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN categories c ON t.category_id = c.id
       LEFT JOIN studios s ON t.studio_id = s.id
-      WHERE t.settlement_account_id = $1
+      WHERE (t.settlement_account_id = $1 OR (t.account_id = $1 AND t.settlement_account_id IS NULL))
         AND t.type = 'income'
         AND COALESCE(t.credit_date, t.date) >= $2::date
         AND COALESCE(t.credit_date, t.date) <= $3::date
@@ -302,13 +302,8 @@ router.get('/reconciliation/summary', async (req, res) => {
 router.get('/reconciliation/accounts', async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT DISTINCT a.id, a.name
+      SELECT a.id, a.name
       FROM accounts a
-      WHERE a.id IN (
-        SELECT DISTINCT settlement_account_id FROM settlement_rules WHERE enabled = true
-        UNION
-        SELECT DISTINCT settlement_account_id FROM transactions WHERE settlement_account_id IS NOT NULL
-      )
       ORDER BY a.name
     `);
     res.json(result.rows.map(toCamelCase));
