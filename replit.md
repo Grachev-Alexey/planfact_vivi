@@ -47,6 +47,7 @@ A finance management application (Russian language UI) built with React + Vite f
 - **holidays**: Russian holidays/non-working days (date, name, affects_credit). Used by credit date calculation — if affects_credit=true, the day is treated like a weekend for date shifting. Holidays are cached server-side (5min TTL). UI supports year-by-year management and bulk pre-fill of standard Russian public holidays.
 - **calendar_balances**: Per-account manual balance entries for payment calendar (account_id, month, manual_balance). Persisted on blur so admins can compare system vs actual bank balances.
 - **calendar_balances_total**: Total manual balance per month for payment calendar reconciliation.
+- **studios.allowed_payment_types**: JSON array of payment type IDs visible to masters for this studio (default: all types). Configured in Directories → Студии edit modal. Master income page filters payment buttons based on this.
 - **settlement_rules**: Rules mapping technical accounts → real bank settlement accounts (account_id, category_id, studio_id, settlement_account_id, enabled). More specific rules (with category+studio) take priority.
 - **transactions.settlement_account_id**: FK to accounts — the real bank account where income money is credited. Informational only, does not affect balance calculations. Auto-resolved from settlement_rules on create/update.
 

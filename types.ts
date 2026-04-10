@@ -6,6 +6,7 @@ export interface Studio {
   name: string;
   address?: string;
   color?: string;
+  allowedPaymentTypes?: string;
 }
 
 export interface LegalEntity {

@@ -110,6 +110,16 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const [editKpp, setEditKpp] = useState('');
   const [editLegalEntityId, setEditLegalEntityId] = useState('');
   const [editStudioId, setEditStudioId] = useState('');
+  const [editAllowedPaymentTypes, setEditAllowedPaymentTypes] = useState<string[]>(['cash', 'card', 'sbp', 'ukassa', 'installment']);
+  const [newAllowedPaymentTypes, setNewAllowedPaymentTypes] = useState<string[]>(['cash', 'card', 'sbp', 'ukassa', 'installment']);
+
+  const ALL_PAYMENT_TYPES = [
+    { id: 'cash', label: 'Наличные' },
+    { id: 'card', label: 'Карта' },
+    { id: 'sbp', label: 'СБП' },
+    { id: 'ukassa', label: 'Ю-Касса' },
+    { id: 'installment', label: 'Рассрочка' },
+  ];
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -128,6 +138,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
     setNewKpp('');
     setNewLegalEntityId('');
     setNewStudioId('');
+    setNewAllowedPaymentTypes(['cash', 'card', 'sbp', 'ukassa', 'installment']);
   };
 
   const openEditModal = (type: TabType, item: any) => {
@@ -147,6 +158,10 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       setEditStudioId(item.studioId || '');
     } else if (type === 'studios') {
       setEditAddress(item.address || '');
+      try {
+        const parsed = item.allowedPaymentTypes ? JSON.parse(item.allowedPaymentTypes) : ['cash', 'card', 'sbp', 'ukassa', 'installment'];
+        setEditAllowedPaymentTypes(Array.isArray(parsed) ? parsed : ['cash', 'card', 'sbp', 'ukassa', 'installment']);
+      } catch { setEditAllowedPaymentTypes(['cash', 'card', 'sbp', 'ukassa', 'installment']); }
     } else if (type === 'legal_entities') {
       setEditInn(item.inn || '');
       setEditKpp(item.kpp || '');
@@ -176,6 +191,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       data.studioId = newStudioId ? Number(newStudioId) : null;
     } else if (activeTab === 'studios') {
       data.address = newAddress;
+      data.allowedPaymentTypes = JSON.stringify(newAllowedPaymentTypes);
     } else if (activeTab === 'legal_entities') {
       data.inn = newInn;
       data.kpp = newKpp;
@@ -209,6 +225,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       data.studioId = editStudioId ? Number(editStudioId) : null;
     } else if (type === 'studios') {
       data.address = editAddress;
+      data.allowedPaymentTypes = JSON.stringify(editAllowedPaymentTypes);
     } else if (type === 'legal_entities') {
       data.inn = editInn;
       data.kpp = editKpp;
@@ -530,10 +547,29 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
             )}
 
             {type === 'studios' && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Адрес</label>
-                <input type="text" value={editAddress} onChange={e => setEditAddress(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
-              </div>
+              <>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-700">Адрес</label>
+                  <input type="text" value={editAddress} onChange={e => setEditAddress(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700">Типы оплат для мастеров</label>
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_PAYMENT_TYPES.map(pt => (
+                      <label key={pt.id} className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" checked={editAllowedPaymentTypes.includes(pt.id)}
+                          onChange={e => {
+                            if (e.target.checked) setEditAllowedPaymentTypes(prev => [...prev, pt.id]);
+                            else setEditAllowedPaymentTypes(prev => prev.filter(p => p !== pt.id));
+                          }}
+                          className="rounded accent-teal-600 h-3.5 w-3.5" />
+                        <span className="text-sm text-slate-700">{pt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-400">Мастера увидят только выбранные способы оплаты</p>
+                </div>
+              </>
             )}
 
             {type === 'legal_entities' && (

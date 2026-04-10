@@ -239,7 +239,7 @@ function formatPhoneDisplay(raw: string): string {
 
 export const MasterIncomePage: React.FC = () => {
   const { user, logout } = useAuth();
-  const { categories } = useFinance();
+  const { categories, studios } = useFinance();
 
   const [incomes, setIncomes] = useState<MasterIncome[]>([]);
   const [loading, setLoading] = useState(false);
@@ -293,6 +293,17 @@ export const MasterIncomePage: React.FC = () => {
   const [ycClientTypeLoading, setYcClientTypeLoading] = useState(false);
 
   const [forDate, setForDate] = useState<'today' | 'yesterday'>('today');
+
+  const allowedPaymentTypes = useMemo(() => {
+    if (!user?.studioId) return PAYMENT_TYPES;
+    const studio = studios.find(s => String(s.id) === String(user.studioId));
+    if (!studio?.allowedPaymentTypes) return PAYMENT_TYPES;
+    try {
+      const allowed: string[] = JSON.parse(studio.allowedPaymentTypes);
+      if (!Array.isArray(allowed) || allowed.length === 0) return PAYMENT_TYPES;
+      return PAYMENT_TYPES.filter(pt => pt.id === 'visit_only' || allowed.includes(pt.id));
+    } catch { return PAYMENT_TYPES; }
+  }, [user?.studioId, studios]);
 
   const [editingIncome, setEditingIncome] = useState<MasterIncome | null>(null);
   const [editAmount, setEditAmount] = useState('');
@@ -828,7 +839,7 @@ export const MasterIncomePage: React.FC = () => {
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">Тип оплаты *</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {PAYMENT_TYPES.filter(pt => pt.id !== 'visit_only').map(pt => (
+                  {allowedPaymentTypes.filter(pt => pt.id !== 'visit_only').map(pt => (
                     <button key={pt.id} type="button" onClick={() => setEditPaymentType(pt.id)}
                       className={`px-3 py-2 rounded-full text-xs font-medium border transition-all ${editPaymentType === pt.id ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400'}`}>
                       {pt.label}
@@ -1327,7 +1338,7 @@ export const MasterIncomePage: React.FC = () => {
                       <div>
                         <label className="block text-xs text-slate-500 mb-1.5">Способ оплаты</label>
                         <div className="flex flex-wrap gap-1.5">
-                          {PAYMENT_TYPES.filter(pt => pt.id !== 'visit_only').map(pt => (
+                          {allowedPaymentTypes.filter(pt => pt.id !== 'visit_only').map(pt => (
                             <button key={pt.id} type="button" onClick={() => updateEntry(entry.tempId, 'paymentType', pt.id)}
                               className={`px-3.5 py-2 rounded-xl text-xs font-medium border transition-all ${entry.paymentType === pt.id ? 'bg-teal-600 text-white border-teal-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-teal-300 hover:bg-teal-50'}`}>
                               {pt.label}

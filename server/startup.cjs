@@ -104,6 +104,8 @@ const initDB = async () => {
       END $$;
     `);
 
+    try { await db.query(`ALTER TABLE studios ADD COLUMN IF NOT EXISTS allowed_payment_types TEXT DEFAULT '["cash","card","sbp","ukassa","installment"]'`); } catch(e) {}
+
     // Add legal_entity_id to accounts if not exists
     await db.query(`
       DO $$ BEGIN

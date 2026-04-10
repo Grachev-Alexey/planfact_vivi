@@ -28,7 +28,9 @@ const fieldLabels = {
   initial_balance: 'начальный остаток',
   legalEntityId: 'юрлицо',
   legal_entity_id: 'юрлицо',
-  icon: 'иконка'
+  icon: 'иконка',
+  allowedPaymentTypes: 'доступные типы оплат',
+  allowed_payment_types: 'доступные типы оплат'
 };
 
 const accountTypeLabels = { cash: 'наличные', card: 'карта', account: 'счет' };
@@ -190,7 +192,7 @@ const createCrudHandlers = (tableName, fields) => {
 createCrudHandlers('categories', ['name', 'type', 'parentId', 'icon']);
 createCrudHandlers('contractors', ['name', 'inn', 'phone', 'description']);
 createCrudHandlers('accounts', ['name', 'type', 'currency', 'initialBalance', 'legalEntityId', 'studioId']);
-createCrudHandlers('studios', ['name', 'address', 'color']);
+createCrudHandlers('studios', ['name', 'address', 'color', 'allowedPaymentTypes']);
 createCrudHandlers('legal_entities', ['name', 'inn', 'kpp', 'address', 'description']);
 
 module.exports = router;
