@@ -241,19 +241,19 @@ export const ReconciliationPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-            <div className="sticky top-[107px] z-10 bg-gradient-to-r from-slate-50 to-slate-100/80 backdrop-blur-sm border-b border-slate-200">
-              <div className="grid grid-cols-[52px_44px_1fr_1fr_1fr_1fr_1fr_28px] gap-0 px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em]">
-                <div>Дата</div>
-                <div></div>
-                <div className="text-right">Начало дня</div>
-                <div className="text-right">Поступления</div>
-                <div className="text-right">Расходы</div>
-                <div className="text-right">Переводы</div>
-                <div className="text-right">Конец дня</div>
-                <div></div>
-              </div>
+          <div className="sticky top-[116px] z-10 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-t-2xl shadow-sm">
+            <div className="grid grid-cols-[52px_44px_1fr_1fr_1fr_1fr_1fr_28px] gap-0 px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em]">
+              <div>Дата</div>
+              <div></div>
+              <div className="text-right">Начало дня</div>
+              <div className="text-right">Поступления</div>
+              <div className="text-right">Расходы</div>
+              <div className="text-right">Переводы</div>
+              <div className="text-right">Конец дня</div>
+              <div></div>
             </div>
+          </div>
+          <div className="bg-white border-x border-b border-slate-200/80 rounded-b-2xl shadow-sm overflow-hidden">
 
             <div className="divide-y divide-slate-100/80">
               {data.days.map((day, idx) => {
