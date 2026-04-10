@@ -209,6 +209,96 @@ router.get('/reconciliation', async (req, res) => {
   }
 });
 
+router.get('/reconciliation/summary', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) return res.status(400).json({ error: 'startDate, endDate required' });
+
+    const accountsRes = await db.query(`
+      SELECT DISTINCT a.id, a.name, a.initial_balance
+      FROM accounts a
+      WHERE a.id IN (
+        SELECT DISTINCT settlement_account_id FROM settlement_rules WHERE enabled = true
+        UNION
+        SELECT DISTINCT settlement_account_id FROM transactions WHERE settlement_account_id IS NOT NULL
+      )
+      ORDER BY a.name
+    `);
+
+    if (accountsRes.rows.length === 0) return res.json({ accounts: [], days: [] });
+
+    const toDateStr = (d) => {
+      if (d instanceof Date) return d.toISOString().split('T')[0];
+      return String(d).split('T')[0];
+    };
+
+    const accountSummaries = [];
+    let totalBalanceBefore = 0;
+
+    for (const account of accountsRes.rows) {
+      const accId = account.id;
+      const initialBal = Number(account.initial_balance) || 0;
+
+      const [incomeRes, expenseRes, transferOutRes, transferInRes, balanceRes] = await Promise.all([
+        db.query(`SELECT COALESCE(t.credit_date, t.date)::date as day, SUM(t.amount) as total FROM transactions t WHERE t.settlement_account_id = $1 AND t.type = 'income' AND COALESCE(t.credit_date, t.date) >= $2::date AND COALESCE(t.credit_date, t.date) <= $3::date GROUP BY day`, [accId, startDate, endDate]),
+        db.query(`SELECT t.date::date as day, SUM(t.amount) as total FROM transactions t WHERE t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') AND t.date >= $2::date AND t.date <= $3::date GROUP BY day`, [accId, startDate, endDate]),
+        db.query(`SELECT t.date::date as day, SUM(t.amount) as total FROM transactions t WHERE t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) AND t.date >= $2::date AND t.date <= $3::date GROUP BY day`, [accId, startDate, endDate]),
+        db.query(`SELECT t.date::date as day, SUM(t.amount) as total FROM transactions t WHERE t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) AND t.date >= $2::date AND t.date <= $3::date GROUP BY day`, [accId, startDate, endDate]),
+        db.query(`SELECT ${initialBal}::numeric + COALESCE((SELECT SUM(CASE WHEN t.settlement_account_id = $1 AND t.type = 'income' THEN t.amount WHEN t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') THEN -t.amount WHEN t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) THEN -t.amount WHEN t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) THEN t.amount ELSE 0 END) FROM transactions t WHERE (t.settlement_account_id = $1 OR t.account_id = $1 OR t.to_account_id = $1) AND CASE WHEN t.type = 'income' THEN COALESCE(t.credit_date, t.date) < $2::date ELSE t.date < $2::date END), 0) as balance_before`, [accId, startDate]),
+      ]);
+
+      const incomeByDay = {}; incomeRes.rows.forEach(r => { incomeByDay[toDateStr(r.day)] = Number(r.total); });
+      const expenseByDay = {}; expenseRes.rows.forEach(r => { expenseByDay[toDateStr(r.day)] = Number(r.total); });
+      const transferOutByDay = {}; transferOutRes.rows.forEach(r => { transferOutByDay[toDateStr(r.day)] = Number(r.total); });
+      const transferInByDay = {}; transferInRes.rows.forEach(r => { transferInByDay[toDateStr(r.day)] = Number(r.total); });
+      const balanceBefore = Number(balanceRes.rows[0].balance_before);
+      totalBalanceBefore += balanceBefore;
+
+      accountSummaries.push({ id: accId, name: account.name, balanceBefore, incomeByDay, expenseByDay, transferOutByDay, transferInByDay });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const days = [];
+    const accountRunning = {};
+    accountSummaries.forEach(a => { accountRunning[a.id] = a.balanceBefore; });
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      let totalIncome = 0, totalExpense = 0, totalTransferOut = 0, totalTransferIn = 0;
+      const perAccount = [];
+
+      for (const acc of accountSummaries) {
+        const inc = acc.incomeByDay[dateStr] || 0;
+        const exp = acc.expenseByDay[dateStr] || 0;
+        const trOut = acc.transferOutByDay[dateStr] || 0;
+        const trIn = acc.transferInByDay[dateStr] || 0;
+        const openBal = accountRunning[acc.id];
+        const net = inc - exp - trOut + trIn;
+        accountRunning[acc.id] = openBal + net;
+        totalIncome += inc; totalExpense += exp; totalTransferOut += trOut; totalTransferIn += trIn;
+        if (inc > 0 || exp > 0 || trOut > 0 || trIn > 0) {
+          perAccount.push({ accountId: acc.id, accountName: acc.name, income: inc, expense: exp, transferOut: trOut, transferIn: trIn, openBalance: openBal, closeBalance: accountRunning[acc.id] });
+        }
+      }
+
+      const totalOpen = Object.values(accountRunning).reduce((s, v) => s + v, 0) - (totalIncome - totalExpense - totalTransferOut + totalTransferIn);
+      const totalClose = Object.values(accountRunning).reduce((s, v) => s + v, 0);
+
+      days.push({ date: dateStr, income: totalIncome, expense: totalExpense, transferOut: totalTransferOut, transferIn: totalTransferIn, openBalance: totalOpen, closeBalance: totalClose, perAccount });
+    }
+
+    res.json({
+      balanceBefore: totalBalanceBefore,
+      accounts: accountSummaries.map(a => ({ id: a.id, name: a.name, balanceBefore: a.balanceBefore, closeBalance: accountRunning[a.id] })),
+      days,
+    });
+  } catch (err) {
+    console.error('Reconciliation summary error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/reconciliation/accounts', async (req, res) => {
   try {
     const result = await db.query(`

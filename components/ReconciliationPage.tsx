@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, Landmark, TrendingUp, TrendingDown, ArrowRightLeft, Wallet, CircleDollarSign, ArrowDownRight, ArrowUpRight, Building2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Landmark, TrendingUp, TrendingDown, Wallet, CircleDollarSign, Building2, LayoutGrid, List } from 'lucide-react';
 import { getMoscowNow } from '../utils/moscow';
 
 interface SettlementAccount { id: number; name: string; }
 interface TxDetail { id: number; amount: number; description: string; categoryName?: string; studioName?: string; fromAccountName?: string; toAccountName?: string; contractorName?: string; status?: string; direction?: 'in' | 'out'; }
 interface DayData { date: string; openBalance: number; income: number; expense: number; transferOut: number; transferIn: number; closeBalance: number; incomeDetails: TxDetail[]; expenseDetails: TxDetail[]; transferDetails: TxDetail[]; }
 interface ReconciliationData { accountId: number; accountName: string; balanceBefore: number; days: DayData[]; }
+interface PerAccountDay { accountId: number; accountName: string; income: number; expense: number; transferOut: number; transferIn: number; openBalance: number; closeBalance: number; }
+interface SummaryDayData { date: string; income: number; expense: number; transferOut: number; transferIn: number; openBalance: number; closeBalance: number; perAccount: PerAccountDay[]; }
+interface SummaryData { balanceBefore: number; accounts: { id: number; name: string; balanceBefore: number; closeBalance: number }[]; days: SummaryDayData[]; }
 
 const DAY_NAMES = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -13,20 +16,28 @@ const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель
 function fmt(v: number) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v); }
 function fmtSigned(v: number) { return (v > 0 ? '+' : '') + fmt(v); }
 
+type ViewMode = 'summary' | 'account';
+
 export const ReconciliationPage: React.FC = () => {
   const now = getMoscowNow();
   const [accounts, setAccounts] = useState<SettlementAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
-  const [data, setData] = useState<ReconciliationData | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('summary');
+  const [accountData, setAccountData] = useState<ReconciliationData | null>(null);
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [accDropdownOpen, setAccDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const todayRowRef = useRef<HTMLDivElement>(null);
+
+  const todayStr = useMemo(() => { const t = getMoscowNow(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }, []);
 
   useEffect(() => {
-    fetch('/api/reconciliation/accounts').then(r => r.json()).then(list => { setAccounts(list); if (list.length > 0 && !selectedAccountId) setSelectedAccountId(list[0].id); }).catch(() => {});
+    fetch('/api/reconciliation/accounts').then(r => r.json()).then(list => { setAccounts(list); if (list.length > 0) setSelectedAccountId(list[0].id); }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -35,38 +46,60 @@ export const ReconciliationPage: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const fetchData = useCallback(() => {
-    if (!selectedAccountId) return;
-    setLoading(true);
+  const dateRange = useMemo(() => {
     const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
     const lastDay = new Date(year, month + 1, 0).getDate();
     const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-    fetch(`/api/reconciliation?settlementAccountId=${selectedAccountId}&startDate=${startDate}&endDate=${endDate}`)
-      .then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
-  }, [selectedAccountId, month, year]);
+    return { startDate, endDate };
+  }, [month, year]);
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    const { startDate, endDate } = dateRange;
+    if (viewMode === 'summary') {
+      fetch(`/api/reconciliation/summary?startDate=${startDate}&endDate=${endDate}`)
+        .then(r => r.json()).then(d => { setSummaryData(d); setLoading(false); }).catch(() => setLoading(false));
+    } else if (selectedAccountId) {
+      fetch(`/api/reconciliation?settlementAccountId=${selectedAccountId}&startDate=${startDate}&endDate=${endDate}`)
+        .then(r => r.json()).then(d => { setAccountData(d); setLoading(false); }).catch(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [viewMode, selectedAccountId, dateRange]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  useEffect(() => {
+    if (!loading && todayRowRef.current && scrollRef.current) {
+      setTimeout(() => {
+        todayRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [loading, viewMode, accountData, summaryData]);
+
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); setExpandedDays(new Set()); };
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); setExpandedDays(new Set()); };
-
   const toggleDay = (ds: string) => setExpandedDays(prev => { const n = new Set(prev); if (n.has(ds)) n.delete(ds); else n.add(ds); return n; });
 
-  const todayStr = useMemo(() => { const t = getMoscowNow(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }, []);
+  const switchToAccount = (accId: number) => { setSelectedAccountId(accId); setViewMode('account'); setExpandedDays(new Set()); };
+
+  const selectedAccount = accounts.find(a => a.id === selectedAccountId);
 
   const totals = useMemo(() => {
-    if (!data?.days) return { income: 0, expense: 0, transferNet: 0, closeBalance: 0, activeDays: 0 };
+    const days = viewMode === 'summary' ? summaryData?.days : accountData?.days;
+    const bBefore = viewMode === 'summary' ? summaryData?.balanceBefore : accountData?.balanceBefore;
+    if (!days) return { income: 0, expense: 0, transferNet: 0, closeBalance: 0, activeDays: 0, balanceBefore: 0 };
     return {
-      income: data.days.reduce((s, d) => s + d.income, 0),
-      expense: data.days.reduce((s, d) => s + d.expense, 0),
-      transferNet: data.days.reduce((s, d) => s + d.transferIn - d.transferOut, 0),
-      closeBalance: data.days.length > 0 ? data.days[data.days.length - 1].closeBalance : data.balanceBefore,
-      activeDays: data.days.filter(d => d.income > 0 || d.expense > 0 || d.transferIn > 0 || d.transferOut > 0).length,
+      income: days.reduce((s, d) => s + d.income, 0),
+      expense: days.reduce((s, d) => s + d.expense, 0),
+      transferNet: days.reduce((s, d) => s + d.transferIn - d.transferOut, 0),
+      closeBalance: days.length > 0 ? days[days.length - 1].closeBalance : (bBefore || 0),
+      activeDays: days.filter(d => d.income > 0 || d.expense > 0 || d.transferIn > 0 || d.transferOut > 0).length,
+      balanceBefore: bBefore || 0,
     };
-  }, [data]);
+  }, [viewMode, summaryData, accountData]);
 
-  const balanceChange = data ? totals.closeBalance - data.balanceBefore : 0;
-  const selectedAccount = accounts.find(a => a.id === selectedAccountId);
+  const balanceChange = totals.closeBalance - totals.balanceBefore;
 
   if (!loading && accounts.length === 0) {
     return (
@@ -82,10 +115,13 @@ export const ReconciliationPage: React.FC = () => {
     );
   }
 
+  const days = viewMode === 'summary' ? summaryData?.days : accountData?.days;
+  const hasData = !loading && days && days.length > 0;
+
   return (
     <div className="flex flex-col h-[calc(100vh-56px)]">
 
-      <div className="shrink-0 bg-[#f1f5f9] border-b border-slate-200/60 px-5 py-3">
+      <div className="shrink-0 bg-[#f1f5f9] border-b border-slate-200/60 px-5 py-2.5">
         <div className="flex items-center justify-between gap-3 max-w-[1400px] mx-auto">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-md shadow-teal-500/20">
@@ -94,38 +130,57 @@ export const ReconciliationPage: React.FC = () => {
             <h1 className="text-lg font-bold text-slate-800">Сверка остатков</h1>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <div className="relative" ref={dropdownRef}>
+          <div className="flex items-center gap-2">
+            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm p-0.5">
               <button
-                onClick={() => setAccDropdownOpen(!accDropdownOpen)}
-                className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg pl-3 pr-2.5 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-slate-300 hover:shadow transition-all"
+                onClick={() => { setViewMode('summary'); setExpandedDays(new Set()); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${viewMode === 'summary' ? 'bg-teal-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
               >
-                <Wallet size={14} className="text-slate-400" />
-                <span className="max-w-[160px] truncate">{selectedAccount?.name || 'Счёт'}</span>
-                <ChevronDown size={14} className={`text-slate-400 transition-transform ${accDropdownOpen ? 'rotate-180' : ''}`} />
+                <LayoutGrid size={13} />
+                Сводная
               </button>
-              {accDropdownOpen && (
-                <div className="absolute right-0 top-full mt-1 bg-white rounded-xl border border-slate-200 shadow-xl py-1 min-w-[200px] z-50">
-                  {accounts.map(a => (
-                    <button
-                      key={a.id}
-                      onClick={() => { setSelectedAccountId(a.id); setAccDropdownOpen(false); setExpandedDays(new Set()); }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-2.5
-                        ${a.id === selectedAccountId ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
-                    >
-                      <div className={`w-2 h-2 rounded-full shrink-0 ${a.id === selectedAccountId ? 'bg-teal-500' : 'bg-slate-200'}`}></div>
-                      {a.name}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <button
+                onClick={() => { setViewMode('account'); setExpandedDays(new Set()); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${viewMode === 'account' ? 'bg-teal-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+              >
+                <List size={13} />
+                По счёту
+              </button>
             </div>
+
+            {viewMode === 'account' && (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setAccDropdownOpen(!accDropdownOpen)}
+                  className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg pl-3 pr-2.5 py-[7px] text-sm font-medium text-slate-700 shadow-sm hover:border-slate-300 hover:shadow transition-all"
+                >
+                  <Wallet size={14} className="text-slate-400" />
+                  <span className="max-w-[160px] truncate">{selectedAccount?.name || 'Счёт'}</span>
+                  <ChevronDown size={14} className={`text-slate-400 transition-transform ${accDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {accDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1 bg-white rounded-xl border border-slate-200 shadow-xl py-1 min-w-[220px] z-50">
+                    {accounts.map(a => (
+                      <button
+                        key={a.id}
+                        onClick={() => { setSelectedAccountId(a.id); setAccDropdownOpen(false); setExpandedDays(new Set()); }}
+                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-2.5
+                          ${a.id === selectedAccountId ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${a.id === selectedAccountId ? 'bg-teal-500' : 'bg-slate-200'}`}></div>
+                        {a.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm">
               <button onClick={prevMonth} className="p-2 hover:bg-slate-50 text-slate-500 hover:text-slate-700 transition-colors rounded-l-lg">
                 <ChevronLeft size={16} />
               </button>
-              <span className="text-sm font-semibold text-slate-700 min-w-[120px] text-center select-none border-x border-slate-100 px-2">
+              <span className="text-sm font-semibold text-slate-700 min-w-[110px] text-center select-none border-x border-slate-100 px-1.5">
                 {MONTH_NAMES[month]} {year}
               </span>
               <button onClick={nextMonth} className="p-2 hover:bg-slate-50 text-slate-500 hover:text-slate-700 transition-colors rounded-r-lg">
@@ -144,22 +199,35 @@ export const ReconciliationPage: React.FC = () => {
           </div>
           <span className="text-sm text-slate-400">Загрузка...</span>
         </div>
-      ) : data && data.days ? (
+      ) : hasData ? (
         <>
-          <div className="shrink-0 px-5 pt-4 pb-3">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 max-w-[1400px] mx-auto">
-              <SummaryCard icon={<Wallet size={14} />} label="На начало" value={data.balanceBefore} iconBg="bg-slate-100" iconColor="text-slate-500" />
-              <SummaryCard icon={<TrendingUp size={14} />} label="Поступления" value={totals.income} prefix="+" iconBg="bg-emerald-100" iconColor="text-emerald-600" valueColor="text-emerald-600" />
-              <SummaryCard icon={<TrendingDown size={14} />} label="Расходы" value={totals.expense} prefix="−" iconBg="bg-rose-100" iconColor="text-rose-600" valueColor="text-rose-600"
-                sub={totals.transferNet !== 0 ? `переводы: ${fmtSigned(totals.transferNet)} ₽` : undefined} subColor={totals.transferNet > 0 ? 'text-blue-500' : 'text-orange-500'} />
-              <SummaryCard icon={<CircleDollarSign size={14} />} label="На конец" value={totals.closeBalance}
-                iconBg={balanceChange >= 0 ? 'bg-teal-100' : 'bg-amber-100'} iconColor={balanceChange >= 0 ? 'text-teal-600' : 'text-amber-600'}
-                sub={`${balanceChange >= 0 ? '↑' : '↓'} ${fmtSigned(balanceChange)} за месяц`} subColor={balanceChange >= 0 ? 'text-teal-500' : 'text-rose-500'} />
+          <div className="shrink-0 px-5 pt-3 pb-2">
+            <div className="max-w-[1400px] mx-auto">
+              {viewMode === 'summary' && summaryData?.accounts && summaryData.accounts.length > 1 ? (
+                <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(summaryData.accounts.length + 1, 5)}, 1fr)` }}>
+                  <SummaryCard label="Все счета" value={totals.balanceBefore} endValue={totals.closeBalance}
+                    income={totals.income} expense={totals.expense} highlight />
+                  {summaryData.accounts.map(acc => (
+                    <SummaryCard key={acc.id} label={acc.name} value={acc.balanceBefore} endValue={acc.closeBalance}
+                      onClick={() => switchToAccount(acc.id)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <SmallCard icon={<Wallet size={14} />} label="На начало" value={totals.balanceBefore} iconBg="bg-slate-100" iconColor="text-slate-500" />
+                  <SmallCard icon={<TrendingUp size={14} />} label="Поступления" value={totals.income} prefix="+" iconBg="bg-emerald-100" iconColor="text-emerald-600" valueColor="text-emerald-600" />
+                  <SmallCard icon={<TrendingDown size={14} />} label="Расходы" value={totals.expense} prefix="−" iconBg="bg-rose-100" iconColor="text-rose-600" valueColor="text-rose-600"
+                    sub={totals.transferNet !== 0 ? `переводы: ${fmtSigned(totals.transferNet)} ₽` : undefined} subColor={totals.transferNet > 0 ? 'text-blue-500' : 'text-orange-500'} />
+                  <SmallCard icon={<CircleDollarSign size={14} />} label="На конец" value={totals.closeBalance}
+                    iconBg={balanceChange >= 0 ? 'bg-teal-100' : 'bg-amber-100'} iconColor={balanceChange >= 0 ? 'text-teal-600' : 'text-amber-600'}
+                    sub={`${balanceChange >= 0 ? '↑' : '↓'} ${fmtSigned(balanceChange)} за месяц`} subColor={balanceChange >= 0 ? 'text-teal-500' : 'text-rose-500'} />
+                </div>
+              )}
             </div>
           </div>
 
           <div className="shrink-0 bg-slate-100 border-y border-slate-200 px-5">
-            <div className="grid grid-cols-[52px_40px_1fr_1fr_1fr_1fr_1fr_28px] gap-0 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em] max-w-[1400px] mx-auto">
+            <div className="grid grid-cols-[52px_40px_1fr_1fr_1fr_1fr_1fr_28px] gap-0 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em] max-w-[1400px] mx-auto">
               <div>Дата</div>
               <div></div>
               <div className="text-right pr-2">Начало дня</div>
@@ -171,12 +239,12 @@ export const ReconciliationPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 overflow-y-auto min-h-0" ref={scrollRef}>
             <div className="max-w-[1400px] mx-auto">
-              {data.days.map(day => {
+              {days!.map(day => {
                 const hasMovement = day.income > 0 || day.expense > 0 || day.transferOut > 0 || day.transferIn > 0;
                 const expanded = expandedDays.has(day.date);
-                const d = new Date(day.date);
+                const d = new Date(day.date + 'T12:00:00');
                 const weekend = d.getDay() === 0 || d.getDay() === 6;
                 const today = day.date === todayStr;
                 const dayNum = d.getDate();
@@ -185,18 +253,17 @@ export const ReconciliationPage: React.FC = () => {
                 const balDelta = day.closeBalance - day.openBalance;
 
                 return (
-                  <div key={day.date} className={`border-b border-slate-100 ${expanded ? 'bg-slate-50/40' : ''}`}>
+                  <div key={day.date} ref={today ? todayRowRef : undefined} className={`border-b border-slate-100 ${expanded ? 'bg-slate-50/40' : ''}`}>
                     <div
                       className={`group grid grid-cols-[52px_40px_1fr_1fr_1fr_1fr_1fr_28px] gap-0 px-5 items-center transition-colors
                         ${hasMovement ? 'cursor-pointer hover:bg-slate-50' : ''}
-                        ${today ? 'bg-teal-50/50' : ''}
+                        ${today ? 'bg-teal-50/60 border-l-2 border-l-teal-500' : ''}
                         ${weekend && !today ? 'bg-slate-50/30' : ''}
                         ${!hasMovement ? 'py-1.5 opacity-50' : 'py-2.5'}
                       `}
                       onClick={() => hasMovement && toggleDay(day.date)}
                     >
                       <div className="flex items-center">
-                        {today && <div className="w-1 h-5 rounded-full bg-teal-500 -ml-2 mr-1.5 shrink-0"></div>}
                         <span className={`text-[14px] font-bold tabular-nums ${today ? 'text-teal-700' : hasMovement ? 'text-slate-700' : 'text-slate-400'}`}>{dayNum}</span>
                       </div>
                       <div>
@@ -204,19 +271,13 @@ export const ReconciliationPage: React.FC = () => {
                       </div>
                       <div className={`text-[13px] text-right tabular-nums pr-2 ${!hasMovement ? 'text-slate-300' : 'text-slate-500'}`}>{fmt(day.openBalance)}</div>
                       <div className="text-right pr-2">
-                        {day.income > 0 ? (
-                          <span className="text-[13px] font-semibold tabular-nums text-emerald-600">+{fmt(day.income)}</span>
-                        ) : <span className="text-[13px] text-slate-200">—</span>}
+                        {day.income > 0 ? <span className="text-[13px] font-semibold tabular-nums text-emerald-600">+{fmt(day.income)}</span> : <span className="text-[13px] text-slate-200">—</span>}
                       </div>
                       <div className="text-right pr-2">
-                        {day.expense > 0 ? (
-                          <span className="text-[13px] font-semibold tabular-nums text-rose-600">−{fmt(day.expense)}</span>
-                        ) : <span className="text-[13px] text-slate-200">—</span>}
+                        {day.expense > 0 ? <span className="text-[13px] font-semibold tabular-nums text-rose-600">−{fmt(day.expense)}</span> : <span className="text-[13px] text-slate-200">—</span>}
                       </div>
                       <div className="text-right pr-2">
-                        {netTransfer !== 0 ? (
-                          <span className={`text-[13px] font-semibold tabular-nums ${netTransfer > 0 ? 'text-blue-600' : 'text-orange-600'}`}>{fmtSigned(netTransfer)}</span>
-                        ) : <span className="text-[13px] text-slate-200">—</span>}
+                        {netTransfer !== 0 ? <span className={`text-[13px] font-semibold tabular-nums ${netTransfer > 0 ? 'text-blue-600' : 'text-orange-600'}`}>{fmtSigned(netTransfer)}</span> : <span className="text-[13px] text-slate-200">—</span>}
                       </div>
                       <div className="text-right">
                         <span className={`text-[13px] font-bold tabular-nums ${!hasMovement ? 'text-slate-300' : day.closeBalance < 0 ? 'text-rose-600' : 'text-slate-700'}`}>
@@ -240,9 +301,32 @@ export const ReconciliationPage: React.FC = () => {
                     {expanded && hasMovement && (
                       <div className="bg-white border-t border-slate-100 px-5 py-3">
                         <div className="max-w-3xl ml-auto space-y-3 mr-8">
-                          {day.incomeDetails.length > 0 && <DetailsBlock label="Поступления" total={day.income} color="emerald" items={day.incomeDetails} type="income" />}
-                          {day.expenseDetails.length > 0 && <DetailsBlock label="Расходы" total={day.expense} color="rose" items={day.expenseDetails} type="expense" />}
-                          {day.transferDetails.length > 0 && <DetailsBlock label="Переводы" total={Math.abs(netTransfer)} color="blue" items={day.transferDetails} type="transfer" />}
+                          {viewMode === 'summary' && 'perAccount' in day && (day as SummaryDayData).perAccount.length > 0 && (
+                            <div className="rounded-lg bg-slate-50 border border-slate-200 overflow-hidden">
+                              <div className="px-3 py-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">По счетам</div>
+                              <div className="bg-white divide-y divide-slate-50">
+                                {(day as SummaryDayData).perAccount.map(pa => (
+                                  <button key={pa.accountId} onClick={(e) => { e.stopPropagation(); switchToAccount(pa.accountId); }}
+                                    className="w-full flex items-center justify-between gap-3 px-3 py-2 text-[12px] hover:bg-slate-50 transition-colors">
+                                    <span className="font-medium text-slate-700">{pa.accountName}</span>
+                                    <div className="flex items-center gap-4 tabular-nums">
+                                      {pa.income > 0 && <span className="text-emerald-600 font-semibold">+{fmt(pa.income)}</span>}
+                                      {pa.expense > 0 && <span className="text-rose-600 font-semibold">−{fmt(pa.expense)}</span>}
+                                      {(pa.transferIn - pa.transferOut) !== 0 && <span className={`font-semibold ${(pa.transferIn - pa.transferOut) > 0 ? 'text-blue-600' : 'text-orange-600'}`}>{fmtSigned(pa.transferIn - pa.transferOut)}</span>}
+                                      <span className="text-slate-500 min-w-[80px] text-right">→ {fmt(pa.closeBalance)}</span>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {viewMode === 'account' && 'incomeDetails' in day && (
+                            <>
+                              {(day as DayData).incomeDetails.length > 0 && <DetailsBlock label="Поступления" total={(day as DayData).income} color="emerald" items={(day as DayData).incomeDetails} type="income" />}
+                              {(day as DayData).expenseDetails.length > 0 && <DetailsBlock label="Расходы" total={(day as DayData).expense} color="rose" items={(day as DayData).expenseDetails} type="expense" />}
+                              {(day as DayData).transferDetails.length > 0 && <DetailsBlock label="Переводы" total={Math.abs(netTransfer)} color="blue" items={(day as DayData).transferDetails} type="transfer" />}
+                            </>
+                          )}
                         </div>
                       </div>
                     )}
@@ -253,7 +337,7 @@ export const ReconciliationPage: React.FC = () => {
               <div className="bg-slate-50 border-t border-slate-200 px-5">
                 <div className="grid grid-cols-[52px_40px_1fr_1fr_1fr_1fr_1fr_28px] gap-0 py-3 items-center text-[13px] font-bold">
                   <div className="col-span-2 text-slate-400 uppercase text-[10px] tracking-wider">Итого</div>
-                  <div className="text-right tabular-nums text-slate-500 pr-2">{fmt(data.balanceBefore)}</div>
+                  <div className="text-right tabular-nums text-slate-500 pr-2">{fmt(totals.balanceBefore)}</div>
                   <div className="text-right tabular-nums text-emerald-600 pr-2">+{fmt(totals.income)}</div>
                   <div className="text-right tabular-nums text-rose-600 pr-2">−{fmt(totals.expense)}</div>
                   <div className={`text-right tabular-nums pr-2 ${totals.transferNet >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
@@ -264,11 +348,11 @@ export const ReconciliationPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-5 px-5 py-3 text-[11px] text-slate-400">
+              <div className="flex items-center gap-4 px-5 py-2.5 text-[11px] text-slate-400">
                 <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1"></span>Поступления — по дате зачисления</span>
                 <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-400 mr-1"></span>Расходы — оплаченные/проверенные</span>
                 <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-1"></span>Переводы — подтверждённые</span>
-                <span className="ml-auto text-slate-300">Дней с движением: {totals.activeDays}/{data.days.length}</span>
+                <span className="ml-auto text-slate-300">Дней с движением: {totals.activeDays}/{days!.length}</span>
               </div>
             </div>
           </div>
@@ -279,12 +363,43 @@ export const ReconciliationPage: React.FC = () => {
 };
 
 const SummaryCard: React.FC<{
+  label: string; value: number; endValue: number; income?: number; expense?: number; highlight?: boolean; onClick?: () => void;
+}> = ({ label, value, endValue, income, expense, highlight, onClick }) => {
+  const change = endValue - value;
+  return (
+    <div
+      onClick={onClick}
+      className={`rounded-xl border px-4 py-3 transition-all ${
+        highlight
+          ? 'bg-gradient-to-br from-teal-500 to-emerald-600 border-teal-400 text-white shadow-lg shadow-teal-500/20'
+          : 'bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 cursor-pointer'
+      }`}
+    >
+      <div className={`text-[11px] font-bold uppercase tracking-wider mb-1 ${highlight ? 'text-teal-100' : 'text-slate-400'}`}>{label}</div>
+      <div className={`text-lg font-bold tabular-nums ${highlight ? 'text-white' : 'text-slate-700'}`}>
+        {fmt(endValue)} <span className={`text-sm ${highlight ? 'text-teal-200' : 'text-slate-400'}`}>₽</span>
+      </div>
+      <div className={`text-[11px] tabular-nums font-medium mt-0.5 ${highlight ? 'text-teal-100' : change >= 0 ? 'text-teal-500' : 'text-rose-500'}`}>
+        {change >= 0 ? '↑' : '↓'} {fmtSigned(change)} за месяц
+      </div>
+      {highlight && income !== undefined && expense !== undefined && (
+        <div className="flex gap-3 mt-2 pt-2 border-t border-teal-400/30 text-[11px] tabular-nums">
+          <span className="text-teal-100">+{fmt(income)}</span>
+          <span className="text-teal-200/80">−{fmt(expense)}</span>
+        </div>
+      )}
+      {!highlight && <div className={`text-[10px] mt-1 text-slate-400`}>начало: {fmt(value)}</div>}
+    </div>
+  );
+};
+
+const SmallCard: React.FC<{
   icon: React.ReactNode; label: string; value: number; prefix?: string;
   iconBg: string; iconColor: string; valueColor?: string;
   sub?: string; subColor?: string;
 }> = ({ icon, label, value, prefix, iconBg, iconColor, valueColor, sub, subColor }) => (
   <div className="bg-white rounded-xl border border-slate-200/80 px-4 py-3 shadow-sm">
-    <div className="flex items-center gap-2 mb-2">
+    <div className="flex items-center gap-2 mb-1.5">
       <div className={`w-6 h-6 rounded-md ${iconBg} flex items-center justify-center ${iconColor}`}>{icon}</div>
       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</span>
     </div>
