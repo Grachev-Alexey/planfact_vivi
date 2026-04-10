@@ -49,6 +49,68 @@ router.post('/users', async (req, res) => {
   }
 });
 
+// Update User
+router.put('/users/:id', async (req, res) => {
+  const currentUserId = req.headers['x-user-id'];
+  const { username, password, role, studioId } = req.body;
+  if (role === 'master' && !studioId) {
+    return res.status(400).json({ error: 'Для роли мастера необходимо указать студию' });
+  }
+  try {
+    const oldRes = await db.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
+    if (oldRes.rows.length === 0) return res.status(404).json({ error: 'Пользователь не найден' });
+    const old = oldRes.rows[0];
+
+    const setClauses = [];
+    const values = [];
+    let idx = 1;
+    const changes = [];
+
+    if (username && username !== old.username) {
+      setClauses.push(`username = $${idx++}`);
+      values.push(username);
+      changes.push(`логин: ${old.username} → ${username}`);
+    }
+    if (password) {
+      setClauses.push(`password = $${idx++}`);
+      values.push(password);
+      changes.push('пароль изменён');
+    }
+    if (role && role !== old.role) {
+      setClauses.push(`role = $${idx++}`);
+      values.push(role);
+      const roleLabels = { admin: 'Администратор', user: 'Пользователь', requester: 'Запрос выплат', master: 'Мастер', payout_controller: 'Контроль выплат' };
+      changes.push(`роль: ${roleLabels[old.role] || old.role} → ${roleLabels[role] || role}`);
+    }
+    const newStudioId = role === 'master' ? (studioId || null) : null;
+    if (String(newStudioId || '') !== String(old.studio_id || '')) {
+      setClauses.push(`studio_id = $${idx++}`);
+      values.push(newStudioId);
+      changes.push(`студия изменена`);
+    }
+
+    if (setClauses.length === 0) {
+      const { password: _, ...safeOld } = old;
+      return res.json(toCamelCase(safeOld));
+    }
+
+    values.push(req.params.id);
+    const result = await db.query(
+      `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, username, role, studio_id, created_at`,
+      values
+    );
+
+    if (changes.length > 0) {
+      await logAction(currentUserId, 'update', 'user', req.params.id, `Изменён пользователь ${old.username}: ${changes.join(', ')}`);
+    }
+
+    res.json(toCamelCase(result.rows[0]));
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).json({ error: 'Ошибка обновления пользователя' });
+  }
+});
+
 // Delete User
 router.delete('/users/:id', async (req, res) => {
   const currentUserId = req.headers['x-user-id'];

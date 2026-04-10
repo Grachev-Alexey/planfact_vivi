@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Users, Trash2, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, ToggleLeft, ToggleRight, ArrowUp, ArrowDown, Settings2, Check, Loader2, RefreshCw } from 'lucide-react';
+import { Users, Trash2, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, ToggleLeft, ToggleRight, ArrowUp, ArrowDown, Settings2, Check, Loader2, RefreshCw, Pencil } from 'lucide-react';
 import { formatDate } from '../utils/format';
 import { RulesSettings } from './RulesSettings';
 
@@ -40,6 +40,7 @@ interface User {
   id: number;
   username: string;
   role: string;
+  studioId?: number | null;
   createdAt: string;
 }
 
@@ -118,6 +119,8 @@ export const Settings: React.FC = () => {
 
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'user', studioId: '' });
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUser, setEditUser] = useState({ username: '', password: '', role: 'user', studioId: '' });
 
   useEffect(() => {
     fetchUsers();
@@ -268,6 +271,30 @@ export const Settings: React.FC = () => {
       });
       setIsAddUserOpen(false);
       setNewUser({ username: '', password: '', role: 'user', studioId: '' });
+      fetchUsers();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const openEditUser = (u: User) => {
+    setEditingUser(u);
+    setEditUser({ username: u.username, password: '', role: u.role, studioId: u.studioId ? String(u.studioId) : '' });
+  };
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    try {
+      await fetch(`/api/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id.toString() || ''
+        },
+        body: JSON.stringify(editUser)
+      });
+      setEditingUser(null);
       fetchUsers();
     } catch (err) {
       console.error(err);
@@ -581,9 +608,15 @@ export const Settings: React.FC = () => {
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${u.role === 'admin' ? 'bg-teal-50 text-teal-700' : u.role === 'requester' ? 'bg-amber-50 text-amber-700' : u.role === 'master' ? 'bg-purple-50 text-purple-700' : u.role === 'payout_controller' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
                             {u.role === 'admin' ? 'Администратор' : u.role === 'requester' ? 'Запрос выплат' : u.role === 'master' ? 'Мастер' : u.role === 'payout_controller' ? 'Контроль выплат' : 'Пользователь'}
                         </span>
+                        {u.role === 'master' && u.studioId && (
+                          <span className="ml-1.5 text-xs text-slate-400">{studios.find(s => String(s.id) === String(u.studioId))?.name || ''}</span>
+                        )}
                      </td>
                      <td className="px-6 py-3 text-sm text-slate-500">{formatDate(u.createdAt)}</td>
-                     <td className="px-6 py-3 text-right">
+                     <td className="px-6 py-3 text-right flex items-center justify-end gap-2">
+                       <button onClick={() => openEditUser(u)} className="text-slate-300 hover:text-teal-600 transition-colors">
+                         <Pencil size={15} />
+                       </button>
                        {u.username !== 'admin' && (
                          <button onClick={() => handleDeleteUser(u.id)} className="text-slate-300 hover:text-rose-500 transition-colors">
                            <Trash2 size={16} />
@@ -723,6 +756,64 @@ export const Settings: React.FC = () => {
            </div>
          )}
        </div>
+
+       <Modal isOpen={!!editingUser} onClose={() => setEditingUser(null)} title="Редактировать пользователя">
+           <form onSubmit={handleEditUser} className="space-y-4">
+               <div>
+                   <label className="block text-sm font-bold text-slate-500 mb-1">Имя пользователя</label>
+                   <input
+                     type="text"
+                     className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                     value={editUser.username}
+                     onChange={e => setEditUser({...editUser, username: e.target.value})}
+                     required
+                   />
+               </div>
+               <div>
+                   <label className="block text-sm font-bold text-slate-500 mb-1">Новый пароль</label>
+                   <input
+                     type="password"
+                     className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                     value={editUser.password}
+                     onChange={e => setEditUser({...editUser, password: e.target.value})}
+                     placeholder="Оставьте пустым, чтобы не менять"
+                   />
+               </div>
+               <div>
+                   <label className="block text-sm font-bold text-slate-500 mb-1">Роль</label>
+                   <select
+                     className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"
+                     value={editUser.role}
+                     onChange={e => setEditUser({...editUser, role: e.target.value, studioId: ''})}
+                   >
+                       <option value="user">Пользователь</option>
+                       <option value="admin">Администратор</option>
+                       <option value="requester">Запрос выплат</option>
+                       <option value="master">Мастер</option>
+                       <option value="payout_controller">Контроль выплат</option>
+                   </select>
+                   {editUser.role === 'master' && (
+                     <div className="mt-3">
+                       <label className="block text-sm font-bold text-slate-500 mb-1">Студия</label>
+                       <select
+                         className="w-full border border-slate-300 rounded px-3 py-2 text-sm bg-white"
+                         value={editUser.studioId}
+                         onChange={e => setEditUser({...editUser, studioId: e.target.value})}
+                       >
+                         <option value="">Выберите студию</option>
+                         {studios.map(s => (
+                           <option key={s.id} value={s.id}>{s.name}</option>
+                         ))}
+                       </select>
+                     </div>
+                   )}
+               </div>
+               <div className="pt-4 flex justify-end gap-3">
+                   <Button type="button" variant="secondary" onClick={() => setEditingUser(null)}>Отмена</Button>
+                   <Button type="submit" className="bg-teal-600 text-white">Сохранить</Button>
+               </div>
+           </form>
+       </Modal>
 
        <Modal isOpen={isAddUserOpen} onClose={() => setIsAddUserOpen(false)} title="Новый пользователь">
            <form onSubmit={handleCreateUser} className="space-y-4">
