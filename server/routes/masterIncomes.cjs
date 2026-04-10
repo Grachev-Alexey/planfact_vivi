@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require('../db.cjs');
 const { toCamelCase } = require('../utils/helpers.cjs');
 const { logAction } = require('../utils/logger.cjs');
-const { autoCalculateCreditDate } = require('../utils/creditDate.cjs');
+const { autoCalculateCreditDate, resolveSettlementAccount } = require('../utils/creditDate.cjs');
 const { getMoscowToday, getMoscowNow } = require('../utils/moscow.cjs');
 
 function normalizePhone(raw) {
@@ -754,7 +754,9 @@ router.post('/master-incomes', async (req, res) => {
       const txDate = effectiveDate;
       const calculatedCreditDate = await autoCalculateCreditDate(txDate, accountId, categoryId, studioId);
 
-      const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id', 'client_type', 'credit_date'];
+      const settlementAccountId = await resolveSettlementAccount(accountId, categoryId, studioId);
+
+      const baseCols = ['date', 'amount', 'type', 'account_id', 'studio_id', 'category_id', 'description', 'confirmed', 'contractor_id', 'client_type', 'credit_date', 'settlement_account_id'];
       const paymentLabel = PAYMENT_TYPE_SUFFIXES[paymentType] || paymentType;
       const baseVals = [
         txDate, 
@@ -767,7 +769,8 @@ router.post('/master-incomes', async (req, res) => {
         false,
         contractorId,
         clientType || 'primary',
-        calculatedCreditDate
+        calculatedCreditDate,
+        settlementAccountId
       ];
 
       const allCols = [...baseCols, ...extCols];

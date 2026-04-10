@@ -382,6 +382,20 @@ const initDB = async () => {
       )
     `);
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS settlement_rules (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id),
+        category_id INTEGER,
+        studio_id INTEGER,
+        settlement_account_id INTEGER REFERENCES accounts(id),
+        enabled BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    try { await db.query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS settlement_account_id INTEGER REFERENCES accounts(id)`); } catch(e) {}
+
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
       await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['grachev', 'cd5d56a8', 'admin']);

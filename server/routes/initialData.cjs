@@ -6,9 +6,10 @@ const { toCamelCase } = require('../utils/helpers.cjs');
 router.get('/init', async (req, res) => {
   try {
     const transactionsQuery = `
-      SELECT t.*, pr.status as pr_status
+      SELECT t.*, pr.status as pr_status, sa.name as settlement_account_name
       FROM transactions t
       LEFT JOIN payment_requests pr ON t.external_id = 'pr-' || pr.id::text
+      LEFT JOIN accounts sa ON t.settlement_account_id = sa.id
       ORDER BY t.date DESC, t.created_at DESC LIMIT 1000
     `;
     

@@ -126,4 +126,36 @@ async function autoCalculateCreditDate(txDate, accountId, categoryId, studioId) 
   }
 }
 
-module.exports = { calculateCreditDate, autoCalculateCreditDate, loadHolidays, clearHolidayCache };
+async function resolveSettlementAccount(accountId, categoryId, studioId) {
+  if (!accountId) return null;
+  try {
+    const params = [accountId];
+    let catParam = '', studioParam = '';
+    if (categoryId) {
+      params.push(categoryId);
+      catParam = '$' + params.length;
+    }
+    if (studioId) {
+      params.push(studioId);
+      studioParam = '$' + params.length;
+    }
+    const query = `SELECT settlement_account_id,
+      CASE
+        WHEN category_id IS NOT NULL AND studio_id IS NOT NULL THEN 4
+        WHEN category_id IS NOT NULL THEN 3
+        WHEN studio_id IS NOT NULL THEN 2
+        ELSE 1
+      END as specificity
+      FROM settlement_rules WHERE account_id = $1 AND enabled = true
+      AND (category_id IS NULL${catParam ? ` OR category_id = ${catParam}` : ''})
+      AND (studio_id IS NULL${studioParam ? ` OR studio_id = ${studioParam}` : ''})
+      ORDER BY specificity DESC LIMIT 1`;
+    const res = await db.query(query, params);
+    return res.rows.length > 0 ? res.rows[0].settlement_account_id : null;
+  } catch (err) {
+    console.error('Error resolving settlement account:', err);
+    return null;
+  }
+}
+
+module.exports = { calculateCreditDate, autoCalculateCreditDate, loadHolidays, clearHolidayCache, resolveSettlementAccount };

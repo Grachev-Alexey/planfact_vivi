@@ -474,4 +474,63 @@ router.delete('/holidays/:id', async (req, res) => {
   }
 });
 
+router.get('/settlement-rules', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT sr.*, a.name as account_name, sa.name as settlement_account_name,
+             c.name as category_name, s.name as studio_name
+      FROM settlement_rules sr
+      LEFT JOIN accounts a ON sr.account_id = a.id
+      LEFT JOIN accounts sa ON sr.settlement_account_id = sa.id
+      LEFT JOIN categories c ON sr.category_id = c.id
+      LEFT JOIN studios s ON sr.studio_id = s.id
+      ORDER BY sr.id
+    `);
+    res.json(result.rows.map(r => toCamelCase(r)));
+  } catch (err) {
+    console.error('Error fetching settlement rules:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/settlement-rules', async (req, res) => {
+  try {
+    const { accountId, categoryId, studioId, settlementAccountId } = req.body;
+    if (!accountId || !settlementAccountId) return res.status(400).json({ error: 'accountId and settlementAccountId required' });
+    const result = await db.query(
+      'INSERT INTO settlement_rules (account_id, category_id, studio_id, settlement_account_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [accountId, categoryId || null, studioId || null, settlementAccountId]
+    );
+    res.json(toCamelCase(result.rows[0]));
+  } catch (err) {
+    console.error('Error creating settlement rule:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.put('/settlement-rules/:id', async (req, res) => {
+  try {
+    const { accountId, categoryId, studioId, settlementAccountId, enabled } = req.body;
+    const result = await db.query(
+      `UPDATE settlement_rules SET account_id = $1, category_id = $2, studio_id = $3, settlement_account_id = $4, enabled = $5 WHERE id = $6 RETURNING *`,
+      [accountId, categoryId || null, studioId || null, settlementAccountId, enabled !== false, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(toCamelCase(result.rows[0]));
+  } catch (err) {
+    console.error('Error updating settlement rule:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.delete('/settlement-rules/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM settlement_rules WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting settlement rule:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

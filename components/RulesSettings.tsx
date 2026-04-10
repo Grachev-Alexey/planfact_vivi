@@ -68,6 +68,19 @@ const DAYS_OF_WEEK: { id: string; short: string }[] = [
   { id: 'sun', short: 'Вс' },
 ];
 
+interface SettlementRule {
+  id: number;
+  accountId: number;
+  accountName: string;
+  categoryId: number | null;
+  categoryName: string | null;
+  studioId: number | null;
+  studioName: string | null;
+  settlementAccountId: number;
+  settlementAccountName: string;
+  enabled: boolean;
+}
+
 interface Holiday {
   id: number;
   date: string;
@@ -111,7 +124,8 @@ export const RulesSettings: React.FC = () => {
   const [creditRules, setCreditRules] = useState<CreditDateRule[]>([]);
   const [transferRules, setTransferRules] = useState<AutoTransferRule[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [rulesTab, setRulesTab] = useState<'credit' | 'transfer' | 'holidays'>('credit');
+  const [settlementRules, setSettlementRules] = useState<SettlementRule[]>([]);
+  const [rulesTab, setRulesTab] = useState<'credit' | 'transfer' | 'holidays' | 'settlement'>('credit');
   const [editingCr, setEditingCr] = useState<Partial<CreditDateRule> | null>(null);
   const [editingTr, setEditingTr] = useState<Partial<AutoTransferRule> | null>(null);
   const [showAdvancedTr, setShowAdvancedTr] = useState(false);
@@ -123,7 +137,25 @@ export const RulesSettings: React.FC = () => {
   const loadCreditRules = () => { fetch('/api/credit-date-rules').then(r => r.json()).then(setCreditRules).catch(() => {}); };
   const loadTransferRules = () => { fetch('/api/auto-transfer-rules').then(r => r.json()).then(setTransferRules).catch(() => {}); };
   const loadHolidays = (yr?: number) => { fetch(`/api/holidays?year=${yr || holidayYear}`).then(r => r.json()).then(setHolidays).catch(() => {}); };
-  useEffect(() => { loadCreditRules(); loadTransferRules(); loadHolidays(); }, []);
+  const loadSettlementRules = () => { fetch('/api/settlement-rules').then(r => r.json()).then(setSettlementRules).catch(() => {}); };
+
+  const [editingSt, setEditingSt] = useState<Partial<SettlementRule> | null>(null);
+  const startEditSt = (rule?: SettlementRule) => {
+    setEditingSt(rule ? { ...rule } : { accountId: 0, settlementAccountId: 0, categoryId: null, studioId: null, enabled: true });
+  };
+  const saveSettlementRule = async () => {
+    if (!editingSt || !editingSt.accountId || !editingSt.settlementAccountId) return;
+    const url = editingSt.id ? `/api/settlement-rules/${editingSt.id}` : '/api/settlement-rules';
+    const method = editingSt.id ? 'PUT' : 'POST';
+    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingSt) });
+    setEditingSt(null);
+    loadSettlementRules();
+  };
+  const deleteSettlementRule = async (id: number) => {
+    await fetch(`/api/settlement-rules/${id}`, { method: 'DELETE' });
+    loadSettlementRules();
+  };
+  useEffect(() => { loadCreditRules(); loadTransferRules(); loadHolidays(); loadSettlementRules(); }, []);
 
   const startEditCr = (rule?: CreditDateRule) => {
     if (rule) {
@@ -339,6 +371,10 @@ export const RulesSettings: React.FC = () => {
         <button onClick={() => { setRulesTab('holidays'); loadHolidays(); }}
           className={`pb-3 text-sm font-semibold transition-colors border-b-2 px-1 ${rulesTab === 'holidays' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
           Праздники
+        </button>
+        <button onClick={() => { setRulesTab('settlement'); loadSettlementRules(); }}
+          className={`pb-3 text-sm font-semibold transition-colors border-b-2 px-1 ${rulesTab === 'settlement' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
+          Счета зачисления
         </button>
       </div>
 
