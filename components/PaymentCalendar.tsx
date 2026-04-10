@@ -786,10 +786,10 @@ export const PaymentCalendar: React.FC = () => {
     addSection('= БАЛАНС', 'EFF6FF', '1E3A5F', 'BFDBFE');
     addDataRow('  План', [nv(totalBalancePlan), ...days.map(d => nv(balancePlan[d] || 0))],
       { fg: 'FFFFFF', fgTotal: 'EFF6FF', textColor: '3B82F6' });
+    addDataRow('  Ожидаемый', [nv(totalBalanceUnconfirmed), ...days.map(d => nv(data.balanceUnconfirmed?.[d] || 0))],
+      { fg: 'F8FAFC', fgTotal: 'E0F2FE', textColor: '475569', borderColor: 'CBD5E1' });
     addDataRow('  Факт', [nv(totalBalance), ...days.map(d => nv(data.balance[d] || 0))],
       { fg: 'EFF6FF', fgTotal: 'DBEAFE', textColor: '1D4ED8', bold: true, borderColor: 'BFDBFE' });
-    addDataRow('  С неподтв.', [nv(totalBalanceUnconfirmed), ...days.map(d => nv(data.balanceUnconfirmed?.[d] || 0))],
-      { fg: 'F8FAFC', fgTotal: 'E0F2FE', textColor: '475569', borderColor: 'CBD5E1' });
 
     // ── Категории ──────────────────────────────────────────────────────────
     addSection('По статьям расходов', 'F1F5F9', '334155', 'CBD5E1');
@@ -1157,6 +1157,18 @@ export const PaymentCalendar: React.FC = () => {
                 accentColor="#93c5fd"
               />
               <BalanceRow
+                label="Ожидаемый"
+                total={totalBalanceUnconfirmed}
+                days={days}
+                values={data.balanceUnconfirmed}
+                todayDay={todayDay}
+                labelW={LABEL_W}
+                totalW={TOTAL_W}
+                rowBg="#f8fafc"
+                todayBg="#e0f2fe"
+                accentColor="#94a3b8"
+              />
+              <BalanceRow
                 label="Факт"
                 total={totalBalance}
                 days={days}
@@ -1168,18 +1180,6 @@ export const PaymentCalendar: React.FC = () => {
                 todayBg="#dbeafe"
                 accentColor="#3b82f6"
                 bold
-              />
-              <BalanceRow
-                label="С неподтв."
-                total={totalBalanceUnconfirmed}
-                days={days}
-                values={data.balanceUnconfirmed}
-                todayDay={todayDay}
-                labelW={LABEL_W}
-                totalW={TOTAL_W}
-                rowBg="#f8fafc"
-                todayBg="#e0f2fe"
-                accentColor="#94a3b8"
               />
 
               {data.expenseCategories.length > 0 && (
