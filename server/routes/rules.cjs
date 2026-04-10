@@ -58,7 +58,7 @@ router.post('/credit-date-rules', async (req, res) => {
     const result = await db.query(
       `INSERT INTO credit_date_rules (account_id, delay_days, weekend_rule, name, category_id, studio_id, day_delays)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [accountId, delayDays || 1, weekendRule || 'next_business_day', name || '', categoryId || null, studioId || null, JSON.stringify(dayDelays || {})]
+      [accountId, delayDays != null ? delayDays : 1, weekendRule || 'next_business_day', name || '', categoryId || null, studioId || null, JSON.stringify(dayDelays || {})]
     );
     res.json(toCamelCase(result.rows[0]));
   } catch (err) {
