@@ -930,10 +930,27 @@ export const RulesSettings: React.FC = () => {
               <p className="text-sm text-slate-500">Настройте правила распределения: на какой реальный расчётный счёт зачисляются деньги для каждого технического счёта.</p>
               <p className="text-xs text-slate-400 mt-1">Можно уточнить правило по категории дохода и/или студии. Более точное правило имеет приоритет.</p>
             </div>
-            <Button onClick={() => startEditSt()}
-              className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 shrink-0">
-              <Plus size={16} /> Добавить
-            </Button>
+            <div className="flex gap-2 shrink-0">
+              <button onClick={async () => {
+                if (!confirm('Применить правила счетов зачисления ко всем существующим операциям поступления?')) return;
+                try {
+                  const r = await fetch('/api/settlement-rules/apply-all', { method: 'POST' });
+                  const data = await r.json();
+                  if (data.success) {
+                    alert(`Готово! Обновлено ${data.updated} из ${data.total} операций поступления.`);
+                  } else {
+                    alert('Ошибка применения правил');
+                  }
+                } catch { alert('Ошибка сервера'); }
+              }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
+                <RotateCw size={16} /> Применить ко всем
+              </button>
+              <Button onClick={() => startEditSt()}
+                className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
+                <Plus size={16} /> Добавить
+              </Button>
+            </div>
           </div>
 
           {editingSt && (

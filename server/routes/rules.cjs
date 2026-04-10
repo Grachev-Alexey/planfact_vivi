@@ -493,6 +493,29 @@ router.get('/settlement-rules', async (req, res) => {
   }
 });
 
+router.post('/settlement-rules/apply-all', async (req, res) => {
+  try {
+    const { resolveSettlementAccount } = require('../utils/creditDate.cjs');
+    const incomeRows = await db.query(
+      `SELECT id, account_id, category_id, studio_id FROM transactions WHERE type = 'income'`
+    );
+    let updated = 0;
+    for (const row of incomeRows.rows) {
+      const saId = await resolveSettlementAccount(row.account_id, row.category_id, row.studio_id);
+      if (saId) {
+        await db.query('UPDATE transactions SET settlement_account_id = $1 WHERE id = $2', [saId, row.id]);
+        updated++;
+      } else {
+        await db.query('UPDATE transactions SET settlement_account_id = NULL WHERE id = $1', [row.id]);
+      }
+    }
+    res.json({ success: true, total: incomeRows.rows.length, updated });
+  } catch (err) {
+    console.error('Error applying settlement rules:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.post('/settlement-rules/resolve', async (req, res) => {
   try {
     const { accountId, categoryId, studioId } = req.body;

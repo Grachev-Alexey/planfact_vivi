@@ -457,8 +457,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
     return () => controller.abort();
   }, [type, accountId, date]);
 
+  const initialResolveFields = useRef<{ accountId: string; categoryId: string; studioId: string } | null>(null);
+
   useEffect(() => {
     if (type !== 'income' || !accountId || !initialized.current) return;
+    if (initialData && initialResolveFields.current === null) {
+      initialResolveFields.current = {
+        accountId: String(initialData.accountId),
+        categoryId: String(initialData.categoryId || ''),
+        studioId: String(initialData.studioId || ''),
+      };
+      return;
+    }
     const controller = new AbortController();
     fetch('/api/settlement-rules/resolve', {
       method: 'POST',
@@ -466,7 +476,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       body: JSON.stringify({ accountId, categoryId: categoryId || undefined, studioId: studioId || undefined }),
       signal: controller.signal,
     })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('resolve failed');
+        return r.json();
+      })
       .then(data => {
         if (data.settlementAccountId) {
           setSettlementAccountId(String(data.settlementAccountId));
