@@ -132,7 +132,7 @@ export const ReconciliationPage: React.FC = () => {
   return (
     <div className="max-w-[1400px] mx-auto">
 
-      <div className="sticky top-[56px] z-20 bg-[#f1f5f9]/95 backdrop-blur-md -mx-4 lg:-mx-6 px-4 lg:px-6 pt-3 pb-3 border-b border-slate-200/60">
+      <div className="fixed top-14 right-0 left-0 md:left-[72px] z-20 bg-[#f1f5f9]/95 backdrop-blur-md px-4 lg:px-6 pt-3 pb-3 border-b border-slate-200/60">
         <div className="flex items-center justify-between flex-wrap gap-3 max-w-[1400px] mx-auto">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-md shadow-teal-500/20">
@@ -171,7 +171,7 @@ export const ReconciliationPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="px-4 lg:px-6 -mx-4 lg:-mx-6 pt-4 space-y-5">
+      <div className="pt-[56px] px-4 lg:px-6 -mx-4 lg:-mx-6 space-y-5">
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -241,7 +241,7 @@ export const ReconciliationPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="sticky top-[116px] z-10 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-t-2xl shadow-sm">
+          <div className="bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-t-2xl shadow-sm">
             <div className="grid grid-cols-[52px_44px_1fr_1fr_1fr_1fr_1fr_28px] gap-0 px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em]">
               <div>Дата</div>
               <div></div>
