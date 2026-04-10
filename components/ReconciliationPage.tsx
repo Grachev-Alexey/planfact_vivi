@@ -130,47 +130,48 @@ export const ReconciliationPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 lg:p-6 max-w-[1400px] mx-auto space-y-5">
+    <div className="max-w-[1400px] mx-auto">
 
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
-            <Landmark size={20} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Сверка остатков</h1>
-            <p className="text-xs text-slate-400 mt-0.5">Сверка с банковской выпиской</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <select
-              value={selectedAccountId || ''}
-              onChange={e => { setSelectedAccountId(Number(e.target.value)); setExpandedDays(new Set()); }}
-              className="appearance-none bg-white border border-slate-200 rounded-xl pl-10 pr-8 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 transition-all cursor-pointer"
-            >
-              {accounts.map(a => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-            <Wallet size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      <div className="sticky top-[56px] z-20 bg-[#f1f5f9]/95 backdrop-blur-md -mx-4 lg:-mx-6 px-4 lg:px-6 pt-3 pb-3 border-b border-slate-200/60">
+        <div className="flex items-center justify-between flex-wrap gap-3 max-w-[1400px] mx-auto">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-md shadow-teal-500/20">
+              <Landmark size={18} className="text-white" />
+            </div>
+            <h1 className="text-lg font-bold text-slate-800 tracking-tight">Сверка остатков</h1>
           </div>
 
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <button onClick={prevMonth} className="p-2.5 hover:bg-slate-50 text-slate-500 hover:text-slate-700 transition-colors">
-              <ChevronLeft size={18} />
-            </button>
-            <span className="text-sm font-semibold text-slate-700 min-w-[130px] text-center select-none px-1">
-              {MONTH_NAMES[month]} {year}
-            </span>
-            <button onClick={nextMonth} className="p-2.5 hover:bg-slate-50 text-slate-500 hover:text-slate-700 transition-colors">
-              <ChevronRight size={18} />
-            </button>
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <select
+                value={selectedAccountId || ''}
+                onChange={e => { setSelectedAccountId(Number(e.target.value)); setExpandedDays(new Set()); }}
+                className="appearance-none bg-white border border-slate-200 rounded-xl pl-9 pr-7 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 transition-all cursor-pointer"
+              >
+                {accounts.map(a => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+              <Wallet size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <button onClick={prevMonth} className="p-2 hover:bg-slate-50 text-slate-500 hover:text-slate-700 transition-colors">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-sm font-semibold text-slate-700 min-w-[120px] text-center select-none">
+                {MONTH_NAMES[month]} {year}
+              </span>
+              <button onClick={nextMonth} className="p-2 hover:bg-slate-50 text-slate-500 hover:text-slate-700 transition-colors">
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      <div className="px-4 lg:px-6 -mx-4 lg:-mx-6 pt-4 space-y-5">
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -241,7 +242,7 @@ export const ReconciliationPage: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-            <div className="sticky top-0 z-10 bg-gradient-to-r from-slate-50 to-slate-100/80 backdrop-blur-sm border-b border-slate-200">
+            <div className="sticky top-[107px] z-10 bg-gradient-to-r from-slate-50 to-slate-100/80 backdrop-blur-sm border-b border-slate-200">
               <div className="grid grid-cols-[52px_44px_1fr_1fr_1fr_1fr_1fr_28px] gap-0 px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-[0.08em]">
                 <div>Дата</div>
                 <div></div>
@@ -426,6 +427,7 @@ export const ReconciliationPage: React.FC = () => {
           </div>
         </>
       ) : null}
+      </div>
     </div>
   );
 };
