@@ -176,7 +176,7 @@ export const RulesSettings: React.FC = () => {
     await fetch(url, {
       method, headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        accountId: editingCr.accountId, delayDays: editingCr.delayDays || 1,
+        accountId: editingCr.accountId, delayDays: editingCr.delayDays != null ? editingCr.delayDays : 1,
         weekendRule: editingCr.weekendRule || 'next_business_day', name: editingCr.name || '',
         enabled: editingCr.enabled !== false, categoryId: editingCr.categoryId || null,
         studioId: editingCr.studioId || null, dayDelays,
