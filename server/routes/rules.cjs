@@ -135,6 +135,49 @@ router.post('/credit-date-rules/calculate', async (req, res) => {
   }
 });
 
+router.post('/credit-date-rules/:id/apply', async (req, res) => {
+  try {
+    const ruleId = req.params.id;
+    const ruleRes = await db.query('SELECT * FROM credit_date_rules WHERE id = $1', [ruleId]);
+    if (ruleRes.rows.length === 0) return res.status(404).json({ error: 'Rule not found' });
+    const rule = ruleRes.rows[0];
+
+    const conditions = ['t.account_id = $1', "t.type = 'income'"];
+    const params = [rule.account_id];
+    if (rule.category_id) {
+      params.push(rule.category_id);
+      conditions.push(`t.category_id = $${params.length}`);
+    }
+    if (rule.studio_id) {
+      params.push(rule.studio_id);
+      conditions.push(`t.studio_id = $${params.length}`);
+    }
+
+    const txRes = await db.query(
+      `SELECT t.id, t.date FROM transactions t WHERE ${conditions.join(' AND ')}`,
+      params
+    );
+
+    if (txRes.rows.length === 0) {
+      return res.json({ updated: 0, message: 'Подходящих операций не найдено' });
+    }
+
+    const holidays = await loadHolidays();
+    let updated = 0;
+    for (const tx of txRes.rows) {
+      const txDate = tx.date instanceof Date ? tx.date.toISOString().split('T')[0] : String(tx.date).split('T')[0];
+      const creditDate = calculateCreditDate(txDate, rule.delay_days, rule.weekend_rule, rule.day_delays, holidays);
+      await db.query('UPDATE transactions SET credit_date = $1 WHERE id = $2', [creditDate, tx.id]);
+      updated++;
+    }
+
+    res.json({ updated, message: `Обновлено операций: ${updated}` });
+  } catch (err) {
+    console.error('Error applying credit date rule:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/auto-transfer-rules', async (req, res) => {
   try {
     const result = await db.query(`

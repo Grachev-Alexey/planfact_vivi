@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
-import { Plus, Trash2, Check, X, Pencil, Power, PowerOff, Play, ChevronDown, ChevronUp, CalendarDays, Download } from 'lucide-react';
+import { Plus, Trash2, Check, X, Pencil, Power, PowerOff, Play, ChevronDown, ChevronUp, CalendarDays, Download, RotateCw } from 'lucide-react';
 import { getMoscowNow } from '../utils/moscow';
 
 interface CreditDateRule {
@@ -165,6 +165,25 @@ export const RulesSettings: React.FC = () => {
   const deleteCreditRule = async (id: number) => {
     await fetch(`/api/credit-date-rules/${id}`, { method: 'DELETE' });
     loadCreditRules();
+  };
+
+  const [applyingRuleId, setApplyingRuleId] = useState<number | null>(null);
+  const [applyResult, setApplyResult] = useState<{ id: number; msg: string } | null>(null);
+
+  const applyCreditRuleRetro = async (ruleId: number) => {
+    if (!confirm('Пересчитать даты зачисления для всех подходящих операций по этому правилу?')) return;
+    setApplyingRuleId(ruleId);
+    setApplyResult(null);
+    try {
+      const res = await fetch(`/api/credit-date-rules/${ruleId}/apply`, { method: 'POST' });
+      const data = await res.json();
+      setApplyResult({ id: ruleId, msg: data.message || `Обновлено: ${data.updated}` });
+    } catch {
+      setApplyResult({ id: ruleId, msg: 'Ошибка применения' });
+    } finally {
+      setApplyingRuleId(null);
+      setTimeout(() => setApplyResult(null), 4000);
+    }
   };
 
   const saveTransferRule = async () => {
@@ -453,6 +472,12 @@ export const RulesSettings: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 ml-3 shrink-0">
+                  <button onClick={() => applyCreditRuleRetro(rule.id)}
+                    disabled={applyingRuleId === rule.id}
+                    className="p-1.5 text-slate-400 hover:text-amber-600 rounded transition-colors disabled:opacity-50"
+                    title="Применить к существующим операциям">
+                    <RotateCw size={14} className={applyingRuleId === rule.id ? 'animate-spin' : ''} />
+                  </button>
                   <button onClick={() => toggleCreditEnabled(rule)}
                     className={`p-1.5 rounded transition-colors ${rule.enabled ? 'text-teal-500 hover:text-teal-700' : 'text-slate-300 hover:text-slate-500'}`}
                     title={rule.enabled ? 'Выключить' : 'Включить'}>
@@ -461,6 +486,11 @@ export const RulesSettings: React.FC = () => {
                   <button onClick={() => startEditCr(rule)} className="p-1.5 text-slate-400 hover:text-teal-600 rounded transition-colors"><Pencil size={14} /></button>
                   <button onClick={() => deleteCreditRule(rule.id)} className="p-1.5 text-slate-400 hover:text-rose-500 rounded transition-colors"><Trash2 size={14} /></button>
                 </div>
+                {applyResult?.id === rule.id && (
+                  <div className="w-full mt-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                    {applyResult.msg}
+                  </div>
+                )}
               </div>
             ))}
           </div>
