@@ -10,6 +10,15 @@ router.get('/init', async (req, res) => {
       FROM transactions t
       LEFT JOIN payment_requests pr ON t.external_id = 'pr-' || pr.id::text
       LEFT JOIN accounts sa ON t.settlement_account_id = sa.id
+      WHERE NOT (
+        t.type = 'transfer'
+        AND EXISTS (
+          SELECT 1 FROM settlement_rules sr
+          WHERE sr.enabled = true
+            AND sr.account_id = t.account_id
+            AND sr.settlement_account_id = t.to_account_id
+        )
+      )
       ORDER BY t.date DESC, t.created_at DESC LIMIT 1000
     `;
     
@@ -20,8 +29,12 @@ router.get('/init', async (req, res) => {
             SELECT SUM(CASE 
                 WHEN t.account_id = a.id AND t.type = 'income' THEN t.amount
                 WHEN t.account_id = a.id AND t.type = 'expense' THEN -t.amount
-                WHEN t.account_id = a.id AND t.type = 'transfer' THEN -t.amount
-                WHEN t.to_account_id = a.id AND t.type = 'transfer' THEN t.amount
+                WHEN t.account_id = a.id AND t.type = 'transfer'
+                  AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id)
+                  THEN -t.amount
+                WHEN t.to_account_id = a.id AND t.type = 'transfer'
+                  AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id)
+                  THEN t.amount
                 ELSE 0 END)
             FROM transactions t
             WHERE (t.account_id = a.id OR t.to_account_id = a.id)

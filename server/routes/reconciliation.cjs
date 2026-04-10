@@ -37,6 +37,14 @@ router.get('/reconciliation', async (req, res) => {
       ORDER BY day
     `;
 
+    const settlementExclude = `
+        AND NOT EXISTS (
+          SELECT 1 FROM settlement_rules sr
+          WHERE sr.enabled = true
+            AND sr.account_id = t.account_id
+            AND sr.settlement_account_id = t.to_account_id
+        )`;
+
     const transferOutQuery = `
       SELECT t.date::date as day, SUM(t.amount) as total
       FROM transactions t
@@ -45,6 +53,7 @@ router.get('/reconciliation', async (req, res) => {
         AND (t.confirmed = true OR t.status IN ('paid', 'verified'))
         AND t.date >= $2::date
         AND t.date <= $3::date
+        ${settlementExclude}
       GROUP BY day
       ORDER BY day
     `;
@@ -57,6 +66,7 @@ router.get('/reconciliation', async (req, res) => {
         AND (t.confirmed = true OR t.status IN ('paid', 'verified'))
         AND t.date >= $2::date
         AND t.date <= $3::date
+        ${settlementExclude}
       GROUP BY day
       ORDER BY day
     `;
@@ -68,8 +78,12 @@ router.get('/reconciliation', async (req, res) => {
           SELECT SUM(CASE
             WHEN (t.settlement_account_id = $1 OR (t.account_id = $1 AND t.settlement_account_id IS NULL)) AND t.type = 'income' THEN t.amount
             WHEN t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') THEN -t.amount
-            WHEN t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) THEN -t.amount
-            WHEN t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) THEN t.amount
+            WHEN t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified'))
+              AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id)
+              THEN -t.amount
+            WHEN t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified'))
+              AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id)
+              THEN t.amount
             ELSE 0
           END)
           FROM transactions t
@@ -122,6 +136,7 @@ router.get('/reconciliation', async (req, res) => {
         AND (t.account_id = $1 OR t.to_account_id = $1)
         AND t.date >= $2::date
         AND t.date <= $3::date
+        ${settlementExclude}
       ORDER BY t.date, t.created_at
     `;
 
@@ -256,9 +271,9 @@ router.get('/reconciliation/summary', async (req, res) => {
       const [incomeRes, expenseRes, transferOutRes, transferInRes, balanceRes] = await Promise.all([
         db.query(`SELECT COALESCE(t.credit_date, t.date)::date as day, SUM(t.amount) as total FROM transactions t WHERE t.settlement_account_id = $1 AND t.type = 'income' AND COALESCE(t.credit_date, t.date) >= $2::date AND COALESCE(t.credit_date, t.date) <= $3::date GROUP BY day`, [accId, startDate, endDate]),
         db.query(`SELECT t.date::date as day, SUM(t.amount) as total FROM transactions t WHERE t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') AND t.date >= $2::date AND t.date <= $3::date GROUP BY day`, [accId, startDate, endDate]),
-        db.query(`SELECT t.date::date as day, SUM(t.amount) as total FROM transactions t WHERE t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) AND t.date >= $2::date AND t.date <= $3::date GROUP BY day`, [accId, startDate, endDate]),
-        db.query(`SELECT t.date::date as day, SUM(t.amount) as total FROM transactions t WHERE t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) AND t.date >= $2::date AND t.date <= $3::date GROUP BY day`, [accId, startDate, endDate]),
-        db.query(`SELECT ${initialBal}::numeric + COALESCE((SELECT SUM(CASE WHEN t.settlement_account_id = $1 AND t.type = 'income' THEN t.amount WHEN t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') THEN -t.amount WHEN t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) THEN -t.amount WHEN t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) THEN t.amount ELSE 0 END) FROM transactions t WHERE (t.settlement_account_id = $1 OR t.account_id = $1 OR t.to_account_id = $1) AND CASE WHEN t.type = 'income' THEN COALESCE(t.credit_date, t.date) < $2::date ELSE t.date < $2::date END), 0) as balance_before`, [accId, startDate]),
+        db.query(`SELECT t.date::date as day, SUM(t.amount) as total FROM transactions t WHERE t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id) AND t.date >= $2::date AND t.date <= $3::date GROUP BY day`, [accId, startDate, endDate]),
+        db.query(`SELECT t.date::date as day, SUM(t.amount) as total FROM transactions t WHERE t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id) AND t.date >= $2::date AND t.date <= $3::date GROUP BY day`, [accId, startDate, endDate]),
+        db.query(`SELECT ${initialBal}::numeric + COALESCE((SELECT SUM(CASE WHEN t.settlement_account_id = $1 AND t.type = 'income' THEN t.amount WHEN t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') THEN -t.amount WHEN t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id) THEN -t.amount WHEN t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified')) AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id) THEN t.amount ELSE 0 END) FROM transactions t WHERE (t.settlement_account_id = $1 OR t.account_id = $1 OR t.to_account_id = $1) AND CASE WHEN t.type = 'income' THEN COALESCE(t.credit_date, t.date) < $2::date ELSE t.date < $2::date END), 0) as balance_before`, [accId, startDate]),
       ]);
 
       const incomeByDay = {}; incomeRes.rows.forEach(r => { incomeByDay[toDateStr(r.day)] = Number(r.total); });
