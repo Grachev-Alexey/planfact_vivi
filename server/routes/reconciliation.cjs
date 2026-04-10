@@ -232,6 +232,20 @@ router.get('/reconciliation/summary', async (req, res) => {
       return String(d).split('T')[0];
     };
 
+    const bookkeeperRes = await db.query(`SELECT id FROM accounts WHERE name ILIKE '%бухгалтер%' LIMIT 1`);
+    const bookkeeperId = bookkeeperRes.rows.length > 0 ? bookkeeperRes.rows[0].id : null;
+
+    let bookkeeperExpenseByDay = {};
+    let bookkeeperExpenseBefore = 0;
+    if (bookkeeperId) {
+      const [bExpRes, bExpBeforeRes] = await Promise.all([
+        db.query(`SELECT t.date::date as day, SUM(t.amount) as total FROM transactions t WHERE t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') AND t.date >= $2::date AND t.date <= $3::date GROUP BY day`, [bookkeeperId, startDate, endDate]),
+        db.query(`SELECT COALESCE(SUM(t.amount), 0) as total FROM transactions t WHERE t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') AND t.date < $2::date`, [bookkeeperId, startDate]),
+      ]);
+      bExpRes.rows.forEach(r => { bookkeeperExpenseByDay[toDateStr(r.day)] = Number(r.total); });
+      bookkeeperExpenseBefore = Number(bExpBeforeRes.rows[0].total);
+    }
+
     const accountSummaries = [];
     let totalBalanceBefore = 0;
 
@@ -263,6 +277,9 @@ router.get('/reconciliation/summary', async (req, res) => {
     const accountRunning = {};
     accountSummaries.forEach(a => { accountRunning[a.id] = a.balanceBefore; });
 
+    let bookkeeperRunning = -bookkeeperExpenseBefore;
+    totalBalanceBefore += bookkeeperRunning;
+
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
       let totalIncome = 0, totalExpense = 0, totalTransferOut = 0, totalTransferIn = 0;
@@ -282,8 +299,17 @@ router.get('/reconciliation/summary', async (req, res) => {
         }
       }
 
-      const totalOpen = Object.values(accountRunning).reduce((s, v) => s + v, 0) - (totalIncome - totalExpense - totalTransferOut + totalTransferIn);
-      const totalClose = Object.values(accountRunning).reduce((s, v) => s + v, 0);
+      const bkExp = bookkeeperExpenseByDay[dateStr] || 0;
+      totalExpense += bkExp;
+      bookkeeperRunning -= bkExp;
+
+      const settlementClose = Object.values(accountRunning).reduce((s, v) => s + v, 0);
+      const totalClose = settlementClose + bookkeeperRunning;
+      const totalOpen = totalClose + (totalExpense - totalIncome + totalTransferOut - totalTransferIn);
+
+      if (bkExp > 0) {
+        perAccount.push({ accountId: bookkeeperId, accountName: 'Счет Бухгалтер', income: 0, expense: bkExp, transferOut: 0, transferIn: 0, openBalance: bookkeeperRunning + bkExp, closeBalance: bookkeeperRunning });
+      }
 
       days.push({ date: dateStr, income: totalIncome, expense: totalExpense, transferOut: totalTransferOut, transferIn: totalTransferIn, openBalance: totalOpen, closeBalance: totalClose, perAccount });
     }
@@ -302,8 +328,14 @@ router.get('/reconciliation/summary', async (req, res) => {
 router.get('/reconciliation/accounts', async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT a.id, a.name
+      SELECT DISTINCT a.id, a.name
       FROM accounts a
+      WHERE a.id IN (
+        SELECT DISTINCT settlement_account_id FROM settlement_rules WHERE enabled = true
+        UNION
+        SELECT DISTINCT settlement_account_id FROM transactions WHERE settlement_account_id IS NOT NULL
+      )
+      OR a.name ILIKE '%бухгалтер%'
       ORDER BY a.name
     `);
     res.json(result.rows.map(toCamelCase));
