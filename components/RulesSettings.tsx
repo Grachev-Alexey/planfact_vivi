@@ -922,6 +922,107 @@ export const RulesSettings: React.FC = () => {
           </div>
         </div>
       )}
+
+      {rulesTab === 'settlement' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm text-slate-500">Настройте правила распределения: на какой реальный расчётный счёт зачисляются деньги для каждого технического счёта.</p>
+              <p className="text-xs text-slate-400 mt-1">Можно уточнить правило по категории дохода и/или студии. Более точное правило имеет приоритет.</p>
+            </div>
+            <Button onClick={() => startEditSt()}
+              className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 shrink-0">
+              <Plus size={16} /> Добавить
+            </Button>
+          </div>
+
+          {editingSt && (
+            <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Технический счёт (откуда) *</label>
+                  <select value={editingSt.accountId || ''} onChange={e => setEditingSt({ ...editingSt, accountId: Number(e.target.value) })} className={inputCls}>
+                    <option value="">Выберите счёт</option>
+                    {accountOptions.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Реальный счёт зачисления (куда) *</label>
+                  <select value={editingSt.settlementAccountId || ''} onChange={e => setEditingSt({ ...editingSt, settlementAccountId: Number(e.target.value) })} className={inputCls}>
+                    <option value="">Выберите счёт</option>
+                    {accountOptions.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Категория дохода (необязательно)</label>
+                  <select value={editingSt.categoryId || ''} onChange={e => setEditingSt({ ...editingSt, categoryId: e.target.value ? Number(e.target.value) : null })} className={inputCls}>
+                    <option value="">Все категории</option>
+                    {incomeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Студия (необязательно)</label>
+                  <select value={editingSt.studioId || ''} onChange={e => setEditingSt({ ...editingSt, studioId: e.target.value ? Number(e.target.value) : null })} className={inputCls}>
+                    <option value="">Все студии</option>
+                    {studios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
+                <button onClick={() => setEditingSt(null)} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-colors">Отмена</button>
+                <Button onClick={saveSettlementRule} className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
+                  <Check size={16} /> Сохранить
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {settlementRules.length === 0 && !editingSt && (
+              <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <p className="text-sm text-slate-400">Нет правил распределения. Нажмите «Добавить» для создания.</p>
+                <p className="text-xs text-slate-300 mt-1">Например: Омск Карта → Хить ТБанк</p>
+              </div>
+            )}
+            {settlementRules.map(rule => (
+              <div key={rule.id} className={`bg-white rounded-xl px-4 py-3 border transition-all ${rule.enabled ? 'border-slate-200 shadow-sm' : 'border-slate-100 opacity-50'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-slate-700">{rule.accountName}</span>
+                      <span className="text-slate-400">→</span>
+                      <span className="text-sm font-medium text-teal-700">{rule.settlementAccountName}</span>
+                      {rule.categoryName && <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{rule.categoryName}</span>}
+                      {rule.studioName && <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">{rule.studioName}</span>}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      {!rule.categoryName && !rule.studioName ? 'Все категории и студии' :
+                        [rule.categoryName ? `Категория: ${rule.categoryName}` : null, rule.studioName ? `Студия: ${rule.studioName}` : null].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 ml-3 shrink-0">
+                    <button onClick={async () => {
+                      await fetch(`/api/settlement-rules/${rule.id}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...rule, enabled: !rule.enabled }),
+                      });
+                      loadSettlementRules();
+                    }}
+                      className={`p-1.5 rounded transition-colors ${rule.enabled ? 'text-teal-500 hover:text-teal-700' : 'text-slate-300 hover:text-slate-500'}`}
+                      title={rule.enabled ? 'Выключить' : 'Включить'}>
+                      {rule.enabled ? <Power size={14} /> : <PowerOff size={14} />}
+                    </button>
+                    <button onClick={() => startEditSt(rule)} className="p-1.5 text-slate-400 hover:text-teal-600 rounded transition-colors"><Pencil size={14} /></button>
+                    <button onClick={() => { if (confirm('Удалить правило?')) deleteSettlementRule(rule.id); }} className="p-1.5 text-slate-400 hover:text-rose-500 rounded transition-colors"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

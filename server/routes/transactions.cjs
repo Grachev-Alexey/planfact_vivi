@@ -135,12 +135,13 @@ router.post('/transactions', async (req, res) => {
     const typeLabels = { income: 'поступление', expense: 'выплата', transfer: 'перемещение' };
     const parts = [`${typeLabels[type] || type}, ${amount}₽`];
     if (date) parts.push(`дата: ${date}`);
-    const [accName, catName, stdName, contrName, toAccName] = await Promise.all([
+    const [accName, catName, stdName, contrName, toAccName, saName] = await Promise.all([
       accountId ? db.query('SELECT name FROM accounts WHERE id=$1', [accountId]).then(r => r.rows[0]?.name) : null,
       categoryId ? db.query('SELECT name FROM categories WHERE id=$1', [categoryId]).then(r => r.rows[0]?.name) : null,
       studioId ? db.query('SELECT name FROM studios WHERE id=$1', [studioId]).then(r => r.rows[0]?.name) : null,
       contractorId ? db.query('SELECT name FROM contractors WHERE id=$1', [contractorId]).then(r => r.rows[0]?.name) : null,
       toAccountId ? db.query('SELECT name FROM accounts WHERE id=$1', [toAccountId]).then(r => r.rows[0]?.name) : null,
+      finalSettlementAccountId ? db.query('SELECT name FROM accounts WHERE id=$1', [finalSettlementAccountId]).then(r => r.rows[0]?.name) : null,
     ]);
     if (accName) parts.push(`счет: ${accName}`);
     if (toAccName) parts.push(`→ ${toAccName}`);
@@ -150,7 +151,9 @@ router.post('/transactions', async (req, res) => {
     if (description) parts.push(`"${description}"`);
 
     await logAction(currentUserId, 'create', 'transaction', newTx.id, `Создана операция: ${parts.join(', ')}`);
-    res.json(toCamelCase(newTx));
+    const txResponse = toCamelCase(newTx);
+    if (saName) txResponse.settlementAccountName = saName;
+    res.json(txResponse);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error creating transaction' });
@@ -201,12 +204,23 @@ router.put('/transactions/:id', async (req, res) => {
       if (finalConfirmed && !finalStatus) finalStatus = 'verified';
     }
 
+    let finalSettlementAccountId = old.settlement_account_id;
+    if (finalType === 'income') {
+      const typeChanged = old.type !== finalType;
+      const fieldsChanged = String(finalAccountId) !== String(old.account_id) || String(finalCategoryId || '') !== String(old.category_id || '') || String(finalStudioId || '') !== String(old.studio_id || '');
+      if (typeChanged || fieldsChanged || !finalSettlementAccountId) {
+        finalSettlementAccountId = await resolveSettlementAccount(finalAccountId, finalCategoryId, finalStudioId);
+      }
+    } else {
+      finalSettlementAccountId = null;
+    }
+
     const query = `
       UPDATE transactions 
-      SET date=$1, amount=$2, type=$3, account_id=$4, category_id=$5, studio_id=$6, description=$7, to_account_id=$8, contractor_id=$9, confirmed=$10, accrual_date=$11, status=$12, credit_date=$13, updated_at=NOW()
-      WHERE id = $14 RETURNING *
+      SET date=$1, amount=$2, type=$3, account_id=$4, category_id=$5, studio_id=$6, description=$7, to_account_id=$8, contractor_id=$9, confirmed=$10, accrual_date=$11, status=$12, credit_date=$13, settlement_account_id=$14, updated_at=NOW()
+      WHERE id = $15 RETURNING *
     `;
-    const values = [finalDate, finalAmount, finalType, finalAccountId, finalCategoryId, finalStudioId, finalDescription, finalToAccountId, finalContractorId, finalConfirmed, finalAcrcualDate, finalStatus, (finalType === 'income' ? finalCreditDate : null), id];
+    const values = [finalDate, finalAmount, finalType, finalAccountId, finalCategoryId, finalStudioId, finalDescription, finalToAccountId, finalContractorId, finalConfirmed, finalAcrcualDate, finalStatus, (finalType === 'income' ? finalCreditDate : null), finalSettlementAccountId, id];
 
     const result = await db.query(query, values);
 
@@ -300,7 +314,12 @@ router.put('/transactions/:id', async (req, res) => {
       : `Изменена операция (${typeLabels[type] || type}, ${amount}₽)`;
 
     await logAction(currentUserId, 'update', 'transaction', id, detail);
-    res.json(toCamelCase(result.rows[0]));
+    const txResponse = toCamelCase(result.rows[0]);
+    if (finalSettlementAccountId) {
+      const saRes = await db.query('SELECT name FROM accounts WHERE id=$1', [finalSettlementAccountId]);
+      if (saRes.rows[0]) txResponse.settlementAccountName = saRes.rows[0].name;
+    }
+    res.json(txResponse);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error updating transaction' });

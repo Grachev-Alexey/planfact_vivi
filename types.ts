@@ -67,4 +67,6 @@ export interface Transaction {
   externalId?: string | null;
   prStatus?: string | null;
   status?: string | null;
+  settlementAccountId?: string | null;
+  settlementAccountName?: string | null;
 }

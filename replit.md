@@ -142,3 +142,12 @@ A finance management application (Russian language UI) built with React + Vite f
 - Master Dashboard: tab-based navigation (Записи / Показатели) with KPI cards (Выручка, Клиенты, Средний чек, Визитов), primary/regular client split bar, daily revenue chart (recharts), payment type breakdown, category breakdown, custom calendar period picker (month view, click range selection), period buttons (Сегодня/Неделя/Месяц/Период)
 - Zero-amount visits: visits with totalAmount=0 (abonement or free procedure) show "Отметить визит" button, save master_income with amount=0 and payment_type='visit_only', no transaction created. Dashboard shows totalVisits (unique visit count) and zeroVisits subtext.
 - Abonement data: services with paid_abonements_count > 0 are tagged paidByAbonement. goods_transactions always included with cost field. Schedule view shows colored tags: violet for abonement-paid services, teal for goods/abonements. Visit counts use DISTINCT on visitId/recordIds to avoid double-counting multi-payment visits.
+- Settlement accounts (Счета зачисления): income transactions now track which real bank account money is credited to
+  - DB: settlement_rules table maps technical accounts → real settlement accounts by account/category/studio specificity
+  - DB: transactions.settlement_account_id stores the resolved settlement account
+  - Backend: auto-resolves settlement account on create AND update (re-resolves when account/category/studio changes)
+  - Backend: POST /api/settlement-rules/resolve endpoint for frontend live preview
+  - Frontend TransactionForm: shows "Счет зачисления" field for income (read-only, auto-resolved from rules)
+  - Frontend TransactionRow: shows "→ {settlement account name}" under the account name for income transactions
+  - Settings → Правила → "Счета зачисления" tab: full CRUD for settlement rules with enable/disable, category/studio filtering
+  - Does NOT affect balance calculations (informational only, for future admin reconciliation page)

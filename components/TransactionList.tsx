@@ -86,6 +86,9 @@ const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
         {tx.type === 'transfer' && toAccount && (
           <div className="text-slate-400 text-[12px]">{toAccount.name}</div>
         )}
+        {tx.type === 'income' && tx.settlementAccountName && (
+          <div className="text-[11px] text-teal-600">→ {tx.settlementAccountName}</div>
+        )}
       </td>
       <td className="px-1 py-3 text-center align-top">
         {tx.type === 'income' && <ArrowLeft size={14} className="text-emerald-500 inline-block" />}

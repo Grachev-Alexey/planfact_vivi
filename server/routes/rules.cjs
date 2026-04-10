@@ -493,6 +493,21 @@ router.get('/settlement-rules', async (req, res) => {
   }
 });
 
+router.post('/settlement-rules/resolve', async (req, res) => {
+  try {
+    const { accountId, categoryId, studioId } = req.body;
+    if (!accountId) return res.json({ settlementAccountId: null, settlementAccountName: null });
+    const { resolveSettlementAccount } = require('../utils/creditDate.cjs');
+    const saId = await resolveSettlementAccount(accountId, categoryId || null, studioId || null);
+    if (!saId) return res.json({ settlementAccountId: null, settlementAccountName: null });
+    const accRes = await db.query('SELECT name FROM accounts WHERE id = $1', [saId]);
+    res.json({ settlementAccountId: saId, settlementAccountName: accRes.rows[0]?.name || null });
+  } catch (err) {
+    console.error('Error resolving settlement account:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.post('/settlement-rules', async (req, res) => {
   try {
     const { accountId, categoryId, studioId, settlementAccountId } = req.body;

@@ -394,6 +394,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
   const [accrualDate, setAccrualDate] = useState('');
   const [creditDate, setCreditDate] = useState('');
   const [creditDateAuto, setCreditDateAuto] = useState(false);
+  const [settlementAccountId, setSettlementAccountId] = useState('');
+  const [settlementAccountName, setSettlementAccountName] = useState('');
   const [showNewContractor, setShowNewContractor] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const initialized = useRef(false);
@@ -424,6 +426,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       setAccrualDate(initialData.accrualDate ? initialData.accrualDate.split('T')[0] : '');
       setCreditDate(initialData.creditDate ? initialData.creditDate.split('T')[0] : '');
       if (initialData.creditDate) setCreditDateAuto(false);
+      setSettlementAccountId(initialData.settlementAccountId || '');
+      setSettlementAccountName(initialData.settlementAccountName || '');
       initialized.current = true;
     } else if (accounts.length > 0 || studios.length > 0) {
       if (accounts.length > 0) setAccountId(accounts[0].id);
@@ -452,6 +456,29 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       .catch(() => {});
     return () => controller.abort();
   }, [type, accountId, date]);
+
+  useEffect(() => {
+    if (type !== 'income' || !accountId || !initialized.current) return;
+    const controller = new AbortController();
+    fetch('/api/settlement-rules/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId, categoryId: categoryId || undefined, studioId: studioId || undefined }),
+      signal: controller.signal,
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.settlementAccountId) {
+          setSettlementAccountId(String(data.settlementAccountId));
+          setSettlementAccountName(data.settlementAccountName || '');
+        } else {
+          setSettlementAccountId('');
+          setSettlementAccountName('');
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [type, accountId, categoryId, studioId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -671,6 +698,20 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
         {type === 'income' && (
           <FormRow label="Дата зачисления">
             <DatePicker value={creditDate} onChange={(v: string) => { setCreditDate(v); setCreditDateAuto(false); }} placeholder="дд.мм.гггг" />
+          </FormRow>
+        )}
+
+        {type === 'income' && (
+          <FormRow label="Счет зачисления">
+            {settlementAccountName ? (
+              <div className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-medium">
+                {settlementAccountName}
+              </div>
+            ) : (
+              <div className="px-3 py-2.5 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-sm text-slate-400">
+                Не задан (настройте в Правилах → Счета зачисления)
+              </div>
+            )}
           </FormRow>
         )}
 
