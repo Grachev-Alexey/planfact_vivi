@@ -16,6 +16,7 @@ const contractorRoutes = require('./routes/contractors.cjs');
 const paymentCalendarRoutes = require('./routes/paymentCalendar.cjs');
 const incomePlanRoutes = require('./routes/incomePlan.cjs');
 const rulesRoutes = require('./routes/rules.cjs');
+const reconciliationRoutes = require('./routes/reconciliation.cjs');
 
 const app = express();
 const PORT = process.env.PORT || 3010;
@@ -34,6 +35,7 @@ app.use('/api', contractorRoutes);
 app.use('/api', paymentCalendarRoutes);
 app.use('/api', incomePlanRoutes);
 app.use('/api', rulesRoutes);
+app.use('/api', reconciliationRoutes);
 
 const distPath = path.join(__dirname, '..', 'dist');
 

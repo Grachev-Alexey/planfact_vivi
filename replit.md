@@ -47,6 +47,16 @@ A finance management application (Russian language UI) built with React + Vite f
 - **holidays**: Russian holidays/non-working days (date, name, affects_credit). Used by credit date calculation — if affects_credit=true, the day is treated like a weekend for date shifting. Holidays are cached server-side (5min TTL). UI supports year-by-year management and bulk pre-fill of standard Russian public holidays.
 - **calendar_balances**: Per-account manual balance entries for payment calendar (account_id, month, manual_balance). Persisted on blur so admins can compare system vs actual bank balances.
 - **calendar_balances_total**: Total manual balance per month for payment calendar reconciliation.
+- **settlement_rules**: Rules mapping technical accounts → real bank settlement accounts (account_id, category_id, studio_id, settlement_account_id, enabled). More specific rules (with category+studio) take priority.
+- **transactions.settlement_account_id**: FK to accounts — the real bank account where income money is credited. Informational only, does not affect balance calculations. Auto-resolved from settlement_rules on create/update.
+
+### Reconciliation Page
+- **Route**: `/reconciliation` (admin only), sidebar icon "Сверка"
+- **Purpose**: Daily bank statement reconciliation for settlement (real) accounts
+- **Backend**: `server/routes/reconciliation.cjs` — GET `/api/reconciliation` (params: settlementAccountId, startDate, endDate), GET `/api/reconciliation/accounts`
+- **Frontend**: `components/ReconciliationPage.tsx`
+- **Logic**: Income counted by credit_date (all statuses), expenses only paid/verified, transfers only confirmed. Shows opening/closing balance per day with expandable transaction details.
+- **Settlement rules mass-apply**: POST `/api/settlement-rules/apply-all` — backfills settlement_account_id for all existing income transactions
 
 ### Transaction Features
 - **Daily totals**: Transaction list shows per-day income/expense/net totals in the day group header

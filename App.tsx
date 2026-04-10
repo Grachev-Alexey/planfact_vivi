@@ -13,6 +13,7 @@ import { PaymentRequestPage } from './components/PaymentRequestPage';
 import { MasterIncomePage } from './components/MasterIncomePage';
 import { AdminStats } from './components/AdminStats';
 import { PaymentCalendar } from './components/PaymentCalendar';
+import { ReconciliationPage } from './components/ReconciliationPage';
 import { LogOut } from 'lucide-react';
 import { formatCurrency } from './utils/format';
 
@@ -125,6 +126,7 @@ const AppRoutes = () => {
             <Route path="/payment-requests" element={<AdminRoute>{withLayout(<PaymentRequestPage isAdmin />)}</AdminRoute>} />
             <Route path="/master-stats" element={<AdminRoute>{withLayout(<AdminStats />)}</AdminRoute>} />
             <Route path="/payment-calendar" element={<AdminRoute>{withLayout(<PaymentCalendar />)}</AdminRoute>} />
+            <Route path="/reconciliation" element={<AdminRoute>{withLayout(<ReconciliationPage />)}</AdminRoute>} />
             <Route path="/" element={<AdminRoute>{withLayout(<Dashboard />)}</AdminRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
