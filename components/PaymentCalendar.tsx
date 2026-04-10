@@ -183,8 +183,7 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/50">
                 <th className="text-left px-4 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">Счёт</th>
-                <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">Факт</th>
-                <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">С неподтв.</th>
+                <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide">ПланФакт</th>
                 <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide" style={{ width: '140px' }}>Банк</th>
                 <th className="text-right px-3 py-1.5 text-[10px] font-medium text-slate-400 uppercase tracking-wide" style={{ width: '110px' }}>Разница</th>
               </tr>
@@ -192,22 +191,11 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
             <tbody className="divide-y divide-slate-100">
               {visible.map(acc => {
                 const manVal = perAccount[acc.id] ?? '';
-                const unconfDiff = acc.balanceUnconfirmed - acc.balance;
                 return (
                   <tr key={acc.id} className="hover:bg-slate-50/50">
                     <td className="px-4 py-2 text-slate-700 truncate" style={{ maxWidth: '200px' }}>{acc.name}</td>
                     <td className={`px-3 py-2 text-right font-semibold tabular-nums whitespace-nowrap ${acc.balance < 0 ? 'text-rose-600' : acc.balance === 0 ? 'text-slate-400' : 'text-slate-800'}`}>
                       {fmtFull(acc.balance)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
-                      <span className={`font-semibold ${acc.balanceUnconfirmed < 0 ? 'text-rose-600' : acc.balanceUnconfirmed === 0 ? 'text-slate-400' : 'text-amber-700'}`}>
-                        {fmtFull(acc.balanceUnconfirmed)}
-                      </span>
-                      {Math.abs(unconfDiff) >= 0.01 && (
-                        <span className={`ml-1 text-[10px] ${unconfDiff > 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
-                          ({unconfDiff > 0 ? '+' : ''}{fmtFull(unconfDiff)})
-                        </span>
-                      )}
                     </td>
                     <td className="px-3 py-1.5" style={{ width: '140px' }}>
                       <input
@@ -246,9 +234,6 @@ function AccountBalancesPanel({ accounts, accountsOpen, setAccountsOpen, manualB
                   <td className="px-4 py-2.5 text-[11px] text-slate-500 font-medium">Итого по всем</td>
                   <td className={`px-3 py-2.5 text-right font-bold tabular-nums whitespace-nowrap ${total < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                     {fmtFull(total)}
-                  </td>
-                  <td className={`px-3 py-2.5 text-right font-bold tabular-nums whitespace-nowrap text-amber-700`}>
-                    {fmtFull(accounts.reduce((s, a) => s + (a.balanceUnconfirmed ?? a.balance), 0))}
                   </td>
                   <td className="px-3 py-1.5" style={{ width: '140px' }}>
                     <input
@@ -804,7 +789,7 @@ export const PaymentCalendar: React.FC = () => {
     addDataRow('  Факт', [nv(totalBalance), ...days.map(d => nv(data.balance[d] || 0))],
       { fg: 'EFF6FF', fgTotal: 'DBEAFE', textColor: '1D4ED8', bold: true, borderColor: 'BFDBFE' });
     addDataRow('  С неподтв.', [nv(totalBalanceUnconfirmed), ...days.map(d => nv(data.balanceUnconfirmed?.[d] || 0))],
-      { fg: 'FEFCE8', fgTotal: 'FEF9C3', textColor: 'A16207', borderColor: 'FDE68A' });
+      { fg: 'F8FAFC', fgTotal: 'E0F2FE', textColor: '475569', borderColor: 'CBD5E1' });
 
     // ── Категории ──────────────────────────────────────────────────────────
     addSection('По статьям расходов', 'F1F5F9', '334155', 'CBD5E1');
@@ -1192,9 +1177,9 @@ export const PaymentCalendar: React.FC = () => {
                 todayDay={todayDay}
                 labelW={LABEL_W}
                 totalW={TOTAL_W}
-                rowBg="#fefce8"
-                todayBg="#fef9c3"
-                accentColor="#eab308"
+                rowBg="#f8fafc"
+                todayBg="#e0f2fe"
+                accentColor="#94a3b8"
               />
 
               {data.expenseCategories.length > 0 && (
