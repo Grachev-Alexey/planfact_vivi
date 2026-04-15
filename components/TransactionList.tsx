@@ -175,6 +175,9 @@ export const TransactionList: React.FC = () => {
   const [filterConfirmed, setFilterConfirmed] = useState<string[]>([]);
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterCreditDateFrom, setFilterCreditDateFrom] = useState('');
+  const [filterCreditDateTo, setFilterCreditDateTo] = useState('');
+  const [showCreditDatePicker, setShowCreditDatePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [filterAmountFrom, setFilterAmountFrom] = useState('');
   const [filterAmountTo, setFilterAmountTo] = useState('');
@@ -248,10 +251,14 @@ export const TransactionList: React.FC = () => {
 
       const matchesAmountFrom = !filterAmountFrom || t.amount >= parseFloat(filterAmountFrom);
       const matchesAmountTo = !filterAmountTo || t.amount <= parseFloat(filterAmountTo);
+
+      const creditDate = t.creditDate ? (t.creditDate.length > 10 ? t.creditDate.slice(0, 10) : t.creditDate) : '';
+      const matchesCreditDateFrom = !filterCreditDateFrom || (creditDate && creditDate >= filterCreditDateFrom);
+      const matchesCreditDateTo = !filterCreditDateTo || (creditDate && creditDate <= filterCreditDateTo);
       
-      return matchesSearch && matchesType && matchesAccount && matchesContractor && matchesCategory && matchesStudio && matchesConfirmed && matchesDateFrom && matchesDateTo && matchesAmountFrom && matchesAmountTo;
+      return matchesSearch && matchesType && matchesAccount && matchesContractor && matchesCategory && matchesStudio && matchesConfirmed && matchesDateFrom && matchesDateTo && matchesAmountFrom && matchesAmountTo && matchesCreditDateFrom && matchesCreditDateTo;
     });
-  }, [transactions, search, filterTypes, showTechTransfers, filterAccountIds, filterContractorIds, filterCategoryIds, filterStudioIds, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, lookupMaps]);
+  }, [transactions, search, filterTypes, showTechTransfers, filterAccountIds, filterContractorIds, filterCategoryIds, filterStudioIds, filterConfirmed, filterDateFrom, filterDateTo, filterCreditDateFrom, filterCreditDateTo, filterAmountFrom, filterAmountTo, lookupMaps]);
 
   const sortedTransactions = useMemo(() => {
     return [...filteredTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -261,7 +268,7 @@ export const TransactionList: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterTypes, filterAccountIds, filterContractorIds, filterCategoryIds, filterStudioIds, filterConfirmed, filterDateFrom, filterDateTo, filterAmountFrom, filterAmountTo, search]);
+  }, [filterTypes, filterAccountIds, filterContractorIds, filterCategoryIds, filterStudioIds, filterConfirmed, filterDateFrom, filterDateTo, filterCreditDateFrom, filterCreditDateTo, filterAmountFrom, filterAmountTo, search]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -321,7 +328,7 @@ export const TransactionList: React.FC = () => {
     XLSX.writeFile(wb, "vivi_transactions.xlsx");
   };
 
-  const hasActiveFilters = filterAccountIds.length > 0 || filterContractorIds.length > 0 || filterCategoryIds.length > 0 || filterStudioIds.length > 0 || filterConfirmed.length > 0 || filterDateFrom || filterDateTo || filterAmountFrom || filterAmountTo || !filterTypes.income || !filterTypes.expense || !filterTypes.transfer;
+  const hasActiveFilters = filterAccountIds.length > 0 || filterContractorIds.length > 0 || filterCategoryIds.length > 0 || filterStudioIds.length > 0 || filterConfirmed.length > 0 || filterDateFrom || filterDateTo || filterCreditDateFrom || filterCreditDateTo || filterAmountFrom || filterAmountTo || !filterTypes.income || !filterTypes.expense || !filterTypes.transfer;
 
   const clearFilters = () => {
     setFilterAccountIds([]);
@@ -331,9 +338,12 @@ export const TransactionList: React.FC = () => {
     setFilterConfirmed([]);
     setFilterDateFrom('');
     setFilterDateTo('');
+    setFilterCreditDateFrom('');
+    setFilterCreditDateTo('');
     setFilterAmountFrom('');
     setFilterAmountTo('');
     setShowDatePicker(false);
+    setShowCreditDatePicker(false);
     setFilterTypes({ income: true, expense: true, transfer: true });
     setShowTechTransfers(false);
   };
@@ -597,6 +607,47 @@ export const TransactionList: React.FC = () => {
                     Сбросить
                   </button>
                   <button type="button" onClick={() => setShowDatePicker(false)} className="flex-1 text-[11px] bg-teal-600 text-white rounded py-1 hover:bg-teal-700 font-medium">
+                    Применить
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="text-[11px] font-medium text-slate-500 mb-1">Дата зачисления</div>
+            <button
+              type="button"
+              onClick={() => setShowCreditDatePicker(!showCreditDatePicker)}
+              className={`w-full px-2.5 py-1.5 border rounded-lg text-xs text-left flex items-center gap-1.5 transition-colors ${
+                filterCreditDateFrom || filterCreditDateTo
+                  ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+              }`}
+            >
+              <Calendar size={11} className="shrink-0" />
+              <span className="truncate text-[11px]">
+                {filterCreditDateFrom || filterCreditDateTo
+                  ? `${filterCreditDateFrom ? formatDate(filterCreditDateFrom) : '...'} – ${filterCreditDateTo ? formatDate(filterCreditDateTo) : '...'}`
+                  : 'Укажите период'}
+              </span>
+              {(filterCreditDateFrom || filterCreditDateTo) && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); setFilterCreditDateFrom(''); setFilterCreditDateTo(''); }} className="shrink-0 text-indigo-400 hover:text-indigo-600 ml-auto">
+                  <X size={10} />
+                </button>
+              )}
+            </button>
+            {showCreditDatePicker && (
+              <div className="mt-2 border border-slate-200 rounded-lg bg-white shadow-sm p-2 space-y-2">
+                <div className="space-y-1.5">
+                  <DatePicker value={filterCreditDateFrom} onChange={setFilterCreditDateFrom} placeholder="Начало периода" compact />
+                  <DatePicker value={filterCreditDateTo} onChange={setFilterCreditDateTo} placeholder="Конец периода" compact />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={() => { setFilterCreditDateFrom(''); setFilterCreditDateTo(''); }} className="flex-1 text-[11px] text-slate-500 hover:text-slate-700 py-1">
+                    Сбросить
+                  </button>
+                  <button type="button" onClick={() => setShowCreditDatePicker(false)} className="flex-1 text-[11px] bg-indigo-600 text-white rounded py-1 hover:bg-indigo-700 font-medium">
                     Применить
                   </button>
                 </div>
