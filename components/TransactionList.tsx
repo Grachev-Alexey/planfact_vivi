@@ -658,7 +658,7 @@ export const TransactionList: React.FC = () => {
               onClick={() => setShowCreditDatePicker(!showCreditDatePicker)}
               className={`w-full px-2.5 py-1.5 border rounded-lg text-xs text-left flex items-center gap-1.5 transition-colors ${
                 filterCreditDateFrom || filterCreditDateTo
-                  ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                  ? 'bg-teal-50 border-teal-300 text-teal-700'
                   : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
               }`}
             >
@@ -669,7 +669,7 @@ export const TransactionList: React.FC = () => {
                   : 'Укажите период'}
               </span>
               {(filterCreditDateFrom || filterCreditDateTo) && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); setFilterCreditDateFrom(''); setFilterCreditDateTo(''); }} className="shrink-0 text-indigo-400 hover:text-indigo-600 ml-auto">
+                <button type="button" onClick={(e) => { e.stopPropagation(); setFilterCreditDateFrom(''); setFilterCreditDateTo(''); }} className="shrink-0 text-teal-400 hover:text-teal-600 ml-auto">
                   <X size={10} />
                 </button>
               )}
@@ -682,7 +682,7 @@ export const TransactionList: React.FC = () => {
                       key={preset.label}
                       type="button"
                       onClick={preset.fn}
-                      className="px-1.5 py-1 text-[10px] text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 rounded border border-slate-200 text-center transition-colors leading-tight"
+                      className="px-1.5 py-1 text-[10px] text-slate-600 hover:bg-teal-50 hover:text-teal-700 rounded border border-slate-200 text-center transition-colors leading-tight"
                     >
                       {preset.label}
                     </button>
@@ -696,7 +696,7 @@ export const TransactionList: React.FC = () => {
                   <button type="button" onClick={() => { setFilterCreditDateFrom(''); setFilterCreditDateTo(''); }} className="flex-1 text-[11px] text-slate-500 hover:text-slate-700 py-1">
                     Сбросить
                   </button>
-                  <button type="button" onClick={() => setShowCreditDatePicker(false)} className="flex-1 text-[11px] bg-indigo-600 text-white rounded py-1 hover:bg-indigo-700 font-medium">
+                  <button type="button" onClick={() => setShowCreditDatePicker(false)} className="flex-1 text-[11px] bg-teal-600 text-white rounded py-1 hover:bg-teal-700 font-medium">
                     Применить
                   </button>
                 </div>
