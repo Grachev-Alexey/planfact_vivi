@@ -111,6 +111,8 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const [editLegalEntityId, setEditLegalEntityId] = useState('');
   const [editStudioId, setEditStudioId] = useState('');
   const [editAllowedPaymentTypes, setEditAllowedPaymentTypes] = useState<string[]>(['cash', 'card', 'sbp', 'ukassa', 'installment']);
+  const [editBankApiKey, setEditBankApiKey] = useState('');
+  const [editBankType, setEditBankType] = useState('');
   const [newAllowedPaymentTypes, setNewAllowedPaymentTypes] = useState<string[]>(['cash', 'card', 'sbp', 'ukassa', 'installment']);
 
   const ALL_PAYMENT_TYPES = [
@@ -156,6 +158,8 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       setEditInitialBalance(String(item.initialBalance ?? 0));
       setEditLegalEntityId(item.legalEntityId || '');
       setEditStudioId(item.studioId || '');
+      setEditBankType(item.bankType || '');
+      setEditBankApiKey(item.hasBankKey ? '••••••••' : '');
     } else if (type === 'studios') {
       setEditAddress(item.address || '');
       try {
@@ -223,6 +227,12 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       data.initialBalance = Number(editInitialBalance) || 0;
       data.legalEntityId = editLegalEntityId ? Number(editLegalEntityId) : null;
       data.studioId = editStudioId ? Number(editStudioId) : null;
+      data.bankType = editBankType || null;
+      if (!editBankType) {
+        data.bankApiKey = null;
+      } else if (editBankApiKey && editBankApiKey !== '••••••••') {
+        data.bankApiKey = editBankApiKey;
+      }
     } else if (type === 'studios') {
       data.address = editAddress;
       data.allowedPaymentTypes = JSON.stringify(editAllowedPaymentTypes);
@@ -542,6 +552,28 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
                     <option value="">— Не указано —</option>
                     {legalEntities.map(le => <option key={le.id} value={le.id}>{le.name}</option>)}
                   </select>
+                </div>
+                <div className="border-t border-slate-200 pt-3 mt-1">
+                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Интеграция с банком</div>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-slate-700">Банк</label>
+                      <select value={editBankType} onChange={e => setEditBankType(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900">
+                        <option value="">— Не подключен —</option>
+                        <option value="tbank">Т-Банк (Тинькофф Бизнес)</option>
+                        <option value="sber">Сбер Бизнес</option>
+                      </select>
+                    </div>
+                    {editBankType && (
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium text-slate-700">API ключ</label>
+                        <input type="password" value={editBankApiKey} onChange={e => setEditBankApiKey(e.target.value)}
+                          placeholder="Введите API токен"
+                          className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+                        <p className="text-[10px] text-slate-400">Токен из личного кабинета банка для получения выписок</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             )}

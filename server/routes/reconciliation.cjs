@@ -322,7 +322,7 @@ router.get('/reconciliation/summary', async (req, res) => {
 router.get('/reconciliation/accounts', async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT DISTINCT a.id, a.name
+      SELECT DISTINCT a.id, a.name, a.bank_type, CASE WHEN a.bank_api_key IS NOT NULL AND a.bank_api_key != '' THEN true ELSE false END as has_bank_key
       FROM accounts a
       WHERE a.id IN (
         SELECT DISTINCT settlement_account_id FROM settlement_rules WHERE enabled = true
@@ -336,6 +336,91 @@ router.get('/reconciliation/accounts', async (req, res) => {
   } catch (err) {
     console.error('Error fetching reconciliation accounts:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/reconciliation/bank-statement', async (req, res) => {
+  try {
+    const { accountId, startDate, endDate } = req.query;
+    if (!accountId || !startDate || !endDate) {
+      return res.status(400).json({ error: 'Необходимы параметры: счёт, дата начала и дата окончания' });
+    }
+
+    const accRes = await db.query('SELECT id, name, bank_api_key, bank_type FROM accounts WHERE id = $1', [accountId]);
+    if (accRes.rows.length === 0) return res.status(404).json({ error: 'Счёт не найден' });
+    const account = accRes.rows[0];
+
+    if (!account.bank_api_key || !account.bank_type) {
+      return res.status(400).json({ error: 'Банковская интеграция не настроена для этого счёта' });
+    }
+
+    let statements = [];
+
+    if (account.bank_type === 'tbank') {
+      try {
+        const resp = await fetch('https://business.tbank.ru/openapi/api/v1/statement', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${account.bank_api_key}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            accountNumber: account.name,
+            from: startDate,
+            to: endDate
+          })
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          return res.status(resp.status).json({ error: `Ошибка Т-Банк API: ${errText}` });
+        }
+        const data = await resp.json();
+        statements = (data.operations || []).map(op => ({
+          date: op.date,
+          amount: parseFloat(op.amount),
+          description: op.paymentPurpose || op.description || '',
+          counterparty: op.counterpartyName || '',
+          type: parseFloat(op.amount) > 0 ? 'income' : 'expense'
+        }));
+      } catch (fetchErr) {
+        return res.status(502).json({ error: `Ошибка подключения к Т-Банк: ${fetchErr.message}` });
+      }
+    } else if (account.bank_type === 'sber') {
+      try {
+        const resp = await fetch('https://api.sberbank.ru/fintech/v1/statement', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${account.bank_api_key}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            dateFrom: startDate,
+            dateTo: endDate
+          })
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          return res.status(resp.status).json({ error: `Ошибка Сбер API: ${errText}` });
+        }
+        const data = await resp.json();
+        statements = (data.operations || []).map(op => ({
+          date: op.operationDate,
+          amount: parseFloat(op.amount?.amount || op.amount || 0),
+          description: op.paymentPurpose || op.description || '',
+          counterparty: op.contragentName || '',
+          type: parseFloat(op.amount?.amount || op.amount || 0) > 0 ? 'income' : 'expense'
+        }));
+      } catch (fetchErr) {
+        return res.status(502).json({ error: `Ошибка подключения к Сбер: ${fetchErr.message}` });
+      }
+    } else {
+      return res.status(400).json({ error: `Неизвестный тип банка: ${account.bank_type}` });
+    }
+
+    res.json({ accountName: account.name, bankType: account.bank_type, statements });
+  } catch (err) {
+    console.error('Bank statement error:', err);
+    res.status(500).json({ error: 'Ошибка получения банковской выписки' });
   }
 });
 

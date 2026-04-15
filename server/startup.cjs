@@ -399,6 +399,17 @@ const initDB = async () => {
 
     try { await db.query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS settlement_account_id INTEGER REFERENCES accounts(id)`); } catch(e) {}
 
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='bank_api_key') THEN
+          ALTER TABLE accounts ADD COLUMN bank_api_key TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='bank_type') THEN
+          ALTER TABLE accounts ADD COLUMN bank_type TEXT;
+        END IF;
+      END $$;
+    `);
+
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
       await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['grachev', 'cd5d56a8', 'admin']);

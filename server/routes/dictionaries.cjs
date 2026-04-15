@@ -30,7 +30,11 @@ const fieldLabels = {
   legal_entity_id: 'юрлицо',
   icon: 'иконка',
   allowedPaymentTypes: 'доступные типы оплат',
-  allowed_payment_types: 'доступные типы оплат'
+  allowed_payment_types: 'доступные типы оплат',
+  bankApiKey: 'API ключ банка',
+  bank_api_key: 'API ключ банка',
+  bankType: 'тип банка',
+  bank_type: 'тип банка'
 };
 
 const accountTypeLabels = { cash: 'наличные', card: 'карта', account: 'счет' };
@@ -53,6 +57,9 @@ const formatFieldValue = async (field, value) => {
       const r = await db.query('SELECT name FROM categories WHERE id=$1', [value]);
       return r.rows[0]?.name || value;
     } catch { return value; }
+  }
+  if (dbField === 'bank_api_key' || field === 'bankApiKey') {
+    return value ? '***' : '—';
   }
   return String(value);
 };
@@ -191,7 +198,7 @@ const createCrudHandlers = (tableName, fields) => {
 
 createCrudHandlers('categories', ['name', 'type', 'parentId', 'icon']);
 createCrudHandlers('contractors', ['name', 'inn', 'phone', 'description']);
-createCrudHandlers('accounts', ['name', 'type', 'currency', 'initialBalance', 'legalEntityId', 'studioId']);
+createCrudHandlers('accounts', ['name', 'type', 'currency', 'initialBalance', 'legalEntityId', 'studioId', 'bankApiKey', 'bankType']);
 createCrudHandlers('studios', ['name', 'address', 'color', 'allowedPaymentTypes']);
 createCrudHandlers('legal_entities', ['name', 'inn', 'kpp', 'address', 'description']);
 

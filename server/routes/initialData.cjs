@@ -41,7 +41,8 @@ router.get('/init', async (req, res) => {
     
     // Dynamic balance calculation
     const accountsQuery = `
-      SELECT a.id, a.name, a.type, a.currency, a.initial_balance, a.legal_entity_id,
+      SELECT a.id, a.name, a.type, a.currency, a.initial_balance, a.legal_entity_id, a.bank_type,
+        CASE WHEN a.bank_api_key IS NOT NULL AND a.bank_api_key != '' THEN true ELSE false END as has_bank_key,
         (COALESCE(a.initial_balance, 0) + COALESCE((
             SELECT SUM(CASE 
                 WHEN t.account_id = a.id AND t.type = 'income' THEN t.amount

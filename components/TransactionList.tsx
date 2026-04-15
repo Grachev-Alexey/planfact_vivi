@@ -721,15 +721,6 @@ export const TransactionList: React.FC = () => {
                   Снять подтв.
                 </button>
               )}
-              {hasIncomeSelected && (
-                <button
-                  onClick={() => handleBulkIncomeVerified()}
-                  disabled={isDeleting || isVerifying}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
-                >
-                  <CheckCircle2 size={12} /> Проверено
-                </button>
-              )}
               {hasExpenseSelected && (
                 <button
                   onClick={() => handleBulkExpenseStatus('approved')}

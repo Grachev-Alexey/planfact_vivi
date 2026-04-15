@@ -41,6 +41,8 @@ A finance management application (Russian language UI) built with React + Vite f
 
 ### Database Tables
 - users (+ studio_id for master role), activity_logs, accounts, categories, studios, contractors, transactions, legal_entities, payment_requests, master_incomes, credit_date_rules, auto_transfer_rules, holidays
+- **accounts.bank_type**: Optional TEXT field — `'tbank'` or `'sber'` for bank API integration. Configured in Directories → Счета edit modal.
+- **accounts.bank_api_key**: Optional TEXT field — API token for T-Bank or Sber Business API. Never exposed to frontend (only `hasBankKey` boolean returned). Masked as `***` in audit logs. Used by `/api/reconciliation/bank-statement` endpoint to fetch bank statements.
 - **transactions.credit_date**: DATE field for income transactions — actual date when money is credited to the bank account (may differ from transaction date). Used in all balance calculations via `COALESCE(t.credit_date, t.date)`.
 - **credit_date_rules**: Per-account rules for auto-calculating credit_date (delay_days, weekend_rule: next_business_day|saturday_ok|previous_business_day|no_adjustment)
 - **auto_transfer_rules**: Automatic transfer rules between accounts (schedule, skip_weekends, amount or transfer_all, execute_time for scheduled auto-execution)
