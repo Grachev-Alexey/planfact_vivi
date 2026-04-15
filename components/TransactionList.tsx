@@ -548,6 +548,43 @@ export const TransactionList: React.FC = () => {
     { label: 'Этот год', fn: () => { const y = getMoscowNow().getFullYear(); setFilterDateFrom(`${y}-01-01`); setFilterDateTo(`${y}-12-31`); }},
   ];
 
+  const creditDatePresets = [
+    { label: 'Просроченные', fn: () => { const d = getMoscowNow(); d.setDate(d.getDate() - 1); setFilterCreditDateFrom(''); setFilterCreditDateTo(toLocalDate(d)); }},
+    { label: 'Будущие', fn: () => { const d = getMoscowNow(); d.setDate(d.getDate() + 1); setFilterCreditDateFrom(toLocalDate(d)); setFilterCreditDateTo(''); }},
+    { label: 'Вчера', fn: () => { const d = getMoscowNow(); d.setDate(d.getDate() - 1); const s = toLocalDate(d); setFilterCreditDateFrom(s); setFilterCreditDateTo(s); }},
+    { label: 'Сегодня', fn: () => { const s = toLocalDate(getMoscowNow()); setFilterCreditDateFrom(s); setFilterCreditDateTo(s); }},
+    { label: 'Прошлая неделя', fn: () => {
+      const now = getMoscowNow(); const day = now.getDay() || 7;
+      const mon = new Date(now); mon.setDate(now.getDate() - day - 6);
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      setFilterCreditDateFrom(toLocalDate(mon)); setFilterCreditDateTo(toLocalDate(sun));
+    }},
+    { label: 'Эта неделя', fn: () => {
+      const now = getMoscowNow(); const day = now.getDay() || 7;
+      const mon = new Date(now); mon.setDate(now.getDate() - day + 1);
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      setFilterCreditDateFrom(toLocalDate(mon)); setFilterCreditDateTo(toLocalDate(sun));
+    }},
+    { label: 'Прошлый месяц', fn: () => {
+      const now = getMoscowNow(); const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear(); const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      setFilterCreditDateFrom(toLocalDate(new Date(y, m, 1))); setFilterCreditDateTo(toLocalDate(new Date(y, m + 1, 0)));
+    }},
+    { label: 'Этот месяц', fn: () => {
+      const now = getMoscowNow();
+      setFilterCreditDateFrom(toLocalDate(new Date(now.getFullYear(), now.getMonth(), 1))); setFilterCreditDateTo(toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
+    }},
+    { label: 'Прошлый квартал', fn: () => {
+      const now = getMoscowNow(); const q = Math.floor(now.getMonth() / 3); const pq = q === 0 ? 3 : q - 1; const y = q === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      setFilterCreditDateFrom(toLocalDate(new Date(y, pq * 3, 1))); setFilterCreditDateTo(toLocalDate(new Date(y, pq * 3 + 3, 0)));
+    }},
+    { label: 'Этот квартал', fn: () => {
+      const now = getMoscowNow(); const q = Math.floor(now.getMonth() / 3);
+      setFilterCreditDateFrom(toLocalDate(new Date(now.getFullYear(), q * 3, 1))); setFilterCreditDateTo(toLocalDate(new Date(now.getFullYear(), q * 3 + 3, 0)));
+    }},
+    { label: 'Прошлый год', fn: () => { const y = getMoscowNow().getFullYear() - 1; setFilterCreditDateFrom(`${y}-01-01`); setFilterCreditDateTo(`${y}-12-31`); }},
+    { label: 'Этот год', fn: () => { const y = getMoscowNow().getFullYear(); setFilterCreditDateFrom(`${y}-01-01`); setFilterCreditDateTo(`${y}-12-31`); }},
+  ];
+
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   return (
@@ -639,7 +676,19 @@ export const TransactionList: React.FC = () => {
             </button>
             {showCreditDatePicker && (
               <div className="mt-2 border border-slate-200 rounded-lg bg-white shadow-sm p-2 space-y-2">
-                <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-1">
+                  {creditDatePresets.map(preset => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={preset.fn}
+                      className="px-1.5 py-1 text-[10px] text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 rounded border border-slate-200 text-center transition-colors leading-tight"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-1.5 pt-1">
                   <DatePicker value={filterCreditDateFrom} onChange={setFilterCreditDateFrom} placeholder="Начало периода" compact />
                   <DatePicker value={filterCreditDateTo} onChange={setFilterCreditDateTo} placeholder="Конец периода" compact />
                 </div>
