@@ -546,7 +546,7 @@ function extractIncomePaymentType(desc: string | undefined): string {
   const d = desc.trim();
   if (/юkassa|юкасса|ю-касса|yukassa/i.test(d)) return 'Ю-Касса';
   const prefix = d.split('|')[0].trim().toLowerCase();
-  if (/^карт/i.test(prefix)) return 'Карта';
+  if (/^карт/i.test(prefix)) return 'Терминал';
   if (/^налич/i.test(prefix)) return 'Наличные';
   if (/^сбп/i.test(prefix)) return 'СБП';
   if (/^рассроч/i.test(prefix)) return 'Рассрочка';
@@ -557,12 +557,12 @@ function extractIncomePaymentType(desc: string | undefined): string {
 function extractExpensePaymentType(cat: string | undefined): string | null {
   if (!cat) return null;
   if (/комисс.*юкасс|возврат.*юкасс/i.test(cat)) return 'Ю-Касса';
-  if (/эквайринг/i.test(cat)) return 'Карта';
+  if (/эквайринг/i.test(cat)) return 'Терминал';
   return null;
 }
 
 const PAYMENT_TYPE_STYLES: Record<string, { emoji: string; color: string; bg: string }> = {
-  'Карта': { emoji: '💳', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-100' },
+  'Терминал': { emoji: '💳', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-100' },
   'Наличные': { emoji: '💵', color: 'text-green-700', bg: 'bg-green-50 border-green-100' },
   'Ю-Касса': { emoji: '🌐', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100' },
   'СБП': { emoji: '⚡', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-100' },
