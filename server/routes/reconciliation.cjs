@@ -322,7 +322,7 @@ router.get('/reconciliation/summary', async (req, res) => {
 router.get('/reconciliation/accounts', async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT DISTINCT a.id, a.name, a.bank_type, CASE WHEN a.bank_api_key IS NOT NULL AND a.bank_api_key != '' THEN true ELSE false END as has_bank_key
+      SELECT DISTINCT a.id, a.name, a.bank_type, a.bank_account_number, CASE WHEN a.bank_api_key IS NOT NULL AND a.bank_api_key != '' THEN true ELSE false END as has_bank_key
       FROM accounts a
       WHERE a.id IN (
         SELECT DISTINCT settlement_account_id FROM settlement_rules WHERE enabled = true
@@ -346,7 +346,7 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
       return res.status(400).json({ error: 'Необходимы параметры: счёт, дата начала и дата окончания' });
     }
 
-    const accRes = await db.query('SELECT id, name, bank_api_key, bank_type FROM accounts WHERE id = $1', [accountId]);
+    const accRes = await db.query('SELECT id, name, bank_api_key, bank_type, bank_account_number FROM accounts WHERE id = $1', [accountId]);
     if (accRes.rows.length === 0) return res.status(404).json({ error: 'Счёт не найден' });
     const account = accRes.rows[0];
 
@@ -354,33 +354,33 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
       return res.status(400).json({ error: 'Банковская интеграция не настроена для этого счёта' });
     }
 
+    if (!account.bank_account_number) {
+      return res.status(400).json({ error: 'Не указан номер расчётного счёта. Укажите его в настройках счёта (Справочники → Счета)' });
+    }
+
     let statements = [];
 
     if (account.bank_type === 'tbank') {
       try {
-        const resp = await fetch('https://business.tbank.ru/openapi/api/v1/statement', {
-          method: 'POST',
+        const resp = await fetch(`https://business.tbank.ru/openapi/api/v1/bank-statement?accountNumber=${encodeURIComponent(account.bank_account_number)}&from=${encodeURIComponent(startDate + 'T00:00:00Z')}&to=${encodeURIComponent(endDate + 'T23:59:59Z')}`, {
+          method: 'GET',
           headers: {
-            'Authorization': `Bearer ${account.bank_api_key}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            accountNumber: account.name,
-            from: startDate,
-            to: endDate
-          })
+            'Authorization': `Bearer ${account.bank_api_key}`
+          }
         });
         if (!resp.ok) {
           const errText = await resp.text();
+          console.error('T-Bank API error:', resp.status, errText);
           return res.status(resp.status).json({ error: `Ошибка Т-Банк API: ${errText}` });
         }
         const data = await resp.json();
-        statements = (data.operations || []).map(op => ({
-          date: op.date,
-          amount: parseFloat(op.amount),
-          description: op.paymentPurpose || op.description || '',
-          counterparty: op.counterpartyName || '',
-          type: parseFloat(op.amount) > 0 ? 'income' : 'expense'
+        const ops = data.operation || data.operations || [];
+        statements = ops.map(op => ({
+          date: (op.date || op.operationDate || '').split('T')[0],
+          amount: parseFloat(op.amount || op.operationAmount || 0),
+          description: op.paymentPurpose || op.narrative || op.description || '',
+          counterparty: op.counterpartyName || op.corresondentName || '',
+          type: parseFloat(op.amount || op.operationAmount || 0) > 0 ? 'income' : 'expense'
         }));
       } catch (fetchErr) {
         return res.status(502).json({ error: `Ошибка подключения к Т-Банк: ${fetchErr.message}` });
@@ -394,17 +394,20 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
+            accountNumber: account.bank_account_number,
             dateFrom: startDate,
             dateTo: endDate
           })
         });
         if (!resp.ok) {
           const errText = await resp.text();
+          console.error('Sber API error:', resp.status, errText);
           return res.status(resp.status).json({ error: `Ошибка Сбер API: ${errText}` });
         }
         const data = await resp.json();
-        statements = (data.operations || []).map(op => ({
-          date: op.operationDate,
+        const ops = data.operations || [];
+        statements = ops.map(op => ({
+          date: (op.operationDate || '').split('T')[0],
           amount: parseFloat(op.amount?.amount || op.amount || 0),
           description: op.paymentPurpose || op.description || '',
           counterparty: op.contragentName || '',

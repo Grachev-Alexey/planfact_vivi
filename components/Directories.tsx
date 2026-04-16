@@ -113,6 +113,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const [editAllowedPaymentTypes, setEditAllowedPaymentTypes] = useState<string[]>(['cash', 'card', 'sbp', 'ukassa', 'installment']);
   const [editBankApiKey, setEditBankApiKey] = useState('');
   const [editBankType, setEditBankType] = useState('');
+  const [editBankAccountNumber, setEditBankAccountNumber] = useState('');
   const [newAllowedPaymentTypes, setNewAllowedPaymentTypes] = useState<string[]>(['cash', 'card', 'sbp', 'ukassa', 'installment']);
 
   const ALL_PAYMENT_TYPES = [
@@ -160,6 +161,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       setEditStudioId(item.studioId || '');
       setEditBankType(item.bankType || '');
       setEditBankApiKey(item.hasBankKey ? '••••••••' : '');
+      setEditBankAccountNumber(item.bankAccountNumber || '');
     } else if (type === 'studios') {
       setEditAddress(item.address || '');
       try {
@@ -228,6 +230,7 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       data.legalEntityId = editLegalEntityId ? Number(editLegalEntityId) : null;
       data.studioId = editStudioId ? Number(editStudioId) : null;
       data.bankType = editBankType || null;
+      data.bankAccountNumber = editBankType ? (editBankAccountNumber || null) : null;
       if (!editBankType) {
         data.bankApiKey = null;
       } else if (editBankApiKey && editBankApiKey !== '••••••••') {
@@ -565,13 +568,22 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
                       </select>
                     </div>
                     {editBankType && (
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium text-slate-700">API ключ</label>
-                        <input type="password" value={editBankApiKey} onChange={e => setEditBankApiKey(e.target.value)}
-                          placeholder="Введите API токен"
-                          className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
-                        <p className="text-[10px] text-slate-400">Токен из личного кабинета банка для получения выписок</p>
-                      </div>
+                      <>
+                        <div className="space-y-1">
+                          <label className="text-sm font-medium text-slate-700">Номер расчётного счёта</label>
+                          <input type="text" value={editBankAccountNumber} onChange={e => setEditBankAccountNumber(e.target.value)}
+                            placeholder="40702810..."
+                            className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500 font-mono" />
+                          <p className="text-[10px] text-slate-400">20-значный номер расчётного счёта из банка</p>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-sm font-medium text-slate-700">API ключ</label>
+                          <input type="password" value={editBankApiKey} onChange={e => setEditBankApiKey(e.target.value)}
+                            placeholder="Введите API токен"
+                            className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
+                          <p className="text-[10px] text-slate-400">Токен из личного кабинета банка для получения выписок</p>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>

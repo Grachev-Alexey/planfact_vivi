@@ -407,6 +407,9 @@ const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='bank_type') THEN
           ALTER TABLE accounts ADD COLUMN bank_type TEXT;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='bank_account_number') THEN
+          ALTER TABLE accounts ADD COLUMN bank_account_number TEXT;
+        END IF;
       END $$;
     `);
 

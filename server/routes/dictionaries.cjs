@@ -34,7 +34,9 @@ const fieldLabels = {
   bankApiKey: 'API ключ банка',
   bank_api_key: 'API ключ банка',
   bankType: 'тип банка',
-  bank_type: 'тип банка'
+  bank_type: 'тип банка',
+  bankAccountNumber: 'расчётный счёт банка',
+  bank_account_number: 'расчётный счёт банка'
 };
 
 const accountTypeLabels = { cash: 'наличные', card: 'карта', account: 'счет' };
@@ -198,7 +200,7 @@ const createCrudHandlers = (tableName, fields) => {
 
 createCrudHandlers('categories', ['name', 'type', 'parentId', 'icon']);
 createCrudHandlers('contractors', ['name', 'inn', 'phone', 'description']);
-createCrudHandlers('accounts', ['name', 'type', 'currency', 'initialBalance', 'legalEntityId', 'studioId', 'bankApiKey', 'bankType']);
+createCrudHandlers('accounts', ['name', 'type', 'currency', 'initialBalance', 'legalEntityId', 'studioId', 'bankApiKey', 'bankType', 'bankAccountNumber']);
 createCrudHandlers('studios', ['name', 'address', 'color', 'allowedPaymentTypes']);
 createCrudHandlers('legal_entities', ['name', 'inn', 'kpp', 'address', 'description']);
 
