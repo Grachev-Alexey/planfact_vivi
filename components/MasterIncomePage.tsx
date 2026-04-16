@@ -296,6 +296,8 @@ export const MasterIncomePage: React.FC = () => {
   const todayDateStr = fmtDate(getMoscowNow());
   const [forDate, setForDate] = useState<string>(todayDateStr);
   const [showForDatePicker, setShowForDatePicker] = useState(false);
+  const [calMonth, setCalMonth] = useState(getMoscowNow().getMonth());
+  const [calYear, setCalYear] = useState(getMoscowNow().getFullYear());
   const isToday = forDate === todayDateStr;
   const forDateLabel = useMemo(() => {
     if (isToday) return 'Сегодня';
@@ -1034,23 +1036,75 @@ export const MasterIncomePage: React.FC = () => {
                   </button>
                 )}
               </div>
-              {showForDatePicker && (
-                <div className="mt-2">
-                  <input
-                    type="date"
-                    value={forDate}
-                    max={todayDateStr}
-                    onChange={e => {
-                      if (e.target.value) {
-                        setForDate(e.target.value);
-                        fetchSchedule(e.target.value);
-                        setShowForDatePicker(false);
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white focus:outline-none focus:border-teal-500"
-                  />
-                </div>
-              )}
+              {showForDatePicker && (() => {
+                const MONTH_NAMES_SHORT = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+                const DAY_HEADERS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+                const firstDay = new Date(calYear, calMonth, 1);
+                const startDow = (firstDay.getDay() + 6) % 7;
+                const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+                const cells: (number | null)[] = [];
+                for (let i = 0; i < startDow; i++) cells.push(null);
+                for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+                while (cells.length % 7 !== 0) cells.push(null);
+
+                const canGoNext = !(calYear === getMoscowNow().getFullYear() && calMonth === getMoscowNow().getMonth());
+
+                return (
+                  <div className="mt-2 bg-white border border-slate-200 rounded-xl shadow-lg p-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <button type="button" onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); }}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
+                        <ChevronLeft size={14} />
+                      </button>
+                      <span className="text-sm font-semibold text-slate-700">{MONTH_NAMES_SHORT[calMonth]} {calYear}</span>
+                      <button type="button" onClick={() => { if (canGoNext) { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); } }}
+                        className={`p-1.5 rounded-lg transition-colors ${canGoNext ? 'hover:bg-slate-100 text-slate-500' : 'text-slate-200 cursor-not-allowed'}`}>
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-7 gap-0">
+                      {DAY_HEADERS.map(dh => (
+                        <div key={dh} className="text-center text-[10px] font-semibold text-slate-400 py-1">{dh}</div>
+                      ))}
+                      {cells.map((day, i) => {
+                        if (day === null) return <div key={`e${i}`} />;
+                        const ds = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        const isFuture = ds > todayDateStr;
+                        const isSelected = ds === forDate;
+                        const isTod = ds === todayDateStr;
+                        const dow = i % 7;
+                        const isWeekend = dow >= 5;
+                        return (
+                          <button
+                            key={ds}
+                            type="button"
+                            disabled={isFuture}
+                            onClick={() => { setForDate(ds); fetchSchedule(ds); setShowForDatePicker(false); }}
+                            className={`relative w-full aspect-square flex items-center justify-center text-xs rounded-lg transition-all
+                              ${isFuture ? 'text-slate-200 cursor-not-allowed' : ''}
+                              ${isSelected ? 'bg-teal-500 text-white font-bold shadow-sm shadow-teal-500/30' : ''}
+                              ${!isSelected && !isFuture ? (isWeekend ? 'text-slate-400 hover:bg-slate-100' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-700') : ''}
+                            `}
+                          >
+                            {day}
+                            {isTod && !isSelected && <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-teal-400" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                      <button type="button" onClick={() => { setForDate(todayDateStr); fetchSchedule(todayDateStr); setShowForDatePicker(false); setCalMonth(getMoscowNow().getMonth()); setCalYear(getMoscowNow().getFullYear()); }}
+                        className="text-[11px] text-teal-600 hover:text-teal-700 font-medium">
+                        Сегодня
+                      </button>
+                      <button type="button" onClick={() => setShowForDatePicker(false)}
+                        className="text-[11px] text-slate-400 hover:text-slate-600">
+                        Закрыть
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {scheduleLoading ? (
