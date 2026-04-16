@@ -84,6 +84,8 @@ router.get('/yclients/today-schedule', async (req, res) => {
       const mo = String(m.getMonth() + 1).padStart(2, '0');
       const d = String(m.getDate()).padStart(2, '0');
       scheduleDate = `${y}-${mo}-${d}`;
+    } else if (req.query.date && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+      scheduleDate = req.query.date;
     }
 
     const visits = await getTodaySchedule(companyId, scheduleDate);

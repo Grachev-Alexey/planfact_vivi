@@ -687,6 +687,8 @@ router.post('/master-incomes', async (req, res) => {
     const mo = String(m.getMonth() + 1).padStart(2, '0');
     const d = String(m.getDate()).padStart(2, '0');
     effectiveDate = `${y}-${mo}-${d}`;
+  } else if (forDate && /^\d{4}-\d{2}-\d{2}$/.test(forDate)) {
+    effectiveDate = forDate;
   }
 
   const studioId = master.studio_id;
@@ -736,7 +738,8 @@ router.post('/master-incomes', async (req, res) => {
   try {
     const ycDataVal = yclientsData ? JSON.stringify(yclientsData) : null;
     const effectivePaymentType = isVisitOnly ? 'visit_only' : paymentType;
-    const createdAtClause = forDate === 'yesterday' ? `'${effectiveDate} 23:59:00+03'::timestamptz` : 'NOW()';
+    const isBackdate = effectiveDate !== getMoscowToday();
+    const createdAtClause = isBackdate ? `'${effectiveDate} 23:59:00+03'::timestamptz` : 'NOW()';
     const result = await db.query(
       `INSERT INTO master_incomes (user_id, studio_id, amount, payment_type, category_id, client_name, client_phone, client_type, description, account_id, yclients_data, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, ${createdAtClause}) RETURNING *`,

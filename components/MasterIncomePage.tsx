@@ -292,7 +292,18 @@ export const MasterIncomePage: React.FC = () => {
   const ycSectionRef = useRef<HTMLDivElement>(null);
   const [ycClientTypeLoading, setYcClientTypeLoading] = useState(false);
 
-  const [forDate, setForDate] = useState<'today' | 'yesterday'>('today');
+  const fmtDate = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  const todayDateStr = fmtDate(getMoscowNow());
+  const [forDate, setForDate] = useState<string>(todayDateStr);
+  const [showForDatePicker, setShowForDatePicker] = useState(false);
+  const isToday = forDate === todayDateStr;
+  const forDateLabel = useMemo(() => {
+    if (isToday) return 'Сегодня';
+    const yest = getMoscowNow(); yest.setDate(yest.getDate() - 1);
+    if (forDate === fmtDate(yest)) return 'Вчера';
+    const d = new Date(forDate + 'T12:00:00');
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  }, [forDate, isToday]);
 
   const allowedPaymentTypes = useMemo(() => {
     if (!user?.studioId) return PAYMENT_TYPES;
@@ -328,15 +339,15 @@ export const MasterIncomePage: React.FC = () => {
     }
   }, [user]);
 
-  const fetchSchedule = useCallback(async (dateParam?: 'today' | 'yesterday') => {
+  const fetchSchedule = useCallback(async (dateParam?: string) => {
     if (!user) return;
     setScheduleLoading(true);
     setScheduleError(null);
     const d = dateParam ?? forDate;
     try {
-      const url = d === 'yesterday'
-        ? '/api/yclients/today-schedule?date=yesterday'
-        : '/api/yclients/today-schedule';
+      const url = d === todayDateStr
+        ? '/api/yclients/today-schedule'
+        : `/api/yclients/today-schedule?date=${d}`;
       const res = await fetch(url, {
         headers: { 'x-user-id': String(user.id) },
       });
@@ -653,7 +664,7 @@ export const MasterIncomePage: React.FC = () => {
             clientType,
             description: entry.description,
             ...(yclientsDataSnapshot ? { yclientsData: yclientsDataSnapshot } : {}),
-            ...(forDate === 'yesterday' ? { forDate: 'yesterday' } : {}),
+            ...(!isToday ? { forDate } : {}),
           }),
         });
 
@@ -760,7 +771,7 @@ export const MasterIncomePage: React.FC = () => {
     } catch (e) { console.error(e); }
   };
 
-  const isToday = (dateStr: string) => {
+  const isTodayDate = (dateStr: string) => {
     const d = new Date(dateStr);
     const now = getMoscowNow();
     return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -959,12 +970,11 @@ export const MasterIncomePage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-lg font-bold text-slate-800">
-                    {forDate === 'yesterday' ? 'Записи за вчера' : 'Записи на сегодня'}
+                    Записи {isToday ? 'на сегодня' : `за ${forDateLabel}`}
                   </h1>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {(() => {
-                      const d = getMoscowNow();
-                      if (forDate === 'yesterday') d.setDate(d.getDate() - 1);
+                      const d = new Date(forDate + 'T12:00:00');
                       return d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
                     })()}
                   </p>
@@ -976,18 +986,71 @@ export const MasterIncomePage: React.FC = () => {
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = forDate === 'today' ? 'yesterday' : 'today';
-                  setForDate(next);
-                  fetchSchedule(next);
-                }}
-                className={`mt-2 text-[11px] flex items-center gap-1 transition-colors ${forDate === 'yesterday' ? 'text-amber-600 hover:text-amber-700' : 'text-slate-400 hover:text-slate-500'}`}
-              >
-                <Clock size={11} />
-                {forDate === 'yesterday' ? 'Вернуться к сегодня' : 'Показать вчерашние записи'}
-              </button>
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(forDate + 'T12:00:00');
+                    d.setDate(d.getDate() - 1);
+                    const prev = fmtDate(d);
+                    setForDate(prev);
+                    fetchSchedule(prev);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForDatePicker(!showForDatePicker)}
+                  className={`text-[11px] flex items-center gap-1 px-2.5 py-1 rounded-lg border transition-colors ${
+                    isToday ? 'border-slate-200 text-slate-500 hover:border-slate-300' : 'border-amber-300 bg-amber-50 text-amber-700'
+                  }`}
+                >
+                  <Calendar size={11} />
+                  {forDateLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(forDate + 'T12:00:00');
+                    d.setDate(d.getDate() + 1);
+                    const next = fmtDate(d);
+                    if (next > todayDateStr) return;
+                    setForDate(next);
+                    fetchSchedule(next);
+                  }}
+                  className={`p-1 transition-colors ${forDate >= todayDateStr ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  <ChevronRight size={14} />
+                </button>
+                {!isToday && (
+                  <button
+                    type="button"
+                    onClick={() => { setForDate(todayDateStr); fetchSchedule(todayDateStr); }}
+                    className="text-[10px] text-teal-600 hover:text-teal-700 font-medium ml-1"
+                  >
+                    Сегодня
+                  </button>
+                )}
+              </div>
+              {showForDatePicker && (
+                <div className="mt-2">
+                  <input
+                    type="date"
+                    value={forDate}
+                    max={todayDateStr}
+                    onChange={e => {
+                      if (e.target.value) {
+                        setForDate(e.target.value);
+                        fetchSchedule(e.target.value);
+                        setShowForDatePicker(false);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+              )}
             </div>
 
             {scheduleLoading ? (
@@ -1006,7 +1069,7 @@ export const MasterIncomePage: React.FC = () => {
             ) : scheduleVisits.length === 0 ? (
               <div className="p-6 text-center">
                 <Calendar size={32} className="mx-auto mb-2 text-slate-300" />
-                <div className="text-slate-400 text-sm">Записей на сегодня нет</div>
+                <div className="text-slate-400 text-sm">Записей {isToday ? 'на сегодня' : `за ${forDateLabel}`} нет</div>
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
@@ -1412,22 +1475,22 @@ export const MasterIncomePage: React.FC = () => {
                   <Plus size={15} /> Ещё оплата
                 </button>
 
-                {forDate === 'yesterday' && (
+                {!isToday && (
                   <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700">
                     <Clock size={11} />
-                    Запись за {(() => { const d = getMoscowNow(); d.setDate(d.getDate() - 1); return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }); })()}
+                    Запись за {forDateLabel}
                   </div>
                 )}
 
                 <button
                   onClick={handleSubmitAll}
                   disabled={submitting}
-                  className={`w-full py-4 text-white rounded-2xl font-bold text-base transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg ${forDate === 'yesterday' ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20' : 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/20'}`}
+                  className={`w-full py-4 text-white rounded-2xl font-bold text-base transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg ${!isToday ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20' : 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/20'}`}
                 >
                   {submitting ? (
                     <><Loader2 size={18} className="animate-spin" /> Сохраняем...</>
-                  ) : forDate === 'yesterday' ? (
-                    <>Сохранить за вчера</>
+                  ) : !isToday ? (
+                    <>Сохранить за {forDateLabel}</>
                   ) : (
                     <>Сохранить</>
                   )}
@@ -1512,7 +1575,7 @@ export const MasterIncomePage: React.FC = () => {
                             <div className="text-[11px] text-slate-400 whitespace-nowrap">
                               {new Date(inc.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                             </div>
-                            {isToday(inc.createdAt) && !editingIncome && (
+                            {isTodayDate(inc.createdAt) && !editingIncome && (
                               <div className="flex items-center gap-1.5">
                                 <button onClick={() => handleEdit(inc)} className="p-1 text-slate-300 hover:text-teal-600 transition-colors" title="Редактировать">
                                   <Edit2 size={13} />
