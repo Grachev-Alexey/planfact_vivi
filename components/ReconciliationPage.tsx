@@ -374,7 +374,12 @@ export const ReconciliationPage: React.FC = () => {
                           )}
                           {viewMode === 'account' && 'incomeDetails' in day && (
                             <>
-                              {(day as DayData).incomeDetails.length > 0 && <DetailsBlock label="Поступления" total={(day as DayData).income} color="emerald" items={(day as DayData).incomeDetails} type="income" />}
+                              {(day as DayData).incomeDetails.length > 0 && (
+                                <>
+                                  <PaymentTypeSummary items={(day as DayData).incomeDetails} />
+                                  <DetailsBlock label="Поступления" total={(day as DayData).income} color="emerald" items={(day as DayData).incomeDetails} type="income" />
+                                </>
+                              )}
                               {(day as DayData).expenseDetails.length > 0 && <DetailsBlock label="Расходы" total={(day as DayData).expense} color="rose" items={(day as DayData).expenseDetails} type="expense" />}
                               {(day as DayData).transferDetails.length > 0 && <DetailsBlock label="Переводы" total={Math.abs(netTransfer)} color="blue" items={(day as DayData).transferDetails} type="transfer" />}
                             </>
@@ -535,6 +540,74 @@ const SmallCard: React.FC<{
     {sub && <div className={`text-[11px] mt-0.5 tabular-nums font-medium ${subColor || 'text-slate-400'}`}>{sub}</div>}
   </div>
 );
+
+function extractPaymentType(desc: string | undefined): string {
+  if (!desc) return 'Прочее';
+  const d = desc.trim();
+  if (/юkassa|юкасса|ю-касса|yukassa/i.test(d)) return 'Ю-Касса';
+  const prefix = d.split('|')[0].trim().toLowerCase();
+  if (/^карт/i.test(prefix)) return 'Карта';
+  if (/^налич/i.test(prefix)) return 'Наличные';
+  if (/^сбп/i.test(prefix)) return 'СБП';
+  if (/^рассроч/i.test(prefix)) return 'Рассрочка';
+  if (/^онлайн/i.test(prefix)) return 'Ю-Касса';
+  return 'Прочее';
+}
+
+const PAYMENT_TYPE_ICONS: Record<string, { emoji: string; color: string; bg: string }> = {
+  'Карта': { emoji: '💳', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-100' },
+  'Наличные': { emoji: '💵', color: 'text-green-700', bg: 'bg-green-50 border-green-100' },
+  'Ю-Касса': { emoji: '🌐', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100' },
+  'СБП': { emoji: '⚡', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-100' },
+  'Рассрочка': { emoji: '📋', color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-100' },
+  'Прочее': { emoji: '📦', color: 'text-slate-600', bg: 'bg-slate-50 border-slate-100' },
+};
+
+const PaymentTypeSummary: React.FC<{ items: TxDetail[] }> = ({ items }) => {
+  const groups = useMemo(() => {
+    const map: Record<string, { total: number; count: number }> = {};
+    items.forEach(item => {
+      const pt = extractPaymentType(item.description);
+      if (!map[pt]) map[pt] = { total: 0, count: 0 };
+      map[pt].total += item.amount;
+      map[pt].count++;
+    });
+    return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
+  }, [items]);
+
+  if (groups.length <= 1) return null;
+
+  const total = items.reduce((s, i) => s + i.amount, 0);
+
+  return (
+    <div className="rounded-lg bg-gradient-to-r from-slate-50 to-white border border-slate-200 overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">По способу оплаты</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
+        {groups.map(([pt, data]) => {
+          const style = PAYMENT_TYPE_ICONS[pt] || PAYMENT_TYPE_ICONS['Прочее'];
+          const pct = total > 0 ? Math.round(data.total / total * 100) : 0;
+          return (
+            <div key={pt} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border ${style.bg}`}>
+              <span className="text-sm">{style.emoji}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1">
+                  <span className={`text-[11px] font-semibold ${style.color} truncate`}>{pt}</span>
+                  <span className="text-[10px] text-slate-400">{pct}%</span>
+                </div>
+                <div className="flex items-center justify-between gap-1">
+                  <span className={`text-[12px] font-bold tabular-nums ${style.color}`}>{fmt(data.total)} ₽</span>
+                  <span className="text-[10px] text-slate-400">{data.count} шт</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 const DetailsBlock: React.FC<{ label: string; total: number; color: string; items: TxDetail[]; type: string }> = ({ label, total, color, items, type }) => {
   const styles: Record<string, { bg: string; border: string; text: string; badge: string; dot: string }> = {
