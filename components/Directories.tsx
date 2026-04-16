@@ -607,12 +607,12 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
                               ) : (
                                 <button
                                   type="button"
-                                  disabled={bankAccountsLoading || !editItem?.id}
+                                  disabled={bankAccountsLoading || !item?.id}
                                   onClick={async () => {
                                     setBankAccountsLoading(true);
                                     setBankAccountsError('');
                                     try {
-                                      const r = await fetch(`/api/reconciliation/bank-accounts?accountId=${editItem!.id}`);
+                                      const r = await fetch(`/api/reconciliation/bank-accounts?accountId=${item.id}`);
                                       const d = await r.json();
                                       if (!r.ok) { setBankAccountsError(d.error || 'Ошибка'); return; }
                                       if (d.length === 0) { setBankAccountsError('Счета не найдены. Проверьте API ключ'); return; }
