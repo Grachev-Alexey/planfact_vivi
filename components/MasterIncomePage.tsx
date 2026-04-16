@@ -1050,7 +1050,7 @@ export const MasterIncomePage: React.FC = () => {
                 const canGoNext = !(calYear === getMoscowNow().getFullYear() && calMonth === getMoscowNow().getMonth());
 
                 return (
-                  <div className="mt-2 bg-white border border-slate-200 rounded-xl shadow-lg p-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="mt-2 bg-white border border-slate-200 rounded-xl shadow-lg p-3 max-w-[280px] mx-auto">
                     <div className="flex items-center justify-between mb-2">
                       <button type="button" onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); }}
                         className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
@@ -1080,7 +1080,7 @@ export const MasterIncomePage: React.FC = () => {
                             type="button"
                             disabled={isFuture}
                             onClick={() => { setForDate(ds); fetchSchedule(ds); setShowForDatePicker(false); }}
-                            className={`relative w-full aspect-square flex items-center justify-center text-xs rounded-lg transition-all
+                            className={`relative w-8 h-8 flex items-center justify-center text-xs rounded-lg transition-all mx-auto
                               ${isFuture ? 'text-slate-200 cursor-not-allowed' : ''}
                               ${isSelected ? 'bg-teal-500 text-white font-bold shadow-sm shadow-teal-500/30' : ''}
                               ${!isSelected && !isFuture ? (isWeekend ? 'text-slate-400 hover:bg-slate-100' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-700') : ''}
