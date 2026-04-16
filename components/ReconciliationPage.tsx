@@ -374,11 +374,11 @@ export const ReconciliationPage: React.FC = () => {
                           )}
                           {viewMode === 'account' && 'incomeDetails' in day && (
                             <>
+                              {((day as DayData).incomeDetails.length > 0 || (day as DayData).expenseDetails.length > 0) && (
+                                <PaymentTypeSummary incomeItems={(day as DayData).incomeDetails} expenseItems={(day as DayData).expenseDetails} />
+                              )}
                               {(day as DayData).incomeDetails.length > 0 && (
-                                <>
-                                  <PaymentTypeSummary items={(day as DayData).incomeDetails} />
-                                  <DetailsBlock label="Поступления" total={(day as DayData).income} color="emerald" items={(day as DayData).incomeDetails} type="income" />
-                                </>
+                                <DetailsBlock label="Поступления" total={(day as DayData).income} color="emerald" items={(day as DayData).incomeDetails} type="income" />
                               )}
                               {(day as DayData).expenseDetails.length > 0 && <DetailsBlock label="Расходы" total={(day as DayData).expense} color="rose" items={(day as DayData).expenseDetails} type="expense" />}
                               {(day as DayData).transferDetails.length > 0 && <DetailsBlock label="Переводы" total={Math.abs(netTransfer)} color="blue" items={(day as DayData).transferDetails} type="transfer" />}
@@ -541,7 +541,7 @@ const SmallCard: React.FC<{
   </div>
 );
 
-function extractPaymentType(desc: string | undefined): string {
+function extractIncomePaymentType(desc: string | undefined): string {
   if (!desc) return 'Прочее';
   const d = desc.trim();
   if (/юkassa|юкасса|ю-касса|yukassa/i.test(d)) return 'Ю-Касса';
@@ -554,7 +554,14 @@ function extractPaymentType(desc: string | undefined): string {
   return 'Прочее';
 }
 
-const PAYMENT_TYPE_ICONS: Record<string, { emoji: string; color: string; bg: string }> = {
+function extractExpensePaymentType(cat: string | undefined): string | null {
+  if (!cat) return null;
+  if (/комисс.*юкасс|возврат.*юкасс/i.test(cat)) return 'Ю-Касса';
+  if (/эквайринг/i.test(cat)) return 'Карта';
+  return null;
+}
+
+const PAYMENT_TYPE_STYLES: Record<string, { emoji: string; color: string; bg: string }> = {
   'Карта': { emoji: '💳', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-100' },
   'Наличные': { emoji: '💵', color: 'text-green-700', bg: 'bg-green-50 border-green-100' },
   'Ю-Касса': { emoji: '🌐', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100' },
@@ -563,43 +570,55 @@ const PAYMENT_TYPE_ICONS: Record<string, { emoji: string; color: string; bg: str
   'Прочее': { emoji: '📦', color: 'text-slate-600', bg: 'bg-slate-50 border-slate-100' },
 };
 
-const PaymentTypeSummary: React.FC<{ items: TxDetail[] }> = ({ items }) => {
+const PaymentTypeSummary: React.FC<{ incomeItems: TxDetail[]; expenseItems: TxDetail[] }> = ({ incomeItems, expenseItems }) => {
   const groups = useMemo(() => {
-    const map: Record<string, { total: number; count: number }> = {};
-    items.forEach(item => {
-      const pt = extractPaymentType(item.description);
-      if (!map[pt]) map[pt] = { total: 0, count: 0 };
-      map[pt].total += item.amount;
-      map[pt].count++;
+    const map: Record<string, { income: number; expenses: number; incomeCount: number; expenseCount: number }> = {};
+    const ensure = (pt: string) => { if (!map[pt]) map[pt] = { income: 0, expenses: 0, incomeCount: 0, expenseCount: 0 }; };
+
+    incomeItems.forEach(item => {
+      const pt = extractIncomePaymentType(item.description);
+      ensure(pt);
+      map[pt].income += Number(item.amount) || 0;
+      map[pt].incomeCount++;
     });
-    return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
-  }, [items]);
 
-  if (groups.length <= 1) return null;
+    expenseItems.forEach(item => {
+      const pt = extractExpensePaymentType(item.categoryName);
+      if (pt) {
+        ensure(pt);
+        map[pt].expenses += Number(item.amount) || 0;
+        map[pt].expenseCount++;
+      }
+    });
 
-  const total = items.reduce((s, i) => s + i.amount, 0);
+    return Object.entries(map)
+      .filter(([k]) => k !== 'Прочее' || map[k].income > 0)
+      .sort((a, b) => (b[1].income - b[1].expenses) - (a[1].income - a[1].expenses));
+  }, [incomeItems, expenseItems]);
+
+  if (groups.length === 0) return null;
 
   return (
     <div className="rounded-lg bg-gradient-to-r from-slate-50 to-white border border-slate-200 overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">По способу оплаты</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Сводка по источникам</span>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2">
+      <div className="divide-y divide-slate-100">
         {groups.map(([pt, data]) => {
-          const style = PAYMENT_TYPE_ICONS[pt] || PAYMENT_TYPE_ICONS['Прочее'];
-          const pct = total > 0 ? Math.round(data.total / total * 100) : 0;
+          const style = PAYMENT_TYPE_STYLES[pt] || PAYMENT_TYPE_STYLES['Прочее'];
+          const net = data.income - data.expenses;
           return (
-            <div key={pt} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border ${style.bg}`}>
-              <span className="text-sm">{style.emoji}</span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-1">
-                  <span className={`text-[11px] font-semibold ${style.color} truncate`}>{pt}</span>
-                  <span className="text-[10px] text-slate-400">{pct}%</span>
-                </div>
-                <div className="flex items-center justify-between gap-1">
-                  <span className={`text-[12px] font-bold tabular-nums ${style.color}`}>{fmt(data.total)} ₽</span>
-                  <span className="text-[10px] text-slate-400">{data.count} шт</span>
-                </div>
+            <div key={pt} className="flex items-center gap-3 px-3 py-2">
+              <span className="text-base">{style.emoji}</span>
+              <span className={`text-[12px] font-semibold ${style.color} min-w-[70px]`}>{pt}</span>
+              <div className="flex items-center gap-3 flex-1 justify-end tabular-nums text-[12px]">
+                <span className="text-emerald-600">+{fmt(data.income)} ₽</span>
+                {data.expenses > 0 && (
+                  <span className="text-rose-500">−{fmt(data.expenses)} ₽</span>
+                )}
+                <span className={`font-bold min-w-[90px] text-right ${net >= 0 ? style.color : 'text-rose-600'}`}>
+                  = {fmt(net)} ₽
+                </span>
               </div>
             </div>
           );
