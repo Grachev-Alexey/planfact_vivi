@@ -114,6 +114,9 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
   const [editBankApiKey, setEditBankApiKey] = useState('');
   const [editBankType, setEditBankType] = useState('');
   const [editBankAccountNumber, setEditBankAccountNumber] = useState('');
+  const [bankAccounts, setBankAccounts] = useState<{accountNumber: string; name: string; currency?: string; balance?: number | null}[]>([]);
+  const [bankAccountsLoading, setBankAccountsLoading] = useState(false);
+  const [bankAccountsError, setBankAccountsError] = useState('');
   const [newAllowedPaymentTypes, setNewAllowedPaymentTypes] = useState<string[]>(['cash', 'card', 'sbp', 'ukassa', 'installment']);
 
   const ALL_PAYMENT_TYPES = [
@@ -162,6 +165,8 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
       setEditBankType(item.bankType || '');
       setEditBankApiKey(item.hasBankKey ? '••••••••' : '');
       setEditBankAccountNumber(item.bankAccountNumber || '');
+      setBankAccounts([]);
+      setBankAccountsError('');
     } else if (type === 'studios') {
       setEditAddress(item.address || '');
       try {
@@ -570,18 +575,60 @@ export const Directories: React.FC<DirectoriesProps> = ({ initialTab = 'categori
                     {editBankType && (
                       <>
                         <div className="space-y-1">
-                          <label className="text-sm font-medium text-slate-700">Номер расчётного счёта</label>
-                          <input type="text" value={editBankAccountNumber} onChange={e => setEditBankAccountNumber(e.target.value)}
-                            placeholder="40702810..."
-                            className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500 font-mono" />
-                          <p className="text-[10px] text-slate-400">20-значный номер расчётного счёта из банка</p>
-                        </div>
-                        <div className="space-y-1">
                           <label className="text-sm font-medium text-slate-700">API ключ</label>
                           <input type="password" value={editBankApiKey} onChange={e => setEditBankApiKey(e.target.value)}
                             placeholder="Введите API токен"
                             className="w-full px-3 py-2 bg-white text-slate-900 border border-slate-300 rounded text-sm focus:outline-none focus:border-teal-500" />
                           <p className="text-[10px] text-slate-400">Токен из личного кабинета банка для получения выписок</p>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-sm font-medium text-slate-700">Расчётный счёт</label>
+                          {editBankAccountNumber && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-teal-50 border border-teal-200 rounded text-sm font-mono text-teal-800">
+                              <span>{editBankAccountNumber}</span>
+                              <button type="button" onClick={() => setEditBankAccountNumber('')} className="text-teal-500 hover:text-teal-700 text-xs ml-auto">✕</button>
+                            </div>
+                          )}
+                          {!editBankAccountNumber && (
+                            <>
+                              {bankAccounts.length > 0 ? (
+                                <select
+                                  value=""
+                                  onChange={e => { if (e.target.value) setEditBankAccountNumber(e.target.value); }}
+                                  className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900 focus:outline-none focus:border-teal-500"
+                                >
+                                  <option value="">— Выберите счёт —</option>
+                                  {bankAccounts.map(ba => (
+                                    <option key={ba.accountNumber} value={ba.accountNumber}>
+                                      {ba.accountNumber} {ba.currency ? `(${ba.currency})` : ''} {ba.name !== ba.accountNumber ? `— ${ba.name}` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={bankAccountsLoading || !editItem?.id}
+                                  onClick={async () => {
+                                    setBankAccountsLoading(true);
+                                    setBankAccountsError('');
+                                    try {
+                                      const r = await fetch(`/api/reconciliation/bank-accounts?accountId=${editItem!.id}`);
+                                      const d = await r.json();
+                                      if (!r.ok) { setBankAccountsError(d.error || 'Ошибка'); return; }
+                                      if (d.length === 0) { setBankAccountsError('Счета не найдены. Проверьте API ключ'); return; }
+                                      setBankAccounts(d);
+                                      if (d.length === 1) setEditBankAccountNumber(d[0].accountNumber);
+                                    } catch { setBankAccountsError('Ошибка подключения'); } finally { setBankAccountsLoading(false); }
+                                  }}
+                                  className="w-full px-3 py-2 border border-dashed border-teal-300 rounded text-sm text-teal-600 hover:bg-teal-50 transition-colors disabled:opacity-50"
+                                >
+                                  {bankAccountsLoading ? 'Загрузка...' : 'Загрузить счета из банка'}
+                                </button>
+                              )}
+                              {bankAccountsError && <p className="text-[11px] text-rose-500">{bankAccountsError}</p>}
+                            </>
+                          )}
+                          <p className="text-[10px] text-slate-400">Нажмите кнопку — список счетов загрузится автоматически по API ключу</p>
                         </div>
                       </>
                     )}

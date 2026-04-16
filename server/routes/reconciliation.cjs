@@ -354,15 +354,31 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
       return res.status(400).json({ error: 'Банковская интеграция не настроена для этого счёта' });
     }
 
-    if (!account.bank_account_number) {
-      return res.status(400).json({ error: 'Не указан номер расчётного счёта. Укажите его в настройках счёта (Справочники → Счета)' });
+    let bankAccountNumber = account.bank_account_number;
+    if (!bankAccountNumber && account.bank_type === 'tbank') {
+      try {
+        const accListResp = await fetch('https://business.tbank.ru/openapi/api/v1/bank-accounts', {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${account.bank_api_key}`, 'Accept': 'application/json' }
+        });
+        if (accListResp.ok) {
+          const accList = await accListResp.json();
+          if (accList && accList.length > 0) {
+            bankAccountNumber = accList[0].accountNumber;
+            await db.query('UPDATE accounts SET bank_account_number = $1 WHERE id = $2', [bankAccountNumber, accountId]);
+          }
+        }
+      } catch (e) { console.error('Auto-fetch bank accounts failed:', e.message); }
+    }
+    if (!bankAccountNumber) {
+      return res.status(400).json({ error: 'Не удалось определить номер расчётного счёта. Укажите его в настройках счёта (Справочники → Счета)' });
     }
 
     let statements = [];
 
     if (account.bank_type === 'tbank') {
       try {
-        const resp = await fetch(`https://business.tbank.ru/openapi/api/v1/bank-statement?accountNumber=${encodeURIComponent(account.bank_account_number)}&from=${encodeURIComponent(startDate + 'T00:00:00Z')}&to=${encodeURIComponent(endDate + 'T23:59:59Z')}`, {
+        const resp = await fetch(`https://business.tbank.ru/openapi/api/v1/bank-statement?accountNumber=${encodeURIComponent(bankAccountNumber)}&from=${encodeURIComponent(startDate + 'T00:00:00Z')}&to=${encodeURIComponent(endDate + 'T23:59:59Z')}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${account.bank_api_key}`
@@ -394,7 +410,7 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            accountNumber: account.bank_account_number,
+            accountNumber: bankAccountNumber,
             dateFrom: startDate,
             dateTo: endDate
           })
@@ -424,6 +440,53 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
   } catch (err) {
     console.error('Bank statement error:', err);
     res.status(500).json({ error: 'Ошибка получения банковской выписки' });
+  }
+});
+
+router.get('/reconciliation/bank-accounts', async (req, res) => {
+  try {
+    const { accountId } = req.query;
+    if (!accountId) return res.status(400).json({ error: 'accountId required' });
+
+    const accRes = await db.query('SELECT id, bank_api_key, bank_type FROM accounts WHERE id = $1', [accountId]);
+    if (accRes.rows.length === 0) return res.status(404).json({ error: 'Счёт не найден' });
+    const account = accRes.rows[0];
+
+    if (!account.bank_api_key || !account.bank_type) {
+      return res.status(400).json({ error: 'Банковская интеграция не настроена' });
+    }
+
+    if (account.bank_type === 'tbank') {
+      try {
+        const resp = await fetch('https://business.tbank.ru/openapi/api/v1/bank-accounts', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${account.bank_api_key}`,
+            'Accept': 'application/json'
+          }
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          console.error('T-Bank accounts error:', resp.status, errText);
+          return res.status(resp.status).json({ error: `Ошибка Т-Банк API: ${errText}` });
+        }
+        const data = await resp.json();
+        const accounts = (data || []).map(a => ({
+          accountNumber: a.accountNumber,
+          name: a.name || a.accountNumber,
+          currency: a.currency,
+          balance: a.balance?.otb ?? a.balance?.authorized ?? null
+        }));
+        return res.json(accounts);
+      } catch (fetchErr) {
+        return res.status(502).json({ error: `Ошибка подключения к Т-Банк: ${fetchErr.message}` });
+      }
+    }
+
+    return res.json([]);
+  } catch (err) {
+    console.error('Bank accounts error:', err);
+    res.status(500).json({ error: 'Ошибка получения списка счетов' });
   }
 });
 
