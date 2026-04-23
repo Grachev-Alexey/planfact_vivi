@@ -1051,8 +1051,7 @@ router.post('/master-incomes/close-shift', async (req, res) => {
 
     // Studio + master info
     const masterInfoRes = await db.query(
-      `SELECT u.id, u.username, u.role, u.studio_id,
-              s.name as studio_name, s.address as studio_address, s.yclients_company_id
+      `SELECT u.id, u.username, u.studio_id, s.name as studio_name
        FROM users u LEFT JOIN studios s ON u.studio_id = s.id
        WHERE u.id = $1`,
       [master.id]
@@ -1146,37 +1145,15 @@ router.post('/master-incomes/close-shift', async (req, res) => {
       shiftId,
       date: today,
       createdAt,
-      submittedAt: nowIso,
-      master: {
-        id: info.id,
-        username: info.username,
-        role: info.role,
-      },
-      studio: {
-        id: info.studio_id,
-        name: info.studio_name,
-        address: info.studio_address,
-        yclientsCompanyId: info.yclients_company_id,
-      },
+      master: { id: info.id, username: info.username },
+      studio: { id: info.studio_id, name: info.studio_name },
       totals: cleanTotals,
-      computedTotals: computed,
-      computedDetailed,
       totalReported,
       totalComputed,
       mismatch: Math.abs(totalReported - totalComputed) > 0.01,
-      visits: visitOnlyCount + incomes.filter(i => i.paymentType !== 'visit_only').length,
-      visitOnlyCount,
-      paidIncomesCount: incomes.filter(i => i.paymentType !== 'visit_only').length,
-      cash: {
-        reported: cb,
-        expected: expectedCash,
-        diff: cashDiff,
-        mismatch: cashDiff !== null && Math.abs(cashDiff) > 0.009,
-        account: cashAccount,
-      },
-      cashBalance: cb,
-      previousShiftToday,
-      incomes,
+      cashReported: cb,
+      cashExpected: expectedCash,
+      cashDiff,
     };
 
     let webhookStatus = 'pending';
