@@ -1051,7 +1051,7 @@ router.post('/master-incomes/close-shift', async (req, res) => {
 
     // Studio + master info
     const masterInfoRes = await db.query(
-      `SELECT u.id, u.username, u.email, u.phone, u.role, u.studio_id, u.yclients_staff_id,
+      `SELECT u.id, u.username, u.phone, u.role, u.studio_id, u.yclients_staff_id,
               s.name as studio_name, s.address as studio_address, s.yclients_company_id
        FROM users u LEFT JOIN studios s ON u.studio_id = s.id
        WHERE u.id = $1`,

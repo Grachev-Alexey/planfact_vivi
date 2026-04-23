@@ -981,8 +981,8 @@ export const MasterIncomePage: React.FC = () => {
     setYcRecordData(null);
     setYcComment('');
     setYcFieldValues({});
-    setForDate('today');
-    fetchSchedule();
+    setForDate(todayDateStr);
+    fetchSchedule(todayDateStr);
   };
 
   const handleEdit = (inc: MasterIncome) => {
