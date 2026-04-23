@@ -391,13 +391,21 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
         }
         const data = await resp.json();
         const ops = data.operation || data.operations || [];
-        statements = ops.map(op => ({
-          date: (op.date || op.operationDate || '').split('T')[0],
-          amount: parseFloat(op.amount || op.operationAmount || 0),
-          description: op.paymentPurpose || op.narrative || op.description || '',
-          counterparty: op.counterpartyName || op.corresondentName || '',
-          type: parseFloat(op.amount || op.operationAmount || 0) > 0 ? 'income' : 'expense'
-        }));
+        statements = ops.map(op => {
+          const raw = parseFloat(op.amount || op.operationAmount || 0);
+          const dirRaw = String(op.typeOfTransaction || op.transactionType || op.direction || op.type || '').toLowerCase();
+          let isIncome;
+          if (dirRaw === 'credit' || dirRaw === 'cr' || dirRaw === '1') isIncome = true;
+          else if (dirRaw === 'debit' || dirRaw === 'db' || dirRaw === '2') isIncome = false;
+          else isIncome = raw > 0;
+          return {
+            date: (op.date || op.operationDate || '').split('T')[0],
+            amount: Math.abs(raw),
+            description: op.paymentPurpose || op.narrative || op.description || '',
+            counterparty: op.counterpartyName || op.corresondentName || op.contragent?.name || '',
+            type: isIncome ? 'income' : 'expense',
+          };
+        });
       } catch (fetchErr) {
         return res.status(502).json({ error: `Ошибка подключения к Т-Банк: ${fetchErr.message}` });
       }
@@ -422,13 +430,21 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
         }
         const data = await resp.json();
         const ops = data.operations || [];
-        statements = ops.map(op => ({
-          date: (op.operationDate || '').split('T')[0],
-          amount: parseFloat(op.amount?.amount || op.amount || 0),
-          description: op.paymentPurpose || op.description || '',
-          counterparty: op.contragentName || '',
-          type: parseFloat(op.amount?.amount || op.amount || 0) > 0 ? 'income' : 'expense'
-        }));
+        statements = ops.map(op => {
+          const raw = parseFloat(op.amount?.amount || op.amount || 0);
+          const dirRaw = String(op.direction || op.operationType || op.type || '').toLowerCase();
+          let isIncome;
+          if (dirRaw === 'credit' || dirRaw === 'cr' || dirRaw === 'c' || dirRaw === '1') isIncome = true;
+          else if (dirRaw === 'debit' || dirRaw === 'db' || dirRaw === 'd' || dirRaw === '2') isIncome = false;
+          else isIncome = raw > 0;
+          return {
+            date: (op.operationDate || '').split('T')[0],
+            amount: Math.abs(raw),
+            description: op.paymentPurpose || op.description || '',
+            counterparty: op.contragentName || '',
+            type: isIncome ? 'income' : 'expense',
+          };
+        });
       } catch (fetchErr) {
         return res.status(502).json({ error: `Ошибка подключения к Сбер: ${fetchErr.message}` });
       }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, Landmark, TrendingUp, TrendingDown, Wallet, CircleDollarSign, Building2, LayoutGrid, List, FileText, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Landmark, TrendingUp, TrendingDown, Wallet, CircleDollarSign, Building2, LayoutGrid, List, FileText, X, FileSpreadsheet, FileDown, Filter } from 'lucide-react';
 import { getMoscowNow } from '../utils/moscow';
 
 interface SettlementAccount { id: number; name: string; bankType?: string | null; hasBankKey?: boolean; }
@@ -417,77 +417,16 @@ export const ReconciliationPage: React.FC = () => {
       ) : null}
 
       {bankStatementOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setBankStatementOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Банковская выписка</h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {selectedAccount?.name} — {MONTH_NAMES[month]} {year}
-                  {selectedAccount?.bankType && <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-medium text-slate-500">
-                    {selectedAccount.bankType === 'tbank' ? 'Т-Банк' : 'Сбер'}
-                  </span>}
-                </p>
-              </div>
-              <button onClick={() => setBankStatementOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
-                <X size={18} className="text-slate-400" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5">
-              {bankStatementLoading ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <div className="relative">
-                    <div className="w-8 h-8 rounded-full border-[3px] border-slate-200"></div>
-                    <div className="absolute inset-0 w-8 h-8 rounded-full border-[3px] border-teal-500 border-t-transparent animate-spin"></div>
-                  </div>
-                  <span className="text-sm text-slate-400">Загрузка выписки...</span>
-                </div>
-              ) : bankStatementError ? (
-                <div className="text-center py-12">
-                  <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center mx-auto mb-4">
-                    <FileText size={24} className="text-rose-400" />
-                  </div>
-                  <p className="text-sm text-rose-600 font-medium">{bankStatementError}</p>
-                  <p className="text-xs text-slate-400 mt-2">Проверьте API ключ в настройках счёта</p>
-                </div>
-              ) : bankStatements.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
-                    <FileText size={24} className="text-slate-300" />
-                  </div>
-                  <p className="text-sm text-slate-500">Нет операций за выбранный период</p>
-                </div>
-              ) : (
-                <div className="space-y-0.5">
-                  <div className="grid grid-cols-[100px_1fr_120px] gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                    <span>Дата</span>
-                    <span>Описание</span>
-                    <span className="text-right">Сумма</span>
-                  </div>
-                  {bankStatements.map((st, i) => (
-                    <div key={i} className="grid grid-cols-[100px_1fr_120px] gap-2 px-3 py-2 text-sm hover:bg-slate-50 rounded-lg transition-colors">
-                      <span className="text-slate-500 font-medium tabular-nums">{st.date?.substring(0, 10)}</span>
-                      <div className="min-w-0">
-                        <div className="text-slate-700 truncate">{st.description || '—'}</div>
-                        {st.counterparty && <div className="text-[11px] text-slate-400 truncate">{st.counterparty}</div>}
-                      </div>
-                      <span className={`text-right font-semibold tabular-nums ${st.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {st.type === 'income' ? '+' : '−'}{fmt(Math.abs(st.amount))} ₽
-                      </span>
-                    </div>
-                  ))}
-                  <div className="border-t border-slate-200 mt-2 pt-3 px-3 flex justify-between text-sm font-semibold">
-                    <span className="text-slate-500">Итого:</span>
-                    <div className="flex gap-4">
-                      <span className="text-emerald-600">+{fmt(bankStatements.filter(s => s.type === 'income').reduce((a, s) => a + Math.abs(s.amount), 0))} ₽</span>
-                      <span className="text-rose-600">−{fmt(bankStatements.filter(s => s.type === 'expense').reduce((a, s) => a + Math.abs(s.amount), 0))} ₽</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <BankStatementModal
+          onClose={() => setBankStatementOpen(false)}
+          loading={bankStatementLoading}
+          error={bankStatementError}
+          statements={bankStatements}
+          accountName={selectedAccount?.name || ''}
+          bankType={selectedAccount?.bankType || null}
+          period={`${MONTH_NAMES[month]} ${year}`}
+          systemDays={accountData?.days || []}
+        />
       )}
     </div>
   );
@@ -682,6 +621,404 @@ const DetailsBlock: React.FC<{ label: string; total: number; color: string; item
             </span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+};
+
+function categorizeBankOp(description: string, type: 'income' | 'expense'): string {
+  const d = (description || '').toLowerCase();
+  if (/эквайринг|терминал|pos[\s-]?терминал/.test(d)) return 'Терминал';
+  if (/\bсбп\b|быстр\w*\s*платеж/.test(d)) return 'СБП';
+  if (/ю[-\s]?касс|yukassa|юkassa/.test(d)) return 'Ю-Касса';
+  if (/рассроч|тинькофф\s*рассроч|долями/.test(d)) return 'Рассрочка';
+  if (/налич/.test(d)) return 'Наличные';
+  if (/перевод\s+собственн|собственных\s+средств|меж.*собств/.test(d)) return 'Перевод между счетами';
+  if (/комисс|плата за обслуж|абонент.*плат/.test(d)) return 'Комиссия банка';
+  if (/налог|nalog|ндс|страх.*взнос|пенс.*фонд/.test(d)) return 'Налоги';
+  if (/арен/.test(d)) return 'Аренда';
+  if (/зарплат|з\/п|выплата.*сотруд|подотчет/.test(d)) return 'ЗП/Подотчёт';
+  if (/возврат/.test(d)) return type === 'income' ? 'Возвраты' : 'Прочее';
+  return 'Прочее';
+}
+
+function fmtDay(ds: string): string {
+  const d = new Date(ds + 'T12:00:00');
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', weekday: 'short' });
+}
+
+const BankStatementModal: React.FC<{
+  onClose: () => void;
+  loading: boolean;
+  error: string;
+  statements: BankStatement[];
+  accountName: string;
+  bankType: string | null;
+  period: string;
+  systemDays: DayData[];
+}> = ({ onClose, loading, error, statements, accountName, bankType, period, systemDays }) => {
+  const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+  const [allExpanded, setAllExpanded] = useState(true);
+
+  const filtered = useMemo(() => {
+    return filter === 'all' ? statements : statements.filter(s => s.type === filter);
+  }, [statements, filter]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, BankStatement[]>();
+    for (const s of filtered) {
+      const day = (s.date || '').substring(0, 10);
+      if (!map.has(day)) map.set(day, []);
+      map.get(day)!.push(s);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [filtered]);
+
+  const totals = useMemo(() => {
+    const income = filtered.filter(s => s.type === 'income').reduce((a, s) => a + s.amount, 0);
+    const expense = filtered.filter(s => s.type === 'expense').reduce((a, s) => a + s.amount, 0);
+    return { income, expense, net: income - expense, count: filtered.length };
+  }, [filtered]);
+
+  const systemDayMap = useMemo(() => {
+    const m = new Map<string, DayData>();
+    systemDays.forEach(d => m.set(d.date, d));
+    return m;
+  }, [systemDays]);
+
+  const dayMatches = useMemo(() => {
+    const result = new Map<string, { source: string; bank: number; system: number; diff: number }[]>();
+    for (const [day, ops] of grouped) {
+      const bankByCat: Record<string, number> = {};
+      for (const op of ops) {
+        const cat = categorizeBankOp(op.description, op.type);
+        const sign = op.type === 'income' ? 1 : -1;
+        bankByCat[cat] = (bankByCat[cat] || 0) + sign * op.amount;
+      }
+      const sysDay = systemDayMap.get(day);
+      const sysByCat: Record<string, number> = {};
+      if (sysDay) {
+        sysDay.incomeDetails.forEach(it => {
+          const pt = extractIncomePaymentType(it);
+          sysByCat[pt] = (sysByCat[pt] || 0) + (Number(it.amount) || 0);
+        });
+        sysDay.expenseDetails.forEach(it => {
+          const pt = extractExpensePaymentType(it);
+          if (pt) sysByCat[pt] = (sysByCat[pt] || 0) - (Number(it.amount) || 0);
+        });
+      }
+      const allCats = new Set([...Object.keys(bankByCat), ...Object.keys(sysByCat)]);
+      const rows: { source: string; bank: number; system: number; diff: number }[] = [];
+      const matchable = ['Терминал', 'СБП', 'Ю-Касса', 'Наличные', 'Рассрочка'];
+      for (const cat of allCats) {
+        if (!matchable.includes(cat)) continue;
+        const bank = bankByCat[cat] || 0;
+        const sys = sysByCat[cat] || 0;
+        if (bank === 0 && sys === 0) continue;
+        rows.push({ source: cat, bank, system: sys, diff: bank - sys });
+      }
+      rows.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+      result.set(day, rows);
+    }
+    return result;
+  }, [grouped, systemDayMap]);
+
+  const toggleDay = (d: string) => {
+    setExpandedDays(prev => {
+      const n = new Set(prev);
+      if (n.has(d)) n.delete(d); else n.add(d);
+      return n;
+    });
+    setAllExpanded(false);
+  };
+
+  const toggleAll = () => {
+    if (allExpanded) {
+      setAllExpanded(false);
+      setExpandedDays(new Set());
+    } else {
+      setAllExpanded(true);
+      setExpandedDays(new Set(grouped.map(([d]) => d)));
+    }
+  };
+
+  const isExpanded = (d: string) => allExpanded || expandedDays.has(d);
+
+  const exportExcel = async () => {
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Выписка');
+    ws.columns = [
+      { header: 'Дата', key: 'date', width: 12 },
+      { header: 'Тип', key: 'type', width: 10 },
+      { header: 'Категория', key: 'cat', width: 20 },
+      { header: 'Описание', key: 'desc', width: 60 },
+      { header: 'Контрагент', key: 'cp', width: 30 },
+      { header: 'Сумма', key: 'amount', width: 14 },
+    ];
+    ws.getRow(1).font = { bold: true };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+
+    for (const [day, ops] of grouped) {
+      for (const op of ops) {
+        const sign = op.type === 'income' ? 1 : -1;
+        ws.addRow({
+          date: day,
+          type: op.type === 'income' ? 'Приход' : 'Расход',
+          cat: categorizeBankOp(op.description, op.type),
+          desc: op.description || '',
+          cp: op.counterparty || '',
+          amount: sign * op.amount,
+        });
+      }
+      const dayIn = ops.filter(o => o.type === 'income').reduce((a, o) => a + o.amount, 0);
+      const dayOut = ops.filter(o => o.type === 'expense').reduce((a, o) => a + o.amount, 0);
+      const totalRow = ws.addRow({ date: `Итого ${day}`, type: '', cat: '', desc: `+${fmt(dayIn)} / −${fmt(dayOut)}`, cp: '', amount: dayIn - dayOut });
+      totalRow.font = { bold: true };
+      totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    }
+    const totalRow = ws.addRow({ date: 'ИТОГО', type: '', cat: '', desc: `+${fmt(totals.income)} / −${fmt(totals.expense)}`, cp: '', amount: totals.net });
+    totalRow.font = { bold: true, size: 12 };
+    totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } };
+
+    ws.getColumn('amount').numFmt = '#,##0.00 ₽';
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Выписка_${accountName}_${period}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = async () => {
+    const jsPDF = (await import('jspdf')).default;
+    const autoTable = (await import('jspdf-autotable')).default;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('Bank statement', 40, 40);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Account: ${accountName}`, 40, 58);
+    doc.text(`Period: ${period}`, 40, 72);
+    doc.text(`Bank: ${bankType === 'tbank' ? 'T-Bank' : bankType === 'sber' ? 'Sber' : '-'}`, 40, 86);
+
+    const body: any[] = [];
+    for (const [day, ops] of grouped) {
+      for (const op of ops) {
+        const sign = op.type === 'income' ? '+' : '-';
+        body.push([
+          day,
+          categorizeBankOp(op.description, op.type),
+          (op.description || '').slice(0, 60),
+          `${sign}${fmt(op.amount)}`,
+        ]);
+      }
+      const dayIn = ops.filter(o => o.type === 'income').reduce((a, o) => a + o.amount, 0);
+      const dayOut = ops.filter(o => o.type === 'expense').reduce((a, o) => a + o.amount, 0);
+      body.push([
+        { content: `Total ${day}`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
+        { content: `+${fmt(dayIn)} / -${fmt(dayOut)}`, styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
+        { content: `${fmt(dayIn - dayOut)}`, styles: { fontStyle: 'bold', fillColor: [241, 245, 249], halign: 'right' } },
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: 105,
+      head: [['Date', 'Category', 'Description', 'Amount']],
+      body,
+      styles: { fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [20, 184, 166], textColor: 255 },
+      columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 80 }, 2: { cellWidth: 280 }, 3: { halign: 'right', cellWidth: 80 } },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY || 105;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(`TOTAL: +${fmt(totals.income)}  -${fmt(totals.expense)}  =  ${fmt(totals.net)}`, 40, finalY + 24);
+
+    doc.save(`statement_${accountName}_${period}.pdf`);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-md shadow-teal-500/20">
+              <FileText size={16} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-800">Банковская выписка</h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {accountName} — {period}
+                {bankType && <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-medium text-slate-500">
+                  {bankType === 'tbank' ? 'Т-Банк' : 'Сбер'}
+                </span>}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {!loading && !error && statements.length > 0 && (
+              <>
+                <div className="flex items-center bg-slate-100 rounded-lg p-0.5 mr-1">
+                  {(['all', 'income', 'expense'] as const).map(f => (
+                    <button key={f} onClick={() => setFilter(f)}
+                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
+                        filter === f ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      }`}>
+                      {f === 'all' ? 'Все' : f === 'income' ? 'Приходы' : 'Расходы'}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={toggleAll} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
+                  <Filter size={12} /> {allExpanded ? 'Свернуть всё' : 'Развернуть всё'}
+                </button>
+                <button onClick={exportExcel} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
+                  <FileSpreadsheet size={12} /> Excel
+                </button>
+                <button onClick={exportPdf} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors">
+                  <FileDown size={12} /> PDF
+                </button>
+              </>
+            )}
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+              <X size={18} className="text-slate-400" />
+            </button>
+          </div>
+        </div>
+
+        {!loading && !error && statements.length > 0 && (
+          <div className="shrink-0 grid grid-cols-4 gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200">
+            <div className="bg-white rounded-lg border border-slate-200 px-3 py-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Операций</div>
+              <div className="text-base font-bold text-slate-700 tabular-nums">{totals.count}</div>
+            </div>
+            <div className="bg-white rounded-lg border border-emerald-100 px-3 py-2">
+              <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Поступления</div>
+              <div className="text-base font-bold text-emerald-600 tabular-nums">+{fmt(totals.income)} ₽</div>
+            </div>
+            <div className="bg-white rounded-lg border border-rose-100 px-3 py-2">
+              <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Списания</div>
+              <div className="text-base font-bold text-rose-600 tabular-nums">−{fmt(totals.expense)} ₽</div>
+            </div>
+            <div className={`bg-white rounded-lg border px-3 py-2 ${totals.net >= 0 ? 'border-teal-100' : 'border-amber-100'}`}>
+              <div className={`text-[10px] font-bold uppercase tracking-wider ${totals.net >= 0 ? 'text-teal-600' : 'text-amber-600'}`}>Нетто</div>
+              <div className={`text-base font-bold tabular-nums ${totals.net >= 0 ? 'text-teal-600' : 'text-amber-600'}`}>{fmtSigned(totals.net)} ₽</div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <div className="relative">
+                <div className="w-8 h-8 rounded-full border-[3px] border-slate-200"></div>
+                <div className="absolute inset-0 w-8 h-8 rounded-full border-[3px] border-teal-500 border-t-transparent animate-spin"></div>
+              </div>
+              <span className="text-sm text-slate-400">Загрузка выписки...</span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center mx-auto mb-4">
+                <FileText size={24} className="text-rose-400" />
+              </div>
+              <p className="text-sm text-rose-600 font-medium">{error}</p>
+              <p className="text-xs text-slate-400 mt-2">Проверьте API ключ в настройках счёта</p>
+            </div>
+          ) : statements.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
+                <FileText size={24} className="text-slate-300" />
+              </div>
+              <p className="text-sm text-slate-500">Нет операций за выбранный период</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {grouped.map(([day, ops]) => {
+                const dayIn = ops.filter(o => o.type === 'income').reduce((a, o) => a + o.amount, 0);
+                const dayOut = ops.filter(o => o.type === 'expense').reduce((a, o) => a + o.amount, 0);
+                const dayNet = dayIn - dayOut;
+                const matchRows = dayMatches.get(day) || [];
+                const open = isExpanded(day);
+                return (
+                  <div key={day} className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+                    <button onClick={() => toggleDay(day)}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-gradient-to-r from-slate-50 to-white hover:from-slate-100 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <ChevronDown size={16} className={`text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
+                        <span className="text-sm font-bold text-slate-700">{fmtDay(day)}</span>
+                        <span className="text-[11px] text-slate-400">· {ops.length} оп.</span>
+                      </div>
+                      <div className="flex items-center gap-3 tabular-nums text-[13px]">
+                        {dayIn > 0 && <span className="text-emerald-600 font-semibold">+{fmt(dayIn)}</span>}
+                        {dayOut > 0 && <span className="text-rose-600 font-semibold">−{fmt(dayOut)}</span>}
+                        <span className={`font-bold min-w-[80px] text-right ${dayNet >= 0 ? 'text-slate-700' : 'text-rose-600'}`}>= {fmtSigned(dayNet)}</span>
+                      </div>
+                    </button>
+
+                    {open && (
+                      <div className="border-t border-slate-100">
+                        {matchRows.length > 0 && (
+                          <div className="bg-amber-50/40 border-b border-amber-100/60 px-4 py-2">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1.5">Сверка с источниками системы</div>
+                            <div className="grid grid-cols-[1fr_100px_100px_100px] gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 mb-1">
+                              <div>Источник</div>
+                              <div className="text-right">Банк</div>
+                              <div className="text-right">Система</div>
+                              <div className="text-right">Разница</div>
+                            </div>
+                            <div className="space-y-0.5">
+                              {matchRows.map(r => {
+                                const ok = Math.abs(r.diff) < 0.5;
+                                return (
+                                  <div key={r.source} className={`grid grid-cols-[1fr_100px_100px_100px] gap-2 text-[12px] tabular-nums px-1 py-1 rounded ${ok ? 'bg-emerald-50/40' : 'bg-rose-50/40'}`}>
+                                    <div className="font-medium text-slate-700 flex items-center gap-1.5">
+                                      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                      {r.source}
+                                    </div>
+                                    <div className={`text-right font-semibold ${r.bank >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtSigned(r.bank)}</div>
+                                    <div className={`text-right font-semibold ${r.system >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtSigned(r.system)}</div>
+                                    <div className={`text-right font-bold ${ok ? 'text-emerald-700' : 'text-rose-700'}`}>{ok ? '✓' : fmtSigned(r.diff)}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        <div className="divide-y divide-slate-50">
+                          {ops.map((op, i) => {
+                            const cat = categorizeBankOp(op.description, op.type);
+                            return (
+                              <div key={i} className="grid grid-cols-[1fr_120px] gap-3 px-4 py-2 text-sm hover:bg-slate-50/60 group">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">{cat}</span>
+                                    {op.counterparty && <span className="text-[11px] text-slate-400 truncate">{op.counterparty}</span>}
+                                  </div>
+                                  <div className="text-slate-700 text-[13px] leading-snug break-words" title={op.description}>
+                                    {op.description || '—'}
+                                  </div>
+                                </div>
+                                <span className={`text-right font-semibold tabular-nums whitespace-nowrap self-center ${op.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {op.type === 'income' ? '+' : '−'}{fmt(op.amount)} ₽
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
