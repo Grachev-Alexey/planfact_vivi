@@ -541,20 +541,25 @@ const SmallCard: React.FC<{
   </div>
 );
 
-function extractIncomePaymentType(desc: string | undefined): string {
-  if (!desc) return 'Прочее';
-  const d = desc.trim();
-  if (/юkassa|юкасса|ю-касса|yukassa/i.test(d)) return 'Ю-Касса';
-  const prefix = d.split('|')[0].trim().toLowerCase();
-  if (/^карт/i.test(prefix)) return 'Терминал';
-  if (/^налич/i.test(prefix)) return 'Наличные';
-  if (/^сбп/i.test(prefix)) return 'СБП';
-  if (/^рассроч/i.test(prefix)) return 'Рассрочка';
-  if (/^онлайн/i.test(prefix)) return 'Ю-Касса';
-  return 'Прочее';
+function paymentTypeFromAccountName(name: string | undefined): string | null {
+  if (!name) return null;
+  const n = name.toLowerCase();
+  if (/ю[-\s]?касса|yukassa|юkassa/.test(n)) return 'Ю-Касса';
+  if (/налич/.test(n)) return 'Наличные';
+  if (/\bсбп\b/.test(n)) return 'СБП';
+  if (/рассроч/.test(n)) return 'Рассрочка';
+  if (/карт|терминал|эквайринг/.test(n)) return 'Терминал';
+  return null;
 }
 
-function extractExpensePaymentType(cat: string | undefined): string | null {
+function extractIncomePaymentType(item: { fromAccountName?: string; description?: string }): string {
+  return paymentTypeFromAccountName(item.fromAccountName) || 'Прочее';
+}
+
+function extractExpensePaymentType(item: { fromAccountName?: string; categoryName?: string }): string | null {
+  const byAcc = paymentTypeFromAccountName(item.fromAccountName);
+  if (byAcc) return byAcc;
+  const cat = item.categoryName;
   if (!cat) return null;
   if (/комисс.*юкасс|возврат.*юкасс/i.test(cat)) return 'Ю-Касса';
   if (/эквайринг/i.test(cat)) return 'Терминал';
@@ -576,14 +581,14 @@ const PaymentTypeSummary: React.FC<{ incomeItems: TxDetail[]; expenseItems: TxDe
     const ensure = (pt: string) => { if (!map[pt]) map[pt] = { income: 0, expenses: 0, incomeCount: 0, expenseCount: 0 }; };
 
     incomeItems.forEach(item => {
-      const pt = extractIncomePaymentType(item.description);
+      const pt = extractIncomePaymentType(item);
       ensure(pt);
       map[pt].income += Number(item.amount) || 0;
       map[pt].incomeCount++;
     });
 
     expenseItems.forEach(item => {
-      const pt = extractExpensePaymentType(item.categoryName);
+      const pt = extractExpensePaymentType(item);
       if (pt) {
         ensure(pt);
         map[pt].expenses += Number(item.amount) || 0;
