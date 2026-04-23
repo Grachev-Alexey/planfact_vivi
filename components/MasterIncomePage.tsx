@@ -1026,9 +1026,10 @@ export const MasterIncomePage: React.FC = () => {
             {cashOnHand !== null && (
               <div
                 className="flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full bg-slate-50 border border-slate-200"
-                title="Наличные в кассе студии"
+                title="Остаток наличных в кассе студии (не зарплата)"
               >
                 <Wallet size={12} className="text-slate-400" />
+                <span className="text-[10px] font-medium text-slate-400 hidden sm:inline">Касса:</span>
                 <span className="text-[11px] font-semibold text-slate-700 tabular-nums">{formatCurrency(cashOnHand)}</span>
               </div>
             )}
