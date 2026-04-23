@@ -401,7 +401,7 @@ export const TransactionList: React.FC = () => {
       await fetch('/api/transactions-batch/status', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-user-id': '1' },
-        body: JSON.stringify({ ids, confirmed }),
+        body: JSON.stringify({ ids, confirmed, status: confirmed ? 'verified' : '' }),
       });
     } catch (err) {
       console.error('Batch confirm error:', err);

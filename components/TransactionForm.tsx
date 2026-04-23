@@ -530,6 +530,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
       payload.confirmed = true;
     } else {
       payload.confirmed = confirmed;
+      payload.status = confirmed ? 'verified' : '';
     }
 
     if (initialData) {
