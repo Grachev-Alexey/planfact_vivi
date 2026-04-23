@@ -8,7 +8,7 @@ import {
   LogOut, Send, Search, ChevronDown, Check, Plus, Clock,
   User, Phone, Edit2, Trash2, X, AlertCircle, ArrowLeft,
   CheckCircle2, Loader2, Calendar, Banknote, ChevronRight, ChevronLeft,
-  BarChart3
+  BarChart3, ClipboardCheck, Wallet
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/format';
 import { MasterDashboard } from './MasterDashboard';
@@ -220,6 +220,256 @@ const ARTICLE_BUTTONS = [
 
 type Step = 'schedule' | 'entries';
 
+const PAYMENT_LABEL_MAP: Record<string, string> = {
+  cash: 'Наличные',
+  card: 'Терминал (карта)',
+  sbp: 'СБП',
+  ukassa: 'Ю-Касса',
+  installment: 'Рассрочка',
+};
+
+interface CloseShiftModalProps {
+  userId: number;
+  allowedPaymentTypes: { id: string; label: string }[];
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, allowedPaymentTypes, onClose, onSuccess }) => {
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [byType, setByType] = useState<Record<string, { amount: number; count: number }>>({});
+  const [computedTotal, setComputedTotal] = useState(0);
+  const [visits, setVisits] = useState(0);
+  const [alreadyClosed, setAlreadyClosed] = useState<{ id: number; createdAt: string; cashBalance: number } | null>(null);
+  const [reportedTotals, setReportedTotals] = useState<Record<string, string>>({});
+  const [cashBalance, setCashBalance] = useState('');
+  const [done, setDone] = useState<{ webhookStatus: string } | null>(null);
+
+  const paymentTypeKeys = useMemo(() => {
+    const fromAllowed = allowedPaymentTypes.filter(pt => pt.id !== 'visit_only').map(pt => pt.id);
+    const fromData = Object.keys(byType);
+    return Array.from(new Set([...fromAllowed, ...fromData]));
+  }, [allowedPaymentTypes, byType]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/master-incomes/today-totals', {
+          headers: { 'x-user-id': String(userId) },
+        });
+        if (!res.ok) throw new Error('Не удалось загрузить данные');
+        const data = await res.json();
+        if (cancelled) return;
+        setByType(data.byType || {});
+        setComputedTotal(data.total || 0);
+        setVisits(data.visits || 0);
+        setAlreadyClosed(data.alreadyClosed || null);
+        const initial: Record<string, string> = {};
+        for (const [k, v] of Object.entries(data.byType || {})) {
+          initial[k] = String((v as { amount: number }).amount);
+        }
+        setReportedTotals(initial);
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Ошибка');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const reportedTotal = useMemo(() => {
+    return Object.values(reportedTotals).reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
+  }, [reportedTotals]);
+
+  const mismatch = Math.abs(reportedTotal - computedTotal) > 0.01;
+
+  const handleSubmit = async () => {
+    setError(null);
+    if (!cashBalance.trim() || isNaN(parseFloat(cashBalance))) {
+      setError('Введите остаток наличных в кассе');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const totals: Record<string, number> = {};
+      for (const [k, v] of Object.entries(reportedTotals)) {
+        const n = parseFloat(v);
+        if (!isNaN(n)) totals[k] = n;
+      }
+      const res = await fetch('/api/master-incomes/close-shift', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+        body: JSON.stringify({ totals, cashBalance: parseFloat(cashBalance) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Ошибка');
+      setDone({ webhookStatus: data.webhookStatus });
+      onSuccess();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Ошибка');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[92vh] flex flex-col">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-teal-50 flex items-center justify-center">
+              <ClipboardCheck size={16} className="text-teal-600" />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 text-sm">Сдать смену</h2>
+              <div className="text-[11px] text-slate-400">Проверьте суммы и остаток в кассе</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 flex items-center justify-center transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12 text-slate-400 gap-2">
+              <Loader2 size={18} className="animate-spin" /> Загрузка...
+            </div>
+          ) : done ? (
+            <div className="text-center py-8 space-y-3">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+                <CheckCircle2 size={32} className="text-emerald-600" />
+              </div>
+              <h3 className="font-bold text-slate-800">Смена сдана</h3>
+              <div className="text-xs text-slate-500">
+                {done.webhookStatus === 'ok' && 'Отчёт отправлен'}
+                {done.webhookStatus === 'skipped' && 'Отчёт сохранён (вебхук не настроен)'}
+                {done.webhookStatus !== 'ok' && done.webhookStatus !== 'skipped' && `Сохранено, но вебхук: ${done.webhookStatus}`}
+              </div>
+            </div>
+          ) : (
+            <>
+              {alreadyClosed && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 flex items-start gap-2">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <div>
+                    Смена уже сдавалась сегодня в {new Date(alreadyClosed.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}.
+                    Можно сдать повторно — это создаст новую запись.
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-4 text-white">
+                <div className="text-[11px] text-teal-100 font-medium">Принято за смену по системе</div>
+                <div className="text-2xl font-bold mt-0.5">{formatCurrency(computedTotal)}</div>
+                <div className="text-[11px] text-teal-100 mt-1">{visits} визитов</div>
+              </div>
+
+              <div className="space-y-2.5">
+                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                  Сколько фактически приняли
+                </div>
+                {paymentTypeKeys.length === 0 && (
+                  <div className="text-sm text-slate-400 text-center py-4">Сегодня не было оплат</div>
+                )}
+                {paymentTypeKeys.map(key => {
+                  const computed = byType[key]?.amount || 0;
+                  const count = byType[key]?.count || 0;
+                  const value = reportedTotals[key] ?? '';
+                  const reported = parseFloat(value) || 0;
+                  const diff = reported - computed;
+                  const hasDiff = Math.abs(diff) > 0.01 && value !== '';
+                  return (
+                    <div key={key} className="bg-slate-50 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-700">{PAYMENT_LABEL_MAP[key] || key}</div>
+                          <div className="text-[10px] text-slate-400">
+                            По системе: {formatCurrency(computed)}{count > 0 ? ` · ${count}` : ''}
+                          </div>
+                        </div>
+                        {hasDiff && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${diff > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                            {diff > 0 ? '+' : ''}{formatCurrency(diff)}
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={value}
+                        onChange={e => setReportedTotals(p => ({ ...p, [key]: e.target.value }))}
+                        placeholder="0"
+                        className={`w-full px-3 py-2 bg-white border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors ${hasDiff ? 'border-amber-300' : 'border-slate-200'}`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {paymentTypeKeys.length > 0 && (
+                <div className="flex items-center justify-between px-3 py-2 bg-slate-100 rounded-xl">
+                  <span className="text-xs font-medium text-slate-500">Итого факт</span>
+                  <span className={`text-sm font-bold ${mismatch ? 'text-amber-600' : 'text-slate-700'}`}>
+                    {formatCurrency(reportedTotal)}
+                    {mismatch && <span className="text-[10px] text-amber-500 ml-1">(расхождение)</span>}
+                  </span>
+                </div>
+              )}
+
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Wallet size={14} className="text-orange-500" />
+                  <label className="text-xs font-semibold text-orange-700">Остаток наличных в кассе</label>
+                </div>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={cashBalance}
+                  onChange={e => setCashBalance(e.target.value)}
+                  placeholder="0"
+                  className="w-full px-3 py-2.5 bg-white border border-orange-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+              </div>
+
+              {error && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-sm text-rose-600 flex items-start gap-2">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" /> {error}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="px-4 py-3 border-t border-slate-100 shrink-0 flex gap-2">
+          {done ? (
+            <button onClick={onClose} className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors">
+              Готово
+            </button>
+          ) : (
+            <>
+              <button onClick={onClose} disabled={submitting}
+                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50">
+                Отмена
+              </button>
+              <button onClick={handleSubmit} disabled={submitting || loading}
+                className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                {submitting ? <><Loader2 size={14} className="animate-spin" /> Отправка...</> : 'Сдать смену'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 let entryCounter = 0;
 function newEntry(): IncomeEntry {
   entryCounter++;
@@ -317,6 +567,8 @@ export const MasterIncomePage: React.FC = () => {
       return PAYMENT_TYPES.filter(pt => pt.id === 'visit_only' || allowed.includes(pt.id));
     } catch { return PAYMENT_TYPES; }
   }, [user?.studioId, studios]);
+
+  const [showCloseShift, setShowCloseShift] = useState(false);
 
   const [editingIncome, setEditingIncome] = useState<MasterIncome | null>(null);
   const [editAmount, setEditAmount] = useState('');
@@ -781,6 +1033,14 @@ export const MasterIncomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {showCloseShift && user && (
+        <CloseShiftModal
+          userId={user.id}
+          allowedPaymentTypes={allowedPaymentTypes}
+          onClose={() => setShowCloseShift(false)}
+          onSuccess={() => { fetchSchedule(); fetchIncomes(); }}
+        />
+      )}
       <div className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -988,6 +1248,15 @@ export const MasterIncomePage: React.FC = () => {
                   </div>
                 )}
               </div>
+              {isToday && (
+                <button
+                  type="button"
+                  onClick={() => setShowCloseShift(true)}
+                  className="mt-3 w-full py-2.5 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl text-sm font-semibold hover:from-teal-600 hover:to-teal-700 transition-all shadow-md shadow-teal-200 flex items-center justify-center gap-2"
+                >
+                  <ClipboardCheck size={16} /> Сдать смену
+                </button>
+              )}
               <div className="flex items-center gap-2 mt-2">
                 <button
                   type="button"

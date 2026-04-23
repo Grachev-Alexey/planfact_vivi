@@ -413,6 +413,22 @@ const initDB = async () => {
       END $$;
     `);
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS master_shifts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        studio_id INTEGER,
+        shift_date DATE NOT NULL,
+        totals JSONB NOT NULL DEFAULT '{}'::jsonb,
+        computed_totals JSONB NOT NULL DEFAULT '{}'::jsonb,
+        cash_balance NUMERIC(15,2) NOT NULL DEFAULT 0,
+        webhook_status TEXT,
+        webhook_response TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_master_shifts_user_date ON master_shifts(user_id, shift_date)`);
+
     const adminCheck = await db.query("SELECT * FROM users WHERE username = 'grachev'");
     if (adminCheck.rows.length === 0) {
       await db.query("INSERT INTO users (username, password, role) VALUES ($1, $2, $3)", ['grachev', 'cd5d56a8', 'admin']);

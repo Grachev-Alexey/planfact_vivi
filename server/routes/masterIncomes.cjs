@@ -919,4 +919,158 @@ router.delete('/master-incomes/:id', async (req, res) => {
   }
 });
 
+// ============================================================
+// Shift close (Сдать смену)
+// ============================================================
+
+router.get('/master-incomes/today-totals', async (req, res) => {
+  const master = await requireMaster(req, res);
+  if (!master) return;
+  try {
+    const today = getMoscowToday();
+    const result = await db.query(
+      `SELECT payment_type, COALESCE(SUM(amount), 0) as amount, COUNT(*) as count
+       FROM master_incomes
+       WHERE user_id = $1
+         AND DATE(created_at) = $2
+         AND payment_type != 'visit_only'
+       GROUP BY payment_type
+       ORDER BY amount DESC`,
+      [master.id, today]
+    );
+    const byType = {};
+    let total = 0;
+    for (const r of result.rows) {
+      const amt = parseFloat(r.amount) || 0;
+      byType[r.payment_type] = { amount: amt, count: parseInt(r.count) || 0 };
+      total += amt;
+    }
+    const visitsRes = await db.query(
+      `SELECT COUNT(DISTINCT COALESCE(yclients_data->'recordIds'->>0, yclients_data->>'visitId', id::text)) as visits
+       FROM master_incomes
+       WHERE user_id = $1 AND DATE(created_at) = $2`,
+      [master.id, today]
+    );
+    const alreadyClosedRes = await db.query(
+      `SELECT id, created_at, totals, cash_balance FROM master_shifts
+       WHERE user_id = $1 AND shift_date = $2
+       ORDER BY created_at DESC LIMIT 1`,
+      [master.id, today]
+    );
+    res.json({
+      date: today,
+      byType,
+      total,
+      visits: parseInt(visitsRes.rows[0]?.visits) || 0,
+      alreadyClosed: alreadyClosedRes.rows.length > 0 ? toCamelCase(alreadyClosedRes.rows[0]) : null,
+    });
+  } catch (err) {
+    console.error('Error fetching today totals:', err);
+    res.status(500).json({ error: 'Ошибка загрузки итогов' });
+  }
+});
+
+router.post('/master-incomes/close-shift', async (req, res) => {
+  const master = await requireMaster(req, res);
+  if (!master) return;
+  try {
+    const { totals, cashBalance } = req.body || {};
+    if (!totals || typeof totals !== 'object') {
+      return res.status(400).json({ error: 'totals required' });
+    }
+    if (cashBalance === undefined || cashBalance === null || isNaN(parseFloat(cashBalance))) {
+      return res.status(400).json({ error: 'cashBalance required' });
+    }
+
+    const cleanTotals = {};
+    for (const [k, v] of Object.entries(totals)) {
+      const n = parseFloat(v);
+      if (!isNaN(n) && n >= 0) cleanTotals[k] = n;
+    }
+    const cb = parseFloat(cashBalance);
+    const today = getMoscowToday();
+
+    // Compute server-side totals for audit
+    const computedRes = await db.query(
+      `SELECT payment_type, COALESCE(SUM(amount), 0) as amount
+       FROM master_incomes
+       WHERE user_id = $1 AND DATE(created_at) = $2 AND payment_type != 'visit_only'
+       GROUP BY payment_type`,
+      [master.id, today]
+    );
+    const computed = {};
+    for (const r of computedRes.rows) computed[r.payment_type] = parseFloat(r.amount) || 0;
+
+    // Studio + master info
+    const masterInfoRes = await db.query(
+      `SELECT u.id, u.username, u.studio_id, s.name as studio_name
+       FROM users u LEFT JOIN studios s ON u.studio_id = s.id
+       WHERE u.id = $1`,
+      [master.id]
+    );
+    const info = masterInfoRes.rows[0] || {};
+
+    const insertRes = await db.query(
+      `INSERT INTO master_shifts (user_id, studio_id, shift_date, totals, computed_totals, cash_balance)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
+      [master.id, info.studio_id || null, today, JSON.stringify(cleanTotals), JSON.stringify(computed), cb]
+    );
+    const shiftId = insertRes.rows[0].id;
+    const createdAt = insertRes.rows[0].created_at;
+
+    const totalReported = Object.values(cleanTotals).reduce((a, b) => a + b, 0);
+    const totalComputed = Object.values(computed).reduce((a, b) => a + b, 0);
+
+    const payload = {
+      event: 'shift_closed',
+      shiftId,
+      date: today,
+      createdAt,
+      master: { id: info.id, username: info.username },
+      studio: { id: info.studio_id, name: info.studio_name },
+      totals: cleanTotals,
+      computedTotals: computed,
+      totalReported,
+      totalComputed,
+      mismatch: Math.abs(totalReported - totalComputed) > 0.01,
+      cashBalance: cb,
+    };
+
+    let webhookStatus = 'skipped';
+    let webhookResponse = null;
+    const webhookUrl = process.env.SHIFT_CLOSE_WEBHOOK_URL;
+    if (webhookUrl) {
+      try {
+        const r = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        webhookStatus = r.ok ? 'ok' : `error_${r.status}`;
+        webhookResponse = (await r.text().catch(() => '')).slice(0, 500);
+      } catch (e) {
+        webhookStatus = 'failed';
+        webhookResponse = String(e && e.message || e).slice(0, 500);
+      }
+    } else {
+      console.log('[close-shift] SHIFT_CLOSE_WEBHOOK_URL not set, payload:', JSON.stringify(payload));
+    }
+
+    await db.query(
+      `UPDATE master_shifts SET webhook_status = $1, webhook_response = $2 WHERE id = $3`,
+      [webhookStatus, webhookResponse, shiftId]
+    );
+
+    try {
+      await logAction(master.id, info.username || 'master', 'create', 'master_shift', shiftId,
+        `Сдана смена за ${today} · итого ${totalReported} ₽ · остаток наличных ${cb} ₽`);
+    } catch {}
+
+    res.json({ success: true, shiftId, webhookStatus, payload });
+  } catch (err) {
+    console.error('Error closing shift:', err);
+    res.status(500).json({ error: 'Ошибка при закрытии смены' });
+  }
+});
+
 module.exports = router;
