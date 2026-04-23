@@ -974,27 +974,30 @@ router.get('/master-incomes/cash-on-hand', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;
   try {
-    const lastShiftRes = await db.query(
-      `SELECT cash_balance, created_at FROM master_shifts
-       WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
-      [master.id]
+    if (!master.studio_id) return res.json({ cashOnHand: 0, accountId: null, accountName: null });
+    const accountId = await resolveAccountId(master.studio_id, 'cash');
+    if (!accountId) return res.json({ cashOnHand: 0, accountId: null, accountName: null });
+    const accRes = await db.query('SELECT id, name, initial_balance FROM accounts WHERE id = $1', [accountId]);
+    if (accRes.rows.length === 0) return res.json({ cashOnHand: 0, accountId, accountName: null });
+    const account = accRes.rows[0];
+    const initialBal = Number(account.initial_balance) || 0;
+    const balRes = await db.query(
+      `SELECT COALESCE(SUM(CASE
+         WHEN (t.settlement_account_id = $1 OR (t.account_id = $1 AND t.settlement_account_id IS NULL)) AND t.type = 'income' THEN t.amount
+         WHEN t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') THEN -t.amount
+         WHEN t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified'))
+           AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id)
+           THEN -t.amount
+         WHEN t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified'))
+           AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id)
+           THEN t.amount
+         ELSE 0 END), 0) AS delta
+       FROM transactions t
+       WHERE (t.settlement_account_id = $1 OR t.account_id = $1 OR t.to_account_id = $1)`,
+      [accountId]
     );
-    const lastShift = lastShiftRes.rows[0] || null;
-    const baseBalance = lastShift ? parseFloat(lastShift.cash_balance) || 0 : 0;
-    const since = lastShift ? lastShift.created_at : new Date('1970-01-01');
-    const cashSinceRes = await db.query(
-      `SELECT COALESCE(SUM(amount), 0) as cash_in
-       FROM master_incomes
-       WHERE user_id = $1 AND payment_type = 'cash' AND created_at > $2`,
-      [master.id, since]
-    );
-    const cashSince = parseFloat(cashSinceRes.rows[0]?.cash_in) || 0;
-    res.json({
-      cashOnHand: baseBalance + cashSince,
-      baseBalance,
-      cashSinceLastShift: cashSince,
-      lastShiftAt: lastShift ? lastShift.created_at : null,
-    });
+    const cashOnHand = initialBal + Number(balRes.rows[0]?.delta || 0);
+    res.json({ cashOnHand, accountId, accountName: account.name });
   } catch (err) {
     console.error('Error fetching cash on hand:', err);
     res.status(500).json({ error: 'Ошибка загрузки наличных' });

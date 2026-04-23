@@ -304,120 +304,119 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, onClose, onSu
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[92vh] flex flex-col">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 flex items-center justify-center">
-              <ClipboardCheck size={16} className="text-teal-600" />
-            </div>
-            <div>
-              <h2 className="font-bold text-slate-800 text-sm">Сдать смену</h2>
-              <div className="text-[11px] text-slate-400">Проверьте суммы и остаток в кассе</div>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 flex items-center justify-center transition-colors">
-            <X size={16} />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-[200] bg-slate-900/30 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/80 backdrop-blur text-slate-500 hover:text-slate-700 hover:bg-white flex items-center justify-center transition-all z-10 shadow-sm"
+        >
+          <X size={18} />
+        </button>
 
-        <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+        <div className="overflow-y-auto flex-1">
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-slate-400 gap-2">
-              <Loader2 size={18} className="animate-spin" /> Загрузка...
+            <div className="flex items-center justify-center py-20 text-slate-400 gap-2">
+              <Loader2 size={20} className="animate-spin" /> <span className="text-sm">Загрузка...</span>
             </div>
           ) : done ? (
-            <div className="text-center py-8 space-y-3">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
-                <CheckCircle2 size={32} className="text-emerald-600" />
+            <div className="text-center py-12 px-6 space-y-4">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center mx-auto">
+                <CheckCircle2 size={40} className="text-emerald-500" strokeWidth={2.2} />
               </div>
-              <h3 className="font-bold text-slate-800">Смена сдана</h3>
-              <div className="text-xs text-slate-500">
-                {done.webhookStatus === 'ok' && 'Отчёт отправлен'}
-                {done.webhookStatus === 'skipped' && 'Отчёт сохранён (вебхук не настроен)'}
-                {done.webhookStatus !== 'ok' && done.webhookStatus !== 'skipped' && `Сохранено, но вебхук: ${done.webhookStatus}`}
+              <div>
+                <h3 className="font-bold text-slate-800 text-lg">Смена сдана</h3>
+                <div className="text-sm text-slate-500 mt-1">
+                  {done.webhookStatus === 'ok' && 'Отчёт отправлен. Хорошего отдыха!'}
+                  {done.webhookStatus === 'skipped' && 'Отчёт сохранён.'}
+                  {done.webhookStatus !== 'ok' && done.webhookStatus !== 'skipped' && `Сохранено, статус: ${done.webhookStatus}`}
+                </div>
               </div>
             </div>
           ) : (
             <>
-              {alreadyClosed && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 flex items-start gap-2">
-                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                  <div>
-                    Смена уже сдавалась сегодня в {new Date(alreadyClosed.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}.
-                    Можно сдать повторно — это создаст новую запись.
-                  </div>
+              <div className="px-6 pt-7 pb-5 bg-gradient-to-br from-teal-50 via-white to-rose-50/50 border-b border-slate-100/70">
+                <div className="text-[11px] uppercase tracking-wider font-semibold text-teal-600/80">Сдача смены</div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <div className="text-4xl font-bold text-slate-800 tabular-nums tracking-tight">{formatCurrency(computedTotal)}</div>
                 </div>
-              )}
-
-              <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-4 text-white">
-                <div className="text-[11px] text-teal-100 font-medium">Принято за смену по системе</div>
-                <div className="text-2xl font-bold mt-0.5">{formatCurrency(computedTotal)}</div>
-                <div className="text-[11px] text-teal-100 mt-1">{visits} визитов</div>
+                <div className="text-xs text-slate-500 mt-1">принято по системе · {visits} {visits === 1 ? 'визит' : 'визитов'}</div>
+                {alreadyClosed && (
+                  <div className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200/60">
+                    <AlertCircle size={11} />
+                    Уже сдавали в {new Date(alreadyClosed.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                )}
               </div>
 
-              {paymentTypeKeys.length > 0 ? (
-                <div className="space-y-1.5">
-                  <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                    Разбивка по типам оплаты
-                  </div>
-                  <div className="bg-slate-50 rounded-xl divide-y divide-slate-200/60">
-                    {paymentTypeKeys.map(key => {
-                      const amount = byType[key]?.amount || 0;
-                      const count = byType[key]?.count || 0;
-                      return (
-                        <div key={key} className="flex items-center justify-between px-3 py-2.5">
-                          <div>
-                            <div className="text-sm font-medium text-slate-700">{PAYMENT_LABEL_MAP[key] || key}</div>
-                            {count > 0 && <div className="text-[10px] text-slate-400">{count} опл.</div>}
+              <div className="px-6 py-5 space-y-5">
+                {paymentTypeKeys.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-1">
+                      По типам оплаты
+                    </div>
+                    <div className="space-y-1">
+                      {paymentTypeKeys.map(key => {
+                        const amount = byType[key]?.amount || 0;
+                        const count = byType[key]?.count || 0;
+                        return (
+                          <div key={key} className="flex items-center justify-between px-3.5 py-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-teal-400/70" />
+                              <div>
+                                <div className="text-sm font-medium text-slate-700">{PAYMENT_LABEL_MAP[key] || key}</div>
+                                {count > 0 && <div className="text-[10px] text-slate-400 mt-0.5">{count} {count === 1 ? 'оплата' : 'оплат'}</div>}
+                              </div>
+                            </div>
+                            <div className="text-sm font-semibold text-slate-800 tabular-nums">{formatCurrency(amount)}</div>
                           </div>
-                          <div className="text-sm font-bold text-slate-800 tabular-nums">{formatCurrency(amount)}</div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="text-sm text-slate-400 text-center py-4">Сегодня не было оплат</div>
-              )}
+                )}
 
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Wallet size={14} className="text-orange-500" />
-                  <label className="text-xs font-semibold text-orange-700">Остаток наличных в кассе</label>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-1 mb-2">
+                    Наличных в кассе
+                  </label>
+                  <div className="relative">
+                    <Wallet size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={cashBalance}
+                      onChange={e => setCashBalance(e.target.value)}
+                      placeholder="0"
+                      className="w-full pl-11 pr-12 py-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-base font-semibold text-slate-800 tabular-nums placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:bg-white focus:border-teal-300 focus:ring-4 focus:ring-teal-100 transition-all"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">₽</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1.5 px-1">Сколько наличных сейчас в кассе</div>
                 </div>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={cashBalance}
-                  onChange={e => setCashBalance(e.target.value)}
-                  placeholder="0"
-                  className="w-full px-3 py-2.5 bg-white border border-orange-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
+
+                {error && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-sm text-rose-600 flex items-start gap-2">
+                    <AlertCircle size={14} className="shrink-0 mt-0.5" /> {error}
+                  </div>
+                )}
               </div>
-
-              {error && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-sm text-rose-600 flex items-start gap-2">
-                  <AlertCircle size={14} className="shrink-0 mt-0.5" /> {error}
-                </div>
-              )}
             </>
           )}
         </div>
 
-        <div className="px-4 py-3 border-t border-slate-100 shrink-0 flex gap-2">
+        <div className="px-6 py-4 bg-white border-t border-slate-100 shrink-0 flex gap-2.5">
           {done ? (
-            <button onClick={onClose} className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors">
+            <button onClick={onClose} className="flex-1 py-3 bg-teal-600 text-white rounded-2xl text-sm font-semibold hover:bg-teal-700 transition-colors">
               Готово
             </button>
           ) : (
             <>
               <button onClick={onClose} disabled={submitting}
-                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50">
+                className="px-5 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors disabled:opacity-50">
                 Отмена
               </button>
               <button onClick={handleSubmit} disabled={submitting || loading}
-                className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                className="flex-1 py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-2xl text-sm font-semibold hover:from-teal-600 hover:to-teal-700 transition-all shadow-md shadow-teal-200 disabled:opacity-50 flex items-center justify-center gap-1.5">
                 {submitting ? <><Loader2 size={14} className="animate-spin" /> Отправка...</> : 'Сдать смену'}
               </button>
             </>
@@ -1024,6 +1023,15 @@ export const MasterIncomePage: React.FC = () => {
             <span className="font-bold text-slate-800 text-sm sm:text-base">ViVi</span>
           </div>
           <div className="flex items-center gap-3">
+            {cashOnHand !== null && (
+              <div
+                className="flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full bg-slate-50 border border-slate-200"
+                title="Наличные в кассе студии"
+              >
+                <Wallet size={12} className="text-slate-400" />
+                <span className="text-[11px] font-semibold text-slate-700 tabular-nums">{formatCurrency(cashOnHand)}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 font-bold text-xs">
                 {user?.username?.[0]?.toUpperCase() || '?'}
@@ -1222,15 +1230,6 @@ export const MasterIncomePage: React.FC = () => {
                   </div>
                 )}
               </div>
-              {cashOnHand !== null && (
-                <div className="mt-3 flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <Wallet size={14} className="text-orange-500" />
-                    <span className="text-xs font-medium text-orange-700">Наличных в кассе</span>
-                  </div>
-                  <span className="text-sm font-bold text-orange-700 tabular-nums">{formatCurrency(cashOnHand)}</span>
-                </div>
-              )}
               {isToday && (
                 <button
                   type="button"
