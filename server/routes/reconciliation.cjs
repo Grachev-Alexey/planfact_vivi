@@ -378,7 +378,7 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
 
     if (account.bank_type === 'tbank') {
       try {
-        const resp = await fetch(`https://business.tbank.ru/openapi/api/v1/bank-statement?accountNumber=${encodeURIComponent(bankAccountNumber)}&from=${encodeURIComponent(startDate + 'T00:00:00Z')}&to=${encodeURIComponent(endDate + 'T23:59:59Z')}`, {
+        const resp = await fetch(`https://business.tbank.ru/openapi/api/v1/statement?accountNumber=${encodeURIComponent(bankAccountNumber)}&from=${encodeURIComponent(startDate + 'T00:00:00Z')}&to=${encodeURIComponent(endDate + 'T23:59:59Z')}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${account.bank_api_key}`
