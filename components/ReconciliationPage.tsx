@@ -552,8 +552,14 @@ function paymentTypeFromAccountName(name: string | undefined): string | null {
   return null;
 }
 
-function extractIncomePaymentType(item: { fromAccountName?: string; description?: string }): string {
-  return paymentTypeFromAccountName(item.fromAccountName) || 'Прочее';
+function extractIncomePaymentType(item: { fromAccountName?: string; description?: string; categoryName?: string }): string {
+  const byAcc = paymentTypeFromAccountName(item.fromAccountName);
+  if (byAcc) return byAcc;
+  const text = `${item.description || ''} ${item.categoryName || ''}`.toLowerCase();
+  if (/ю[-\s]?kassa|ю[-\s]?касса|yukassa|юkassa/.test(text)) return 'Ю-Касса';
+  if (/\bсбп\b/.test(text)) return 'СБП';
+  if (/эквайринг|терминал/.test(text)) return 'Терминал';
+  return 'Прочее';
 }
 
 function extractExpensePaymentType(item: { fromAccountName?: string; categoryName?: string }): string | null {
