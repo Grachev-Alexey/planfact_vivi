@@ -1023,26 +1023,111 @@ router.post('/master-incomes/close-shift', async (req, res) => {
     }
     const cb = parseFloat(cashBalance);
     const today = getMoscowToday();
+    const nowIso = new Date().toISOString();
 
     // Compute server-side totals for audit
     const computedRes = await db.query(
-      `SELECT payment_type, COALESCE(SUM(amount), 0) as amount
+      `SELECT payment_type, COALESCE(SUM(amount), 0) as amount, COUNT(*) as count
        FROM master_incomes
        WHERE user_id = $1 AND DATE(created_at) = $2 AND payment_type != 'visit_only'
        GROUP BY payment_type`,
       [master.id, today]
     );
     const computed = {};
-    for (const r of computedRes.rows) computed[r.payment_type] = parseFloat(r.amount) || 0;
+    const computedDetailed = {};
+    for (const r of computedRes.rows) {
+      const amt = parseFloat(r.amount) || 0;
+      computed[r.payment_type] = amt;
+      computedDetailed[r.payment_type] = { amount: amt, count: parseInt(r.count, 10) || 0 };
+    }
+
+    // Visit-only count
+    const visitOnlyRes = await db.query(
+      `SELECT COUNT(*) as c FROM master_incomes
+       WHERE user_id = $1 AND DATE(created_at) = $2 AND payment_type = 'visit_only'`,
+      [master.id, today]
+    );
+    const visitOnlyCount = parseInt(visitOnlyRes.rows[0]?.c, 10) || 0;
 
     // Studio + master info
     const masterInfoRes = await db.query(
-      `SELECT u.id, u.username, u.studio_id, s.name as studio_name
+      `SELECT u.id, u.username, u.email, u.phone, u.role, u.studio_id, u.yclients_staff_id,
+              s.name as studio_name, s.address as studio_address, s.yclients_company_id
        FROM users u LEFT JOIN studios s ON u.studio_id = s.id
        WHERE u.id = $1`,
       [master.id]
     );
     const info = masterInfoRes.rows[0] || {};
+
+    // Today's individual incomes for full audit trail
+    const incomesRes = await db.query(
+      `SELECT mi.id, mi.amount, mi.payment_type, mi.client_name, mi.client_phone, mi.client_type,
+              mi.description, mi.created_at, mi.account_id, mi.category_id,
+              a.name as account_name, c.name as category_name, mi.yclients_data
+       FROM master_incomes mi
+       LEFT JOIN accounts a ON mi.account_id = a.id
+       LEFT JOIN categories c ON mi.category_id = c.id
+       WHERE mi.user_id = $1 AND DATE(mi.created_at) = $2
+       ORDER BY mi.created_at`,
+      [master.id, today]
+    );
+    const incomes = incomesRes.rows.map(r => ({
+      id: r.id,
+      amount: parseFloat(r.amount) || 0,
+      paymentType: r.payment_type,
+      clientName: r.client_name,
+      clientPhone: r.client_phone,
+      clientType: r.client_type,
+      description: r.description,
+      createdAt: r.created_at,
+      account: r.account_id ? { id: r.account_id, name: r.account_name } : null,
+      category: r.category_id ? { id: r.category_id, name: r.category_name } : null,
+      yclientsRecordId: r.yclients_data?.recordId || r.yclients_data?.record_id || null,
+    }));
+
+    // Cash on hand (Сверка principle) for the studio
+    let expectedCash = null;
+    let cashAccount = null;
+    if (info.studio_id) {
+      const cashAccId = await resolveAccountId(info.studio_id, 'cash');
+      if (cashAccId) {
+        const accRes = await db.query('SELECT id, name, initial_balance FROM accounts WHERE id = $1', [cashAccId]);
+        if (accRes.rows.length > 0) {
+          const acc = accRes.rows[0];
+          const initBal = Number(acc.initial_balance) || 0;
+          const balRes = await db.query(
+            `SELECT COALESCE(SUM(CASE
+               WHEN (t.settlement_account_id = $1 OR (t.account_id = $1 AND t.settlement_account_id IS NULL)) AND t.type = 'income' THEN t.amount
+               WHEN t.account_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'verified') THEN -t.amount
+               WHEN t.account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified'))
+                 AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id)
+                 THEN -t.amount
+               WHEN t.to_account_id = $1 AND t.type = 'transfer' AND (t.confirmed = true OR t.status IN ('paid', 'verified'))
+                 AND NOT EXISTS (SELECT 1 FROM settlement_rules sr WHERE sr.enabled = true AND sr.account_id = t.account_id AND sr.settlement_account_id = t.to_account_id)
+                 THEN t.amount
+               ELSE 0 END), 0) AS delta
+             FROM transactions t
+             WHERE (t.settlement_account_id = $1 OR t.account_id = $1 OR t.to_account_id = $1)`,
+            [cashAccId]
+          );
+          expectedCash = initBal + Number(balRes.rows[0]?.delta || 0);
+          cashAccount = { id: acc.id, name: acc.name, initialBalance: initBal };
+        }
+      }
+    }
+
+    // Previous shift today (if any)
+    const prevShiftRes = await db.query(
+      `SELECT id, created_at, cash_balance, totals, computed_totals
+       FROM master_shifts
+       WHERE user_id = $1 AND shift_date = $2 ORDER BY created_at DESC LIMIT 1`,
+      [master.id, today]
+    );
+    const previousShiftToday = prevShiftRes.rows[0] ? {
+      id: prevShiftRes.rows[0].id,
+      createdAt: prevShiftRes.rows[0].created_at,
+      cashBalance: parseFloat(prevShiftRes.rows[0].cash_balance) || 0,
+    } : null;
 
     const insertRes = await db.query(
       `INSERT INTO master_shifts (user_id, studio_id, shift_date, totals, computed_totals, cash_balance)
@@ -1054,20 +1139,47 @@ router.post('/master-incomes/close-shift', async (req, res) => {
 
     const totalReported = Object.values(cleanTotals).reduce((a, b) => a + b, 0);
     const totalComputed = Object.values(computed).reduce((a, b) => a + b, 0);
+    const cashDiff = expectedCash !== null ? Math.round((cb - expectedCash) * 100) / 100 : null;
 
     const payload = {
       event: 'shift_closed',
       shiftId,
       date: today,
       createdAt,
-      master: { id: info.id, username: info.username },
-      studio: { id: info.studio_id, name: info.studio_name },
+      submittedAt: nowIso,
+      master: {
+        id: info.id,
+        username: info.username,
+        email: info.email,
+        phone: info.phone,
+        role: info.role,
+        yclientsStaffId: info.yclients_staff_id,
+      },
+      studio: {
+        id: info.studio_id,
+        name: info.studio_name,
+        address: info.studio_address,
+        yclientsCompanyId: info.yclients_company_id,
+      },
       totals: cleanTotals,
       computedTotals: computed,
+      computedDetailed,
       totalReported,
       totalComputed,
       mismatch: Math.abs(totalReported - totalComputed) > 0.01,
+      visits: visitOnlyCount + incomes.filter(i => i.paymentType !== 'visit_only').length,
+      visitOnlyCount,
+      paidIncomesCount: incomes.filter(i => i.paymentType !== 'visit_only').length,
+      cash: {
+        reported: cb,
+        expected: expectedCash,
+        diff: cashDiff,
+        mismatch: cashDiff !== null && Math.abs(cashDiff) > 0.009,
+        account: cashAccount,
+      },
       cashBalance: cb,
+      previousShiftToday,
+      incomes,
     };
 
     let webhookStatus = 'pending';

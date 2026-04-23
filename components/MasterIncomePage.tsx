@@ -293,7 +293,7 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, onClose, onSu
       return;
     }
     if (hasCashMismatch && !confirmMismatch) {
-      setError(`Введённая сумма не совпадает с ожидаемой (${formatCurrency(expectedCash || 0)}). Пересчитайте кассу или подтвердите расхождение.`);
+      setConfirmMismatch(true);
       return;
     }
     setSubmitting(true);
@@ -395,48 +395,36 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, onClose, onSu
                     <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                       Наличных в кассе
                     </label>
-                    {expectedCash !== null && (
+                    {expectedCash !== null && !hasCashMismatch && (
                       <span className="text-[11px] text-slate-400">
                         ожидается <span className="font-semibold text-slate-600 tabular-nums">{formatCurrency(expectedCash)}</span>
                       </span>
                     )}
+                    {hasCashMismatch && (
+                      <span className={`text-[11px] font-semibold tabular-nums ${cashDiff! > 0 ? 'text-amber-600' : 'text-rose-500'}`}>
+                        {cashDiff! > 0 ? '+' : '−'}{formatCurrency(Math.abs(cashDiff!))}
+                      </span>
+                    )}
                   </div>
                   <div className="relative">
-                    <Wallet size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${hasCashMismatch ? 'text-rose-400' : 'text-slate-300'}`} />
+                    <Wallet size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${hasCashMismatch ? (cashDiff! > 0 ? 'text-amber-400' : 'text-rose-400') : 'text-slate-300'}`} />
                     <input
                       type="number"
                       inputMode="decimal"
                       value={cashBalance}
                       onChange={e => { setCashBalance(e.target.value); setConfirmMismatch(false); }}
                       placeholder="0"
-                      className={`w-full pl-11 pr-12 py-3.5 bg-slate-50 border rounded-2xl text-base font-semibold text-slate-800 tabular-nums placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:bg-white transition-all ${hasCashMismatch ? 'border-rose-200 focus:border-rose-300 focus:ring-4 focus:ring-rose-100' : 'border-slate-200/80 focus:border-teal-300 focus:ring-4 focus:ring-teal-100'}`}
+                      className={`w-full pl-11 pr-12 py-3.5 bg-slate-50 border rounded-2xl text-base font-semibold text-slate-800 tabular-nums placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:bg-white transition-all ${hasCashMismatch ? (cashDiff! > 0 ? 'border-amber-200 focus:border-amber-300 focus:ring-4 focus:ring-amber-100' : 'border-rose-200 focus:border-rose-300 focus:ring-4 focus:ring-rose-100') : 'border-slate-200/80 focus:border-teal-300 focus:ring-4 focus:ring-teal-100'}`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">₽</span>
                   </div>
-                  {hasCashMismatch ? (
-                    <div className="mt-2 rounded-xl bg-rose-50 border border-rose-200 p-3 space-y-2">
-                      <div className="flex items-start gap-2 text-[12px] text-rose-700">
-                        <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                        <div>
-                          Расхождение: <span className="font-bold tabular-nums">{cashDiff! > 0 ? '+' : ''}{formatCurrency(cashDiff!)}</span>
-                          <div className="text-[11px] text-rose-600/80 mt-0.5">
-                            Пересчитайте наличку. Если сумма верная — подтвердите расхождение.
-                          </div>
-                        </div>
-                      </div>
-                      <label className="flex items-center gap-2 text-[12px] text-rose-700 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={confirmMismatch}
-                          onChange={e => setConfirmMismatch(e.target.checked)}
-                          className="rounded accent-rose-500 h-3.5 w-3.5"
-                        />
-                        Я пересчитал(а), сумма верная
-                      </label>
-                    </div>
-                  ) : (
-                    <div className="text-[11px] text-slate-400 mt-1.5 px-1">Сколько наличных сейчас в кассе</div>
-                  )}
+                  <div className={`text-[11px] mt-1.5 px-1 transition-colors ${hasCashMismatch ? (cashDiff! > 0 ? 'text-amber-600' : 'text-rose-500') : 'text-slate-400'}`}>
+                    {hasCashMismatch
+                      ? (confirmMismatch
+                          ? 'Расхождение подтверждено — нажмите ещё раз для отправки'
+                          : `Не сходится с ожидаемой ${formatCurrency(expectedCash || 0)}. Пересчитайте — или нажмите «Сдать» дважды для отправки с расхождением`)
+                      : 'Сколько наличных сейчас в кассе'}
+                  </div>
                 </div>
 
                 {error && (
@@ -461,8 +449,18 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, onClose, onSu
                 Отмена
               </button>
               <button onClick={handleSubmit} disabled={submitting || loading}
-                className="flex-1 py-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-2xl text-sm font-semibold hover:from-teal-600 hover:to-teal-700 transition-all shadow-md shadow-teal-200 disabled:opacity-50 flex items-center justify-center gap-1.5">
-                {submitting ? <><Loader2 size={14} className="animate-spin" /> Отправка...</> : 'Сдать смену'}
+                className={`flex-1 py-3 text-white rounded-2xl text-sm font-semibold transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                  hasCashMismatch && confirmMismatch
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shadow-amber-200'
+                    : hasCashMismatch
+                      ? 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 shadow-amber-100'
+                      : 'bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shadow-teal-200'
+                }`}>
+                {submitting
+                  ? <><Loader2 size={14} className="animate-spin" /> Отправка...</>
+                  : hasCashMismatch
+                    ? (confirmMismatch ? 'Сдать с расхождением' : 'Подтвердить расхождение')
+                    : 'Сдать смену'}
               </button>
             </>
           )}
