@@ -243,6 +243,8 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, onClose, onSu
   const [visits, setVisits] = useState(0);
   const [alreadyClosed, setAlreadyClosed] = useState<{ id: number; createdAt: string; cashBalance: number } | null>(null);
   const [cashBalance, setCashBalance] = useState('');
+  const [expectedCash, setExpectedCash] = useState<number | null>(null);
+  const [confirmMismatch, setConfirmMismatch] = useState(false);
   const [done, setDone] = useState<{ webhookStatus: string } | null>(null);
 
   const paymentTypeKeys = useMemo(() => {
@@ -256,16 +258,21 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, onClose, onSu
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/master-incomes/today-totals', {
-          headers: { 'x-user-id': String(userId) },
-        });
-        if (!res.ok) throw new Error('Не удалось загрузить данные');
-        const data = await res.json();
+        const [totRes, cashRes] = await Promise.all([
+          fetch('/api/master-incomes/today-totals', { headers: { 'x-user-id': String(userId) } }),
+          fetch('/api/master-incomes/cash-on-hand', { headers: { 'x-user-id': String(userId) } }),
+        ]);
+        if (!totRes.ok) throw new Error('Не удалось загрузить данные');
+        const data = await totRes.json();
         if (cancelled) return;
         setByType(data.byType || {});
         setComputedTotal(data.total || 0);
         setVisits(data.visits || 0);
         setAlreadyClosed(data.alreadyClosed || null);
+        if (cashRes.ok) {
+          const cd = await cashRes.json();
+          if (typeof cd.cashOnHand === 'number') setExpectedCash(cd.cashOnHand);
+        }
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Ошибка');
       } finally {
@@ -275,10 +282,18 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, onClose, onSu
     return () => { cancelled = true; };
   }, [userId]);
 
+  const cashEntered = parseFloat(cashBalance);
+  const cashDiff = (expectedCash !== null && !isNaN(cashEntered)) ? Math.round((cashEntered - expectedCash) * 100) / 100 : null;
+  const hasCashMismatch = cashDiff !== null && Math.abs(cashDiff) > 0.009;
+
   const handleSubmit = async () => {
     setError(null);
     if (!cashBalance.trim() || isNaN(parseFloat(cashBalance))) {
       setError('Введите остаток наличных в кассе');
+      return;
+    }
+    if (hasCashMismatch && !confirmMismatch) {
+      setError(`Введённая сумма не совпадает с ожидаемой (${formatCurrency(expectedCash || 0)}). Пересчитайте кассу или подтвердите расхождение.`);
       return;
     }
     setSubmitting(true);
@@ -376,22 +391,52 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, onClose, onSu
                 )}
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-1 mb-2">
-                    Наличных в кассе
-                  </label>
+                  <div className="flex items-baseline justify-between px-1 mb-2">
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Наличных в кассе
+                    </label>
+                    {expectedCash !== null && (
+                      <span className="text-[11px] text-slate-400">
+                        ожидается <span className="font-semibold text-slate-600 tabular-nums">{formatCurrency(expectedCash)}</span>
+                      </span>
+                    )}
+                  </div>
                   <div className="relative">
-                    <Wallet size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                    <Wallet size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${hasCashMismatch ? 'text-rose-400' : 'text-slate-300'}`} />
                     <input
                       type="number"
                       inputMode="decimal"
                       value={cashBalance}
-                      onChange={e => setCashBalance(e.target.value)}
+                      onChange={e => { setCashBalance(e.target.value); setConfirmMismatch(false); }}
                       placeholder="0"
-                      className="w-full pl-11 pr-12 py-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-base font-semibold text-slate-800 tabular-nums placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:bg-white focus:border-teal-300 focus:ring-4 focus:ring-teal-100 transition-all"
+                      className={`w-full pl-11 pr-12 py-3.5 bg-slate-50 border rounded-2xl text-base font-semibold text-slate-800 tabular-nums placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:bg-white transition-all ${hasCashMismatch ? 'border-rose-200 focus:border-rose-300 focus:ring-4 focus:ring-rose-100' : 'border-slate-200/80 focus:border-teal-300 focus:ring-4 focus:ring-teal-100'}`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">₽</span>
                   </div>
-                  <div className="text-[11px] text-slate-400 mt-1.5 px-1">Сколько наличных сейчас в кассе</div>
+                  {hasCashMismatch ? (
+                    <div className="mt-2 rounded-xl bg-rose-50 border border-rose-200 p-3 space-y-2">
+                      <div className="flex items-start gap-2 text-[12px] text-rose-700">
+                        <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                        <div>
+                          Расхождение: <span className="font-bold tabular-nums">{cashDiff! > 0 ? '+' : ''}{formatCurrency(cashDiff!)}</span>
+                          <div className="text-[11px] text-rose-600/80 mt-0.5">
+                            Пересчитайте наличку. Если сумма верная — подтвердите расхождение.
+                          </div>
+                        </div>
+                      </div>
+                      <label className="flex items-center gap-2 text-[12px] text-rose-700 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={confirmMismatch}
+                          onChange={e => setConfirmMismatch(e.target.checked)}
+                          className="rounded accent-rose-500 h-3.5 w-3.5"
+                        />
+                        Я пересчитал(а), сумма верная
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-slate-400 mt-1.5 px-1">Сколько наличных сейчас в кассе</div>
+                  )}
                 </div>
 
                 {error && (
