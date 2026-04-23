@@ -970,6 +970,37 @@ router.get('/master-incomes/today-totals', async (req, res) => {
   }
 });
 
+router.get('/master-incomes/cash-on-hand', async (req, res) => {
+  const master = await requireMaster(req, res);
+  if (!master) return;
+  try {
+    const lastShiftRes = await db.query(
+      `SELECT cash_balance, created_at FROM master_shifts
+       WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [master.id]
+    );
+    const lastShift = lastShiftRes.rows[0] || null;
+    const baseBalance = lastShift ? parseFloat(lastShift.cash_balance) || 0 : 0;
+    const since = lastShift ? lastShift.created_at : new Date('1970-01-01');
+    const cashSinceRes = await db.query(
+      `SELECT COALESCE(SUM(amount), 0) as cash_in
+       FROM master_incomes
+       WHERE user_id = $1 AND payment_type = 'cash' AND created_at > $2`,
+      [master.id, since]
+    );
+    const cashSince = parseFloat(cashSinceRes.rows[0]?.cash_in) || 0;
+    res.json({
+      cashOnHand: baseBalance + cashSince,
+      baseBalance,
+      cashSinceLastShift: cashSince,
+      lastShiftAt: lastShift ? lastShift.created_at : null,
+    });
+  } catch (err) {
+    console.error('Error fetching cash on hand:', err);
+    res.status(500).json({ error: 'Ошибка загрузки наличных' });
+  }
+});
+
 router.post('/master-incomes/close-shift', async (req, res) => {
   const master = await requireMaster(req, res);
   if (!master) return;
@@ -1036,24 +1067,20 @@ router.post('/master-incomes/close-shift', async (req, res) => {
       cashBalance: cb,
     };
 
-    let webhookStatus = 'skipped';
+    let webhookStatus = 'pending';
     let webhookResponse = null;
-    const webhookUrl = process.env.SHIFT_CLOSE_WEBHOOK_URL;
-    if (webhookUrl) {
-      try {
-        const r = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        webhookStatus = r.ok ? 'ok' : `error_${r.status}`;
-        webhookResponse = (await r.text().catch(() => '')).slice(0, 500);
-      } catch (e) {
-        webhookStatus = 'failed';
-        webhookResponse = String(e && e.message || e).slice(0, 500);
-      }
-    } else {
-      console.log('[close-shift] SHIFT_CLOSE_WEBHOOK_URL not set, payload:', JSON.stringify(payload));
+    const webhookUrl = process.env.SHIFT_CLOSE_WEBHOOK_URL || 'https://entize.tw1.ru/webhook/shift';
+    try {
+      const r = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      webhookStatus = r.ok ? 'ok' : `error_${r.status}`;
+      webhookResponse = (await r.text().catch(() => '')).slice(0, 500);
+    } catch (e) {
+      webhookStatus = 'failed';
+      webhookResponse = String(e && e.message || e).slice(0, 500);
     }
 
     await db.query(

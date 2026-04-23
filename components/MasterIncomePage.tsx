@@ -230,12 +230,11 @@ const PAYMENT_LABEL_MAP: Record<string, string> = {
 
 interface CloseShiftModalProps {
   userId: number;
-  allowedPaymentTypes: { id: string; label: string }[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, allowedPaymentTypes, onClose, onSuccess }) => {
+const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -243,15 +242,14 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, allowedPaymen
   const [computedTotal, setComputedTotal] = useState(0);
   const [visits, setVisits] = useState(0);
   const [alreadyClosed, setAlreadyClosed] = useState<{ id: number; createdAt: string; cashBalance: number } | null>(null);
-  const [reportedTotals, setReportedTotals] = useState<Record<string, string>>({});
   const [cashBalance, setCashBalance] = useState('');
   const [done, setDone] = useState<{ webhookStatus: string } | null>(null);
 
   const paymentTypeKeys = useMemo(() => {
-    const fromAllowed = allowedPaymentTypes.filter(pt => pt.id !== 'visit_only').map(pt => pt.id);
-    const fromData = Object.keys(byType);
-    return Array.from(new Set([...fromAllowed, ...fromData]));
-  }, [allowedPaymentTypes, byType]);
+    return Object.entries(byType)
+      .filter(([, v]) => (v.amount || 0) > 0)
+      .map(([k]) => k);
+  }, [byType]);
 
   useEffect(() => {
     let cancelled = false;
@@ -268,11 +266,6 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, allowedPaymen
         setComputedTotal(data.total || 0);
         setVisits(data.visits || 0);
         setAlreadyClosed(data.alreadyClosed || null);
-        const initial: Record<string, string> = {};
-        for (const [k, v] of Object.entries(data.byType || {})) {
-          initial[k] = String((v as { amount: number }).amount);
-        }
-        setReportedTotals(initial);
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Ошибка');
       } finally {
@@ -281,12 +274,6 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, allowedPaymen
     })();
     return () => { cancelled = true; };
   }, [userId]);
-
-  const reportedTotal = useMemo(() => {
-    return Object.values(reportedTotals).reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
-  }, [reportedTotals]);
-
-  const mismatch = Math.abs(reportedTotal - computedTotal) > 0.01;
 
   const handleSubmit = async () => {
     setError(null);
@@ -297,9 +284,8 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, allowedPaymen
     setSubmitting(true);
     try {
       const totals: Record<string, number> = {};
-      for (const [k, v] of Object.entries(reportedTotals)) {
-        const n = parseFloat(v);
-        if (!isNaN(n)) totals[k] = n;
+      for (const [k, v] of Object.entries(byType)) {
+        totals[k] = v.amount || 0;
       }
       const res = await fetch('/api/master-incomes/close-shift', {
         method: 'POST',
@@ -370,56 +356,29 @@ const CloseShiftModal: React.FC<CloseShiftModalProps> = ({ userId, allowedPaymen
                 <div className="text-[11px] text-teal-100 mt-1">{visits} визитов</div>
               </div>
 
-              <div className="space-y-2.5">
-                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Сколько фактически приняли
-                </div>
-                {paymentTypeKeys.length === 0 && (
-                  <div className="text-sm text-slate-400 text-center py-4">Сегодня не было оплат</div>
-                )}
-                {paymentTypeKeys.map(key => {
-                  const computed = byType[key]?.amount || 0;
-                  const count = byType[key]?.count || 0;
-                  const value = reportedTotals[key] ?? '';
-                  const reported = parseFloat(value) || 0;
-                  const diff = reported - computed;
-                  const hasDiff = Math.abs(diff) > 0.01 && value !== '';
-                  return (
-                    <div key={key} className="bg-slate-50 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-700">{PAYMENT_LABEL_MAP[key] || key}</div>
-                          <div className="text-[10px] text-slate-400">
-                            По системе: {formatCurrency(computed)}{count > 0 ? ` · ${count}` : ''}
+              {paymentTypeKeys.length > 0 ? (
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                    Разбивка по типам оплаты
+                  </div>
+                  <div className="bg-slate-50 rounded-xl divide-y divide-slate-200/60">
+                    {paymentTypeKeys.map(key => {
+                      const amount = byType[key]?.amount || 0;
+                      const count = byType[key]?.count || 0;
+                      return (
+                        <div key={key} className="flex items-center justify-between px-3 py-2.5">
+                          <div>
+                            <div className="text-sm font-medium text-slate-700">{PAYMENT_LABEL_MAP[key] || key}</div>
+                            {count > 0 && <div className="text-[10px] text-slate-400">{count} опл.</div>}
                           </div>
+                          <div className="text-sm font-bold text-slate-800 tabular-nums">{formatCurrency(amount)}</div>
                         </div>
-                        {hasDiff && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${diff > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                            {diff > 0 ? '+' : ''}{formatCurrency(diff)}
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={value}
-                        onChange={e => setReportedTotals(p => ({ ...p, [key]: e.target.value }))}
-                        placeholder="0"
-                        className={`w-full px-3 py-2 bg-white border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors ${hasDiff ? 'border-amber-300' : 'border-slate-200'}`}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-
-              {paymentTypeKeys.length > 0 && (
-                <div className="flex items-center justify-between px-3 py-2 bg-slate-100 rounded-xl">
-                  <span className="text-xs font-medium text-slate-500">Итого факт</span>
-                  <span className={`text-sm font-bold ${mismatch ? 'text-amber-600' : 'text-slate-700'}`}>
-                    {formatCurrency(reportedTotal)}
-                    {mismatch && <span className="text-[10px] text-amber-500 ml-1">(расхождение)</span>}
-                  </span>
+                      );
+                    })}
+                  </div>
                 </div>
+              ) : (
+                <div className="text-sm text-slate-400 text-center py-4">Сегодня не было оплат</div>
               )}
 
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
@@ -569,6 +528,22 @@ export const MasterIncomePage: React.FC = () => {
   }, [user?.studioId, studios]);
 
   const [showCloseShift, setShowCloseShift] = useState(false);
+  const [cashOnHand, setCashOnHand] = useState<number | null>(null);
+
+  const fetchCashOnHand = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch('/api/master-incomes/cash-on-hand', {
+        headers: { 'x-user-id': String(user.id) },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCashOnHand(typeof data.cashOnHand === 'number' ? data.cashOnHand : null);
+      }
+    } catch { /* ignore */ }
+  }, [user]);
+
+  useEffect(() => { fetchCashOnHand(); }, [fetchCashOnHand]);
 
   const [editingIncome, setEditingIncome] = useState<MasterIncome | null>(null);
   const [editAmount, setEditAmount] = useState('');
@@ -618,7 +593,7 @@ export const MasterIncomePage: React.FC = () => {
     }
   }, [user, forDate]);
 
-  useEffect(() => { fetchIncomes(); fetchSchedule(); }, [fetchIncomes, fetchSchedule]);
+  useEffect(() => { fetchIncomes(); fetchSchedule(); fetchCashOnHand(); }, [fetchIncomes, fetchSchedule, fetchCashOnHand]);
 
   useEffect(() => {
     fetch('/api/yclients/form-settings')
@@ -808,7 +783,7 @@ export const MasterIncomePage: React.FC = () => {
     setSubmitting(false);
     setDone(true);
     setHistoryPage(1);
-    fetchIncomes();
+    fetchIncomes(); fetchCashOnHand();
   };
 
   const handleSubmitAll = async () => {
@@ -945,7 +920,7 @@ export const MasterIncomePage: React.FC = () => {
     setSubmitting(false);
     setDone(true);
     setHistoryPage(1);
-    fetchIncomes();
+    fetchIncomes(); fetchCashOnHand();
   };
 
   const handleStartNew = () => {
@@ -1001,7 +976,7 @@ export const MasterIncomePage: React.FC = () => {
       });
       if (res.ok) {
         setEditingIncome(null);
-        fetchIncomes();
+        fetchIncomes(); fetchCashOnHand();
       } else {
         const data = await res.json().catch(() => null);
         setEditError(data?.error || 'Ошибка сохранения');
@@ -1020,7 +995,7 @@ export const MasterIncomePage: React.FC = () => {
         method: 'DELETE',
         headers: { 'x-user-id': String(user?.id || '') },
       });
-      if (res.ok) fetchIncomes();
+      if (res.ok) { fetchIncomes(); fetchCashOnHand(); }
       else { const data = await res.json().catch(() => null); alert(data?.error || 'Ошибка удаления'); }
     } catch (e) { console.error(e); }
   };
@@ -1036,9 +1011,8 @@ export const MasterIncomePage: React.FC = () => {
       {showCloseShift && user && (
         <CloseShiftModal
           userId={user.id}
-          allowedPaymentTypes={allowedPaymentTypes}
           onClose={() => setShowCloseShift(false)}
-          onSuccess={() => { fetchSchedule(); fetchIncomes(); }}
+          onSuccess={() => { fetchSchedule(); fetchIncomes(); fetchCashOnHand(); }}
         />
       )}
       <div className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
@@ -1248,6 +1222,15 @@ export const MasterIncomePage: React.FC = () => {
                   </div>
                 )}
               </div>
+              {cashOnHand !== null && (
+                <div className="mt-3 flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Wallet size={14} className="text-orange-500" />
+                    <span className="text-xs font-medium text-orange-700">Наличных в кассе</span>
+                  </div>
+                  <span className="text-sm font-bold text-orange-700 tabular-nums">{formatCurrency(cashOnHand)}</span>
+                </div>
+              )}
               {isToday && (
                 <button
                   type="button"
