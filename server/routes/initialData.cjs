@@ -21,7 +21,6 @@ router.get('/init', async (req, res) => {
       ) sub
       WHERE sub.is_technical_transfer = false
       ORDER BY sub.date DESC, sub.created_at DESC
-      LIMIT 1000
     `;
     const techTransfersQuery = `
       SELECT t.*, pr.status as pr_status, sa.name as settlement_account_name,
@@ -36,7 +35,6 @@ router.get('/init', async (req, res) => {
           AND sr.settlement_account_id = t.to_account_id
       )
       ORDER BY t.date DESC, t.created_at DESC
-      LIMIT 200
     `;
     
     // Dynamic balance calculation
