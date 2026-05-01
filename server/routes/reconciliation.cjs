@@ -407,7 +407,7 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
           const description = op.payPurpose || op.paymentPurpose || op.narrative || op.description || '';
           const counterparty = op.counterParty?.name || op.counterpartyName || op.corresondentName || op.contragent?.name || '';
           return {
-            date: (op.drawDate || op.chargeDate || op.operationDate || op.date || '').split('T')[0],
+            date: (op.operationDate || op.date || op.drawDate || op.chargeDate || '').split('T')[0],
             amount: Math.abs(raw),
             description,
             counterparty,
