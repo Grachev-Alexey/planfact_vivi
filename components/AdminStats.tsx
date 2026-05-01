@@ -73,7 +73,7 @@ function pluralShifts(n: number) {
 interface Summary {
   totalAmount: number; totalEntries: number; uniqueClients: number; avgCheck: number;
   primaryAmount: number; regularAmount: number; primaryCount: number; regularCount: number;
-  totalVisits: number; zeroVisits: number; totalShifts: number;
+  totalVisits: number; zeroVisits: number; vznosVisits: number; totalShifts: number;
   abonementAmount: number; abonementCount: number;
   abonementPrimaryAmount: number; abonementPrimaryCount: number;
   abonementRegularAmount: number; abonementRegularCount: number;
@@ -166,7 +166,7 @@ const OverallSummary: React.FC<{ o: Summary; periodLabel: string }> = ({ o, peri
           <div className="text-3xl font-bold text-white tracking-tight">{formatCurrency(o.totalAmount)}</div>
           <div className="flex flex-wrap gap-4 mt-3">
             <span className="text-teal-100 text-xs">{o.uniqueClients} клиентов</span>
-            <span className="text-teal-100 text-xs">{o.totalVisits} визитов</span>
+            <span className="text-teal-100 text-xs">{o.totalVisits} визитов{o.vznosVisits > 0 ? ` (взносных: ${o.vznosVisits})` : ''}</span>
             <span className="text-teal-100 text-xs">средний чек {formatCurrency(o.avgCheck)}</span>
             <span className="text-teal-100 text-xs">{o.totalShifts} {pluralShifts(o.totalShifts)}</span>
           </div>
@@ -294,7 +294,7 @@ const MasterDetail: React.FC<{ master: MasterData }> = ({ master }) => {
         </div>
         <div className="px-4 py-3">
           <div className="text-base font-bold text-slate-800">{s.uniqueClients}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">Клиентов · {s.totalVisits} визитов</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Клиентов · {s.totalVisits} визитов{s.vznosVisits > 0 ? ` (взносных: ${s.vznosVisits})` : ''}</div>
         </div>
         <div className="px-4 py-3">
           <div className="text-base font-bold text-slate-800">{s.totalShifts}</div>
@@ -482,7 +482,7 @@ const MasterRow: React.FC<{ master: MasterData; studioTotal: number }> = ({ mast
           <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
             <span>{pluralClients(s.uniqueClients)}</span>
             <span className="text-slate-300">·</span>
-            <span>{s.totalVisits} визитов</span>
+            <span>{s.totalVisits} визитов{s.vznosVisits > 0 ? ` (взносных: ${s.vznosVisits})` : ''}</span>
             <span className="text-slate-300">·</span>
             <span>средний чек {formatCurrency(s.avgCheck)}</span>
           </div>
@@ -516,7 +516,7 @@ const StudioSection: React.FC<{ studio: StudioData }> = ({ studio }) => {
         <div className="flex-1 min-w-0 text-left">
           <div className="text-sm font-bold text-slate-800">{studio.name}</div>
           <div className="text-[11px] text-slate-500 mt-0.5">
-            {studio.masters.length} мастеров · {s.uniqueClients} клиентов · {s.totalVisits} визитов
+            {studio.masters.length} мастеров · {s.uniqueClients} клиентов · {s.totalVisits} визитов{s.vznosVisits > 0 ? ` (взносных: ${s.vznosVisits})` : ''}
           </div>
         </div>
         <div className="text-right shrink-0">

@@ -119,7 +119,17 @@ router.get('/admin-stats', async (req, res) => {
       `SELECT mi.user_id,
         COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) as total_visits,
         COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text))
-          FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits
+          FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits,
+        COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text))
+          FILTER (WHERE
+            mi.yclients_data IS NOT NULL
+            AND jsonb_typeof(mi.yclients_data->'services') = 'array'
+            AND jsonb_array_length(mi.yclients_data->'services') > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM jsonb_array_elements(mi.yclients_data->'services') svc
+              WHERE lower(svc->>'title') NOT LIKE '%взнос%'
+            )
+          ) as vznos_visits
        FROM master_incomes mi
        WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2
        GROUP BY mi.user_id`,
@@ -251,7 +261,7 @@ router.get('/admin-stats', async (req, res) => {
           id: sid, name: r.studio_name,
           masters: [],
           daily: dailyByStudio[sid] || [],
-          summary: { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, totalShifts: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 }
+          summary: { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, vznosVisits: 0, totalShifts: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 }
         };
       }
       const totalAmount = parseFloat(r.total_amount) || 0;
@@ -273,6 +283,7 @@ router.get('/admin-stats', async (req, res) => {
           primaryCount, regularCount,
           totalVisits: parseInt(vc.total_visits) || 0,
           zeroVisits: parseInt(vc.zero_visits) || 0,
+          vznosVisits: parseInt(vc.vznos_visits) || 0,
           totalShifts: shiftsMap[r.user_id] || 0,
           abonementAmount: ab.amount, abonementCount: ab.count,
           abonementPrimaryAmount: ab.primaryAmount, abonementPrimaryCount: ab.primaryCount,
@@ -295,6 +306,7 @@ router.get('/admin-stats', async (req, res) => {
       ss.regularCount += regularCount;
       ss.totalVisits += master.summary.totalVisits;
       ss.zeroVisits += master.summary.zeroVisits;
+      ss.vznosVisits += master.summary.vznosVisits;
       ss.totalShifts += master.summary.totalShifts;
       ss.abonementAmount += ab.amount;
       ss.abonementCount += ab.count;
@@ -321,6 +333,7 @@ router.get('/admin-stats', async (req, res) => {
       acc.regularCount += s.summary.regularCount;
       acc.totalVisits += s.summary.totalVisits;
       acc.zeroVisits += s.summary.zeroVisits;
+      acc.vznosVisits += s.summary.vznosVisits;
       acc.totalShifts += s.summary.totalShifts;
       acc.abonementAmount += s.summary.abonementAmount;
       acc.abonementCount += s.summary.abonementCount;
@@ -329,7 +342,7 @@ router.get('/admin-stats', async (req, res) => {
       acc.abonementRegularAmount += s.summary.abonementRegularAmount;
       acc.abonementRegularCount += s.summary.abonementRegularCount;
       return acc;
-    }, { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, totalShifts: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 });
+    }, { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, vznosVisits: 0, totalShifts: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 });
     overall.avgCheck = overall.totalEntries > 0 ? Math.round(overall.totalAmount / overall.totalEntries) : 0;
 
     res.json({ overall, studios });
@@ -376,7 +389,17 @@ router.get('/master-incomes/stats', async (req, res) => {
     const visitCountRes = await db.query(
       `SELECT 
         COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) as total_visits,
-        COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits
+        COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits,
+        COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text))
+          FILTER (WHERE
+            mi.yclients_data IS NOT NULL
+            AND jsonb_typeof(mi.yclients_data->'services') = 'array'
+            AND jsonb_array_length(mi.yclients_data->'services') > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM jsonb_array_elements(mi.yclients_data->'services') svc
+              WHERE lower(svc->>'title') NOT LIKE '%взнос%'
+            )
+          ) as vznos_visits
       FROM master_incomes mi ${allVisitsWhere}`,
       params
     );
@@ -607,6 +630,7 @@ router.get('/master-incomes/stats', async (req, res) => {
         regularCount,
         totalVisits: parseInt(vcRow.total_visits) || 0,
         zeroVisits: parseInt(vcRow.zero_visits) || 0,
+        vznosVisits: parseInt(vcRow.vznos_visits) || 0,
         totalShifts,
         abonementAmount,
         abonementCount,

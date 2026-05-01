@@ -17,6 +17,7 @@ interface StatsData {
     regularCount: number;
     totalVisits: number;
     zeroVisits: number;
+    vznosVisits: number;
     totalShifts: number;
     abonementAmount: number;
     abonementCount: number;
@@ -278,7 +279,7 @@ export const MasterDashboard: React.FC = () => {
               </div>
               <div className="text-xl font-bold text-slate-800">{s?.totalVisits || 0}</div>
               <div className="text-[11px] text-slate-400 mt-0.5">
-                визитов{(s?.zeroVisits || 0) > 0 ? ` (${s?.zeroVisits} без опл.)` : ''}
+                визитов{(s?.zeroVisits || 0) > 0 ? ` · ${s?.zeroVisits} без опл.` : ''}{(s?.vznosVisits || 0) > 0 ? ` · ${s?.vznosVisits} взносных` : ''}
               </div>
             </div>
             <div className="bg-white rounded-2xl border border-slate-100 p-3 shadow-sm text-center">
