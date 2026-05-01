@@ -19,10 +19,13 @@ router.get('/payment-calendar', async (req, res) => {
   if (!caller) return;
 
   try {
-    const { month } = req.query;
+    const { month, dateMode } = req.query;
     if (!month || !/^\d{4}-\d{2}$/.test(month)) {
       return res.status(400).json({ error: 'month required in YYYY-MM format' });
     }
+
+    // dateMode: 'credit' (default) = COALESCE(credit_date, date), 'transaction' = date only
+    const incDateExpr = (dateMode === 'transaction') ? 't.date' : 'COALESCE(t.credit_date, t.date)';
 
     const [year, mon] = month.split('-').map(Number);
     const daysInMonth = new Date(year, mon, 0).getDate();
@@ -33,13 +36,13 @@ router.get('/payment-calendar', async (req, res) => {
 
     const incomeRes = await db.query(
       `SELECT
-        EXTRACT(DAY FROM COALESCE(t.credit_date, t.date))::int AS day,
+        EXTRACT(DAY FROM ${incDateExpr})::int AS day,
         SUM(t.amount) AS plan_amount,
         SUM(CASE WHEN t.confirmed THEN t.amount ELSE 0 END) AS fact_amount
        FROM transactions t
        WHERE t.type = 'income'
-         AND COALESCE(t.credit_date, t.date) >= $1 AND COALESCE(t.credit_date, t.date) < $2
-       GROUP BY EXTRACT(DAY FROM COALESCE(t.credit_date, t.date))
+         AND ${incDateExpr} >= $1 AND ${incDateExpr} < $2
+       GROUP BY EXTRACT(DAY FROM ${incDateExpr})
        ORDER BY day`,
       [startDate, nextMonthDate]
     );
@@ -164,6 +167,10 @@ router.get('/payment-calendar', async (req, res) => {
       });
     }
 
+    // For non-income transactions, always use COALESCE(credit_date, date) for balances
+    // For income, use incDateExpr based on dateMode
+    const incDateExprAlias = (dateMode === 'transaction') ? 't.date' : 'COALESCE(t.credit_date, t.date)';
+
     // Real account balances (current) — confirmed fact + unconfirmed (all)
     const accountsRes = await db.query(`
       SELECT a.id, a.name, a.currency,
@@ -179,7 +186,7 @@ router.get('/payment-calendar', async (req, res) => {
           ) FROM transactions t
           WHERE (t.account_id = a.id OR t.to_account_id = a.id)
             AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
-            AND COALESCE(t.credit_date, t.date) <= CURRENT_DATE
+            AND CASE WHEN t.type = 'income' THEN ${incDateExprAlias} ELSE COALESCE(t.credit_date, t.date) END <= CURRENT_DATE
         ), 0) AS balance,
         COALESCE(a.initial_balance, 0) + COALESCE((
           SELECT SUM(
@@ -193,7 +200,7 @@ router.get('/payment-calendar', async (req, res) => {
           ) FROM transactions t
           WHERE (t.account_id = a.id OR t.to_account_id = a.id)
             AND t.status != 'rejected'
-            AND COALESCE(t.credit_date, t.date) <= CURRENT_DATE
+            AND CASE WHEN t.type = 'income' THEN ${incDateExprAlias} ELSE COALESCE(t.credit_date, t.date) END <= CURRENT_DATE
         ), 0) AS balance_with_unconfirmed
       FROM accounts a
       ORDER BY a.name
@@ -215,7 +222,7 @@ router.get('/payment-calendar', async (req, res) => {
             ) FROM transactions t
             WHERE (t.account_id = a.id OR t.to_account_id = a.id)
               AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
-              AND COALESCE(t.credit_date, t.date) < $1
+              AND CASE WHEN t.type = 'income' THEN ${incDateExprAlias} ELSE COALESCE(t.credit_date, t.date) END < $1
           ), 0)
         ), 0) AS starting_balance,
         COALESCE(SUM(
@@ -231,7 +238,7 @@ router.get('/payment-calendar', async (req, res) => {
             ) FROM transactions t
             WHERE (t.account_id = a.id OR t.to_account_id = a.id)
               AND t.status != 'rejected'
-              AND COALESCE(t.credit_date, t.date) < $1
+              AND CASE WHEN t.type = 'income' THEN ${incDateExprAlias} ELSE COALESCE(t.credit_date, t.date) END < $1
           ), 0)
         ), 0) AS starting_balance_unconfirmed
       FROM accounts a

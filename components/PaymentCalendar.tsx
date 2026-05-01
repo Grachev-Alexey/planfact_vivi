@@ -461,6 +461,7 @@ export const PaymentCalendar: React.FC = () => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
   const [copying, setCopying] = useState(false);
+  const [dateMode, setDateMode] = useState<'credit' | 'transaction'>('credit');
   const [incomePlanManual, setIncomePlanManual] = useState<Record<number, number>>({});
   const [newPRDay, setNewPRDay] = useState<number | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -476,7 +477,7 @@ export const PaymentCalendar: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const r = await fetch(`/api/payment-calendar?month=${monthStr}`, {
+      const r = await fetch(`/api/payment-calendar?month=${monthStr}&dateMode=${dateMode}`, {
         headers: { 'x-user-id': String(user?.id || '') },
       });
       if (!r.ok) throw new Error('error');
@@ -486,16 +487,16 @@ export const PaymentCalendar: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [monthStr, user]);
+  }, [monthStr, user, dateMode]);
 
   const silentLoad = useCallback(async () => {
     try {
-      const r = await fetch(`/api/payment-calendar?month=${monthStr}`, {
+      const r = await fetch(`/api/payment-calendar?month=${monthStr}&dateMode=${dateMode}`, {
         headers: { 'x-user-id': String(user?.id || '') },
       });
       if (r.ok) setData(await r.json());
     } catch {}
-  }, [monthStr, user]);
+  }, [monthStr, user, dateMode]);
 
   const loadCalendarBalances = useCallback(async () => {
     try {
@@ -1002,6 +1003,23 @@ export const PaymentCalendar: React.FC = () => {
           >
             <CopyPlus size={13} />
           </button>
+          <div
+            className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm text-xs font-medium"
+            title="Режим расчёта дат доходов"
+          >
+            <button
+              onClick={() => setDateMode('credit')}
+              className={`px-2.5 py-1 transition-colors ${dateMode === 'credit' ? 'bg-teal-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              По зачислению
+            </button>
+            <button
+              onClick={() => setDateMode('transaction')}
+              className={`px-2.5 py-1 transition-colors ${dateMode === 'transaction' ? 'bg-teal-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              По оплате
+            </button>
+          </div>
           {!isCurrentMonth && (
             <button
               onClick={goToday}
