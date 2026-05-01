@@ -4,6 +4,7 @@ import { getMoscowNow } from '../utils/moscow';
 
 interface SettlementAccount { id: number; name: string; bankType?: string | null; hasBankKey?: boolean; }
 interface BankStatement { date: string; amount: number; description: string; counterparty: string; type: 'income' | 'expense'; }
+interface BalanceDayData { date: string; balanceBegin: number; balanceEnd: number; }
 interface TxDetail { id: number; amount: number; description: string; categoryName?: string; studioName?: string; fromAccountName?: string; toAccountName?: string; contractorName?: string; status?: string; direction?: 'in' | 'out'; }
 interface DayData { date: string; openBalance: number; income: number; expense: number; transferOut: number; transferIn: number; closeBalance: number; incomeDetails: TxDetail[]; expenseDetails: TxDetail[]; transferDetails: TxDetail[]; }
 interface ReconciliationData { accountId: number; accountName: string; balanceBefore: number; days: DayData[]; }
@@ -33,6 +34,7 @@ export const ReconciliationPage: React.FC = () => {
   const [accDropdownOpen, setAccDropdownOpen] = useState(false);
   const [bankStatementOpen, setBankStatementOpen] = useState(false);
   const [bankStatements, setBankStatements] = useState<BankStatement[]>([]);
+  const [bankBalanceDays, setBankBalanceDays] = useState<BalanceDayData[]>([]);
   const [bankStatementLoading, setBankStatementLoading] = useState(false);
   const [bankStatementError, setBankStatementError] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -93,12 +95,13 @@ export const ReconciliationPage: React.FC = () => {
     setBankStatementLoading(true);
     setBankStatementError('');
     setBankStatements([]);
+    setBankBalanceDays([]);
     const { startDate, endDate } = dateRange;
     fetch(`/api/reconciliation/bank-statement?accountId=${selectedAccountId}&startDate=${startDate}&endDate=${endDate}`)
       .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
       .then(({ ok, data }) => {
         if (!ok) { setBankStatementError(data.error || 'Ошибка загрузки'); }
-        else { setBankStatements(data.statements || []); }
+        else { setBankStatements(data.statements || []); setBankBalanceDays(data.balanceDays || []); }
         setBankStatementLoading(false);
       })
       .catch(() => { setBankStatementError('Ошибка подключения к серверу'); setBankStatementLoading(false); });
@@ -422,6 +425,7 @@ export const ReconciliationPage: React.FC = () => {
           loading={bankStatementLoading}
           error={bankStatementError}
           statements={bankStatements}
+          balanceDays={bankBalanceDays}
           accountName={selectedAccount?.name || ''}
           bankType={selectedAccount?.bankType || null}
           period={`${MONTH_NAMES[month]} ${year}`}
@@ -652,11 +656,12 @@ const BankStatementModal: React.FC<{
   loading: boolean;
   error: string;
   statements: BankStatement[];
+  balanceDays: BalanceDayData[];
   accountName: string;
   bankType: string | null;
   period: string;
   systemDays: DayData[];
-}> = ({ onClose, loading, error, statements, accountName, bankType, period, systemDays }) => {
+}> = ({ onClose, loading, error, statements, balanceDays, accountName, bankType, period, systemDays }) => {
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
@@ -686,6 +691,12 @@ const BankStatementModal: React.FC<{
     systemDays.forEach(d => m.set(d.date, d));
     return m;
   }, [systemDays]);
+
+  const balanceDayMap = useMemo(() => {
+    const m = new Map<string, BalanceDayData>();
+    balanceDays.forEach(d => m.set(d.date, d));
+    return m;
+  }, [balanceDays]);
 
   const dayMatches = useMemo(() => {
     const result = new Map<string, { source: string; bank: number; system: number; diff: number }[]>();
@@ -749,18 +760,26 @@ const BankStatementModal: React.FC<{
     const ExcelJS = (await import('exceljs')).default;
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Выписка');
+    const hasBal = balanceDays.length > 0;
     ws.columns = [
-      { header: 'Дата', key: 'date', width: 12 },
+      { header: 'Дата', key: 'date', width: 13 },
       { header: 'Тип', key: 'type', width: 10 },
-      { header: 'Категория', key: 'cat', width: 20 },
+      { header: 'Категория', key: 'cat', width: 22 },
       { header: 'Описание', key: 'desc', width: 60 },
       { header: 'Контрагент', key: 'cp', width: 30 },
-      { header: 'Сумма', key: 'amount', width: 14 },
+      { header: 'Сумма', key: 'amount', width: 16 },
+      ...(hasBal ? [
+        { header: 'Начало дня', key: 'balBegin', width: 16 },
+        { header: 'Конец дня', key: 'balEnd', width: 16 },
+      ] : []),
     ];
-    ws.getRow(1).font = { bold: true };
-    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    const hdrRow = ws.getRow(1);
+    hdrRow.font = { bold: true };
+    hdrRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
 
     for (const [day, ops] of grouped) {
+      const bal = balanceDayMap.get(day);
+      let firstRow = true;
       for (const op of ops) {
         const sign = op.type === 'income' ? 1 : -1;
         ws.addRow({
@@ -770,19 +789,41 @@ const BankStatementModal: React.FC<{
           desc: op.description || '',
           cp: op.counterparty || '',
           amount: sign * op.amount,
+          ...(hasBal ? {
+            balBegin: firstRow && bal ? bal.balanceBegin : '',
+            balEnd: firstRow && bal ? bal.balanceEnd : '',
+          } : {}),
         });
+        firstRow = false;
       }
       const dayIn = ops.filter(o => o.type === 'income').reduce((a, o) => a + o.amount, 0);
       const dayOut = ops.filter(o => o.type === 'expense').reduce((a, o) => a + o.amount, 0);
-      const totalRow = ws.addRow({ date: `Итого ${day}`, type: '', cat: '', desc: `+${fmt(dayIn)} / −${fmt(dayOut)}`, cp: '', amount: dayIn - dayOut });
+      const summary = [dayIn > 0 ? `+${fmt(dayIn)}` : null, dayOut > 0 ? `−${fmt(dayOut)}` : null].filter(Boolean).join(' / ') || '0';
+      const totalRow = ws.addRow({
+        date: `Итого ${day}`,
+        type: '', cat: '', desc: summary, cp: '',
+        amount: dayIn - dayOut,
+        ...(hasBal ? { balBegin: '', balEnd: '' } : {}),
+      });
       totalRow.font = { bold: true };
       totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
     }
-    const totalRow = ws.addRow({ date: 'ИТОГО', type: '', cat: '', desc: `+${fmt(totals.income)} / −${fmt(totals.expense)}`, cp: '', amount: totals.net });
+    const allIn = totals.income;
+    const allOut = totals.expense;
+    const grandSummary = [allIn > 0 ? `+${fmt(allIn)}` : null, allOut > 0 ? `−${fmt(allOut)}` : null].filter(Boolean).join(' / ') || '0';
+    const totalRow = ws.addRow({
+      date: 'ИТОГО', type: '', cat: '', desc: grandSummary, cp: '',
+      amount: totals.net,
+      ...(hasBal ? { balBegin: '', balEnd: '' } : {}),
+    });
     totalRow.font = { bold: true, size: 12 };
     totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } };
 
-    ws.getColumn('amount').numFmt = '#,##0.00 ₽';
+    ws.getColumn('amount').numFmt = '#,##0.00';
+    if (hasBal) {
+      ws.getColumn('balBegin').numFmt = '#,##0.00';
+      ws.getColumn('balEnd').numFmt = '#,##0.00';
+    }
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
@@ -793,55 +834,72 @@ const BankStatementModal: React.FC<{
     URL.revokeObjectURL(url);
   };
 
-  const exportPdf = async () => {
-    const jsPDF = (await import('jspdf')).default;
-    const autoTable = (await import('jspdf-autotable')).default;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text('Bank statement', 40, 40);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`Account: ${accountName}`, 40, 58);
-    doc.text(`Period: ${period}`, 40, 72);
-    doc.text(`Bank: ${bankType === 'tbank' ? 'T-Bank' : bankType === 'sber' ? 'Sber' : '-'}`, 40, 86);
-
-    const body: any[] = [];
-    for (const [day, ops] of grouped) {
-      for (const op of ops) {
-        const sign = op.type === 'income' ? '+' : '-';
-        body.push([
-          day,
-          categorizeBankOp(op.description, op.type),
-          (op.description || '').slice(0, 60),
-          `${sign}${fmt(op.amount)}`,
-        ]);
-      }
+  const exportPdf = () => {
+    const bankLabel = bankType === 'tbank' ? 'Т-Банк' : bankType === 'sber' ? 'Сбербанк' : '';
+    const hasBal = balanceDays.length > 0;
+    const rows = grouped.map(([day, ops]) => {
+      const bal = balanceDayMap.get(day);
       const dayIn = ops.filter(o => o.type === 'income').reduce((a, o) => a + o.amount, 0);
       const dayOut = ops.filter(o => o.type === 'expense').reduce((a, o) => a + o.amount, 0);
-      body.push([
-        { content: `Total ${day}`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
-        { content: `+${fmt(dayIn)} / -${fmt(dayOut)}`, styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
-        { content: `${fmt(dayIn - dayOut)}`, styles: { fontStyle: 'bold', fillColor: [241, 245, 249], halign: 'right' } },
-      ]);
-    }
+      const opRows = ops.map(op => `
+        <tr>
+          <td>${op.type === 'income' ? 'Приход' : 'Расход'}</td>
+          <td>${categorizeBankOp(op.description, op.type)}</td>
+          <td class="desc">${op.description || '—'}</td>
+          <td>${op.counterparty || ''}</td>
+          <td class="num ${op.type === 'income' ? 'inc' : 'exp'}">${op.type === 'income' ? '+' : '−'}${fmt(op.amount)}</td>
+        </tr>`).join('');
+      const balCols = hasBal && bal
+        ? `<td class="num" colspan="1">Нач: ${fmt(bal.balanceBegin)}<br/>Кон: ${fmt(bal.balanceEnd)}</td>`
+        : '';
+      const summaryParts = [dayIn > 0 ? `+${fmt(dayIn)}` : null, dayOut > 0 ? `−${fmt(dayOut)}` : null].filter(Boolean).join(' / ') || '0';
+      return `
+        <tr class="day-hdr">
+          <td colspan="4"><strong>${fmtDay(day)}</strong> · ${ops.length} оп. · ${summaryParts} ${balCols}</td>
+          <td class="num"><strong>${fmtSigned(dayIn - dayOut)}</strong></td>
+        </tr>
+        ${opRows}`;
+    }).join('');
 
-    autoTable(doc, {
-      startY: 105,
-      head: [['Date', 'Category', 'Description', 'Amount']],
-      body,
-      styles: { fontSize: 8, cellPadding: 4 },
-      headStyles: { fillColor: [20, 184, 166], textColor: 255 },
-      columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 80 }, 2: { cellWidth: 280 }, 3: { halign: 'right', cellWidth: 80 } },
-    });
-
-    const finalY = (doc as any).lastAutoTable.finalY || 105;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text(`TOTAL: +${fmt(totals.income)}  -${fmt(totals.expense)}  =  ${fmt(totals.net)}`, 40, finalY + 24);
-
-    doc.save(`statement_${accountName}_${period}.pdf`);
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/>
+<title>Выписка ${accountName} ${period}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 20px; }
+  h2 { font-size: 16px; margin-bottom: 4px; }
+  .meta { color: #64748b; font-size: 11px; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #0f766e; color: #fff; text-align: left; padding: 5px 7px; font-size: 10px; }
+  td { padding: 4px 7px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .day-hdr td { background: #f8fafc; font-weight: bold; border-top: 2px solid #e2e8f0; }
+  .num { text-align: right; white-space: nowrap; }
+  .inc { color: #059669; }
+  .exp { color: #dc2626; }
+  .desc { max-width: 280px; word-break: break-word; }
+  .footer { margin-top: 16px; font-weight: bold; border-top: 2px solid #cbd5e1; padding-top: 8px; }
+  @media print { body { margin: 10px; } }
+</style></head>
+<body>
+<h2>Банковская выписка</h2>
+<div class="meta">Счёт: ${accountName}${bankLabel ? ` · ${bankLabel}` : ''} · ${period}</div>
+<table>
+<thead><tr>
+  <th>Тип</th><th>Категория</th><th>Описание</th><th>Контрагент</th><th>Сумма</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table>
+<div class="footer">
+  ИТОГО: <span class="inc">+${fmt(totals.income)}</span> &nbsp;|&nbsp;
+  <span class="exp">−${fmt(totals.expense)}</span> &nbsp;|&nbsp;
+  Нетто: <strong>${fmtSigned(totals.net)}</strong> ₽
+</div>
+</body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 400);
   };
 
   return (
@@ -945,6 +1003,7 @@ const BankStatementModal: React.FC<{
                 const dayNet = dayIn - dayOut;
                 const matchRows = dayMatches.get(day) || [];
                 const open = isExpanded(day);
+                const bal = balanceDayMap.get(day);
                 return (
                   <div key={day} className="rounded-xl border border-slate-200 overflow-hidden bg-white">
                     <button onClick={() => toggleDay(day)}
@@ -953,6 +1012,12 @@ const BankStatementModal: React.FC<{
                         <ChevronDown size={16} className={`text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
                         <span className="text-sm font-bold text-slate-700">{fmtDay(day)}</span>
                         <span className="text-[11px] text-slate-400">· {ops.length} оп.</span>
+                        {bal && (
+                          <span className="text-[11px] text-slate-400 hidden sm:inline">
+                            · нач. <span className="font-medium text-slate-600">{fmt(bal.balanceBegin)}</span>
+                            {' → '}кон. <span className="font-medium text-slate-600">{fmt(bal.balanceEnd)}</span> ₽
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 tabular-nums text-[13px]">
                         {dayIn > 0 && <span className="text-emerald-600 font-semibold">+{fmt(dayIn)}</span>}

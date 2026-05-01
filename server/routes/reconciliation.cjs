@@ -375,6 +375,7 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
     }
 
     let statements = [];
+    let balanceDays = [];
 
     if (account.bank_type === 'tbank') {
       try {
@@ -413,6 +414,13 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
             type: isIncome ? 'income' : 'expense',
           };
         });
+        // Extract per-day balances from T-Bank response
+        const tbDayBals = data.balances?.balances || [];
+        balanceDays = tbDayBals.map(b => ({
+          date: b.date,
+          balanceBegin: b.balanceBegin || 0,
+          balanceEnd: b.balanceEnd || 0,
+        }));
       } catch (fetchErr) {
         return res.status(502).json({ error: `Ошибка подключения к Т-Банк: ${fetchErr.message}` });
       }
@@ -459,7 +467,7 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
       return res.status(400).json({ error: `Неизвестный тип банка: ${account.bank_type}` });
     }
 
-    res.json({ accountName: account.name, bankType: account.bank_type, statements });
+    res.json({ accountName: account.name, bankType: account.bank_type, statements, balanceDays });
   } catch (err) {
     console.error('Bank statement error:', err);
     res.status(500).json({ error: 'Ошибка получения банковской выписки' });
