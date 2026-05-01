@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp, Download, Landmark, AlertCircle, CheckCircle2, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, ChevronUp, Download, Landmark, AlertCircle, CheckCircle2, Plus, X, CopyPlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { PaymentCalendarEntryModal } from './PaymentCalendarEntryModal';
@@ -459,6 +459,8 @@ export const PaymentCalendar: React.FC = () => {
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
   const [activeCell, setActiveCell] = useState<{ catName: string; catId: string; day: number; entries: PREntry[] } | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [incomePlanManual, setIncomePlanManual] = useState<Record<number, number>>({});
   const [newPRDay, setNewPRDay] = useState<number | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -574,6 +576,38 @@ export const PaymentCalendar: React.FC = () => {
   const goToday = () => {
     setYear(today.getFullYear());
     setMonth(today.getMonth() + 1);
+  };
+
+  // Previous month relative to the currently viewed month
+  const prevMonthStr = (() => {
+    const pm = month === 1 ? 12 : month - 1;
+    const py = month === 1 ? year - 1 : year;
+    return `${py}-${String(pm).padStart(2, '0')}`;
+  })();
+  const prevMonthName = MONTH_NAMES[month === 1 ? 11 : month - 2];
+
+  const handleCopyFromPrevMonth = async () => {
+    setCopying(true);
+    try {
+      const r = await fetch('/api/payment-requests/copy-from-month', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+        body: JSON.stringify({
+          sourceMonth: prevMonthStr,
+          targetMonth: monthStr,
+          userId: user?.id,
+        }),
+      });
+      const result = await r.json();
+      if (!r.ok) throw new Error(result.error || 'Ошибка');
+      setCopyConfirmOpen(false);
+      showToast(result.copied > 0 ? `Скопировано запросов: ${result.copied}` : 'Оплаченных запросов в прошлом месяце не найдено');
+      if (result.copied > 0) load();
+    } catch (err: any) {
+      showToast(err.message || 'Ошибка копирования', 'error');
+    } finally {
+      setCopying(false);
+    }
   };
 
   const days = data ? Array.from({ length: data.daysInMonth }, (_, i) => i + 1) : [];
@@ -961,6 +995,13 @@ export const PaymentCalendar: React.FC = () => {
               Excel
             </button>
           )}
+          <button
+            onClick={() => setCopyConfirmOpen(true)}
+            className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg transition-colors shadow-sm"
+            title={`Повторить оплаченные запросы из ${prevMonthName}`}
+          >
+            <CopyPlus size={13} />
+          </button>
           {!isCurrentMonth && (
             <button
               onClick={goToday}
@@ -1332,6 +1373,41 @@ export const PaymentCalendar: React.FC = () => {
           onClose={() => setNewPRDay(null)}
           onSuccess={(msg) => { showToast(msg); silentLoad(); }}
         />
+      )}
+
+      {copyConfirmOpen && (
+        <div className="fixed inset-0 z-[99990] flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 w-80 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-800">Повторить запросы</h2>
+              <button onClick={() => setCopyConfirmOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Скопировать все <span className="font-semibold text-emerald-700">оплаченные</span> запросы из{' '}
+              <span className="font-semibold">{prevMonthName}</span> в{' '}
+              <span className="font-semibold">{MONTH_NAMES[month - 1]}</span>?
+              <br /><br />
+              Даты будут сдвинуты на&nbsp;+1&nbsp;месяц. Новые запросы будут созданы со статусом «Ожидает».
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setCopyConfirmOpen(false)}
+                className="text-xs font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-lg transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleCopyFromPrevMonth}
+                disabled={copying}
+                className="text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60 px-4 py-2 rounded-lg transition-colors"
+              >
+                {copying ? 'Копирование...' : 'Скопировать'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toasts.length > 0 && (

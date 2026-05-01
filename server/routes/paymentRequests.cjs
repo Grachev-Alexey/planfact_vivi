@@ -254,6 +254,110 @@ router.put('/payment-requests/:id', async (req, res) => {
   }
 });
 
+router.post('/payment-requests/copy-from-month', async (req, res) => {
+  try {
+    const { sourceMonth, targetMonth, userId } = req.body;
+    if (!sourceMonth || !targetMonth) {
+      return res.status(400).json({ error: 'sourceMonth and targetMonth are required' });
+    }
+
+    // Parse source and target months
+    const [srcYear, srcMonth] = sourceMonth.split('-').map(Number);
+    const [tgtYear, tgtMonth] = targetMonth.split('-').map(Number);
+
+    // Find all paid payment requests from the source month
+    const srcStart = `${sourceMonth}-01`;
+    const srcEnd = new Date(srcYear, srcMonth, 0).toISOString().split('T')[0]; // last day of source month
+
+    const sourceRequests = await db.query(
+      `SELECT * FROM payment_requests
+       WHERE status = 'paid'
+         AND payment_date >= $1
+         AND payment_date <= $2`,
+      [srcStart, srcEnd]
+    );
+
+    if (sourceRequests.rows.length === 0) {
+      return res.json({ copied: 0 });
+    }
+
+    let copied = 0;
+
+    for (const pr of sourceRequests.rows) {
+      // Shift payment_date by one month
+      let newPaymentDate = null;
+      if (pr.payment_date) {
+        const d = new Date(pr.payment_date);
+        const shifted = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        // Clamp to last day of target month if needed
+        const lastDay = new Date(tgtYear, tgtMonth, 0).getDate();
+        if (shifted.getDate() > lastDay) shifted.setDate(lastDay);
+        newPaymentDate = shifted.toISOString().split('T')[0];
+      }
+
+      // Shift accrual_date by one month
+      let newAccrualDate = null;
+      if (pr.accrual_date) {
+        const d = new Date(pr.accrual_date);
+        const shifted = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        const lastDay = new Date(tgtYear, tgtMonth, 0).getDate();
+        if (shifted.getDate() > lastDay) shifted.setDate(lastDay);
+        newAccrualDate = shifted.toISOString().split('T')[0];
+      }
+
+      // Create new payment request with status 'pending'
+      const newPr = await db.query(
+        `INSERT INTO payment_requests (user_id, amount, category_id, studio_id, contractor_id, account_id, description, payment_date, accrual_date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [
+          pr.user_id,
+          pr.amount,
+          pr.category_id || null,
+          pr.studio_id || null,
+          pr.contractor_id || null,
+          pr.account_id,
+          pr.description || '',
+          newPaymentDate,
+          newAccrualDate,
+        ]
+      );
+
+      const newPrRow = newPr.rows[0];
+
+      // Create linked transaction
+      if (newPrRow.account_id) {
+        const externalId = `pr-${newPrRow.id}`;
+        await db.query(
+          `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, contractor_id, description, confirmed, accrual_date, external_id)
+           VALUES ($1, $2, 'expense', $3, $4, $5, $6, $7, false, $8, $9)`,
+          [
+            newPaymentDate || getMoscowToday(),
+            newPrRow.amount,
+            newPrRow.account_id,
+            newPrRow.category_id || null,
+            newPrRow.studio_id || null,
+            newPrRow.contractor_id || null,
+            newPrRow.description || '',
+            newAccrualDate,
+            externalId,
+          ]
+        );
+      }
+
+      copied++;
+    }
+
+    if (userId) {
+      await logAction(userId, 'create', 'payment_request', null, `Скопировано ${copied} оплаченных запросов из ${sourceMonth} в ${targetMonth}`);
+    }
+
+    res.json({ copied });
+  } catch (err) {
+    console.error('Error copying payment requests:', err);
+    res.status(500).json({ error: 'Ошибка копирования запросов' });
+  }
+});
+
 router.delete('/payment-requests/:id', async (req, res) => {
   try {
     const userId = req.headers['x-user-id'];
