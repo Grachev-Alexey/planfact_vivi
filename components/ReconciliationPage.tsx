@@ -663,6 +663,7 @@ const BankStatementModal: React.FC<{
   systemDays: DayData[];
 }> = ({ onClose, loading, error, statements, balanceDays, accountName, bankType, period, systemDays }) => {
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [viewMode, setViewMode] = useState<'split' | 'list'>('split');
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
 
@@ -697,6 +698,25 @@ const BankStatementModal: React.FC<{
     balanceDays.forEach(d => m.set(d.date, d));
     return m;
   }, [balanceDays]);
+
+  const bankGrouped = useMemo(() => {
+    const m = new Map<string, BankStatement[]>();
+    for (const s of statements) {
+      const day = (s.date || '').substring(0, 10);
+      if (!m.has(day)) m.set(day, []);
+      m.get(day)!.push(s);
+    }
+    return m;
+  }, [statements]);
+
+  const allDays = useMemo(() => {
+    const days = new Set<string>();
+    for (const [d] of bankGrouped) days.add(d);
+    for (const sd of systemDays) {
+      if (sd.income > 0 || sd.expense > 0 || sd.transferIn > 0 || sd.transferOut > 0) days.add(sd.date);
+    }
+    return Array.from(days).sort();
+  }, [bankGrouped, systemDays]);
 
   const dayMatches = useMemo(() => {
     const result = new Map<string, { source: string; bank: number; system: number; diff: number }[]>();
@@ -750,7 +770,7 @@ const BankStatementModal: React.FC<{
       setExpandedDays(new Set());
     } else {
       setAllExpanded(true);
-      setExpandedDays(new Set(grouped.map(([d]) => d)));
+      setExpandedDays(new Set(viewMode === 'split' ? allDays : grouped.map(([d]) => d)));
     }
   };
 
@@ -903,38 +923,49 @@ const BankStatementModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className={`bg-white rounded-2xl shadow-2xl w-full max-h-[92vh] flex flex-col ${viewMode === 'split' ? 'max-w-7xl' : 'max-w-5xl'}`} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 shrink-0 gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-md shadow-teal-500/20">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-md shadow-teal-500/20 shrink-0">
               <FileText size={16} className="text-white" />
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-800">Банковская выписка</h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 {accountName} — {period}
-                {bankType && <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-medium text-slate-500">
-                  {bankType === 'tbank' ? 'Т-Банк' : 'Сбер'}
-                </span>}
+                {bankType && <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-medium text-slate-500">{bankType === 'tbank' ? 'Т-Банк' : 'Сбер'}</span>}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {!loading && !error && statements.length > 0 && (
               <>
-                <div className="flex items-center bg-slate-100 rounded-lg p-0.5 mr-1">
-                  {(['all', 'income', 'expense'] as const).map(f => (
-                    <button key={f} onClick={() => setFilter(f)}
-                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
-                        filter === f ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                      }`}>
-                      {f === 'all' ? 'Все' : f === 'income' ? 'Приходы' : 'Расходы'}
-                    </button>
-                  ))}
+                {/* View mode toggle */}
+                <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+                  <button onClick={() => setViewMode('split')}
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${viewMode === 'split' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                    ⇔ Сверка
+                  </button>
+                  <button onClick={() => setViewMode('list')}
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                    ≡ Список
+                  </button>
                 </div>
+                {viewMode === 'list' && (
+                  <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+                    {(['all', 'income', 'expense'] as const).map(f => (
+                      <button key={f} onClick={() => setFilter(f)}
+                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${filter === f ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        {f === 'all' ? 'Все' : f === 'income' ? 'Приходы' : 'Расходы'}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <button onClick={toggleAll} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
-                  <Filter size={12} /> {allExpanded ? 'Свернуть всё' : 'Развернуть всё'}
+                  <Filter size={12} /> {allExpanded ? 'Свернуть' : 'Развернуть'}
                 </button>
                 <button onClick={exportExcel} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors">
                   <FileSpreadsheet size={12} /> Excel
@@ -950,28 +981,30 @@ const BankStatementModal: React.FC<{
           </div>
         </div>
 
+        {/* Totals bar */}
         {!loading && !error && statements.length > 0 && (
-          <div className="shrink-0 grid grid-cols-4 gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200">
+          <div className="shrink-0 grid grid-cols-4 gap-3 px-5 py-2.5 bg-slate-50 border-b border-slate-200">
             <div className="bg-white rounded-lg border border-slate-200 px-3 py-2">
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Операций</div>
-              <div className="text-base font-bold text-slate-700 tabular-nums">{totals.count}</div>
+              <div className="text-sm font-bold text-slate-700 tabular-nums">{statements.length}</div>
             </div>
             <div className="bg-white rounded-lg border border-emerald-100 px-3 py-2">
-              <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Поступления</div>
-              <div className="text-base font-bold text-emerald-600 tabular-nums">+{fmt(totals.income)} ₽</div>
+              <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Поступления (банк)</div>
+              <div className="text-sm font-bold text-emerald-600 tabular-nums">+{fmt(totals.income)} ₽</div>
             </div>
             <div className="bg-white rounded-lg border border-rose-100 px-3 py-2">
-              <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Списания</div>
-              <div className="text-base font-bold text-rose-600 tabular-nums">−{fmt(totals.expense)} ₽</div>
+              <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Списания (банк)</div>
+              <div className="text-sm font-bold text-rose-600 tabular-nums">−{fmt(totals.expense)} ₽</div>
             </div>
             <div className={`bg-white rounded-lg border px-3 py-2 ${totals.net >= 0 ? 'border-teal-100' : 'border-amber-100'}`}>
-              <div className={`text-[10px] font-bold uppercase tracking-wider ${totals.net >= 0 ? 'text-teal-600' : 'text-amber-600'}`}>Нетто</div>
-              <div className={`text-base font-bold tabular-nums ${totals.net >= 0 ? 'text-teal-600' : 'text-amber-600'}`}>{fmtSigned(totals.net)} ₽</div>
+              <div className={`text-[10px] font-bold uppercase tracking-wider ${totals.net >= 0 ? 'text-teal-600' : 'text-amber-600'}`}>Нетто (банк)</div>
+              <div className={`text-sm font-bold tabular-nums ${totals.net >= 0 ? 'text-teal-600' : 'text-amber-600'}`}>{fmtSigned(totals.net)} ₽</div>
             </div>
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* Main content */}
+        <div className="flex-1 overflow-y-auto p-3">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <div className="relative">
@@ -990,12 +1023,150 @@ const BankStatementModal: React.FC<{
             </div>
           ) : statements.length === 0 ? (
             <div className="text-center py-12">
-              <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
-                <FileText size={24} className="text-slate-300" />
-              </div>
               <p className="text-sm text-slate-500">Нет операций за выбранный период</p>
             </div>
+
+          ) : viewMode === 'split' ? (
+            /* ── SPLIT VIEW ── */
+            <div className="space-y-2">
+              {allDays.map(day => {
+                const bankOps = bankGrouped.get(day) || [];
+                const sysDay = systemDayMap.get(day);
+                const bal = balanceDayMap.get(day);
+                const bankIn = bankOps.filter(o => o.type === 'income').reduce((a, o) => a + o.amount, 0);
+                const bankOut = bankOps.filter(o => o.type === 'expense').reduce((a, o) => a + o.amount, 0);
+                const bankNet = bankIn - bankOut;
+                const sysIn = sysDay ? sysDay.income : 0;
+                const sysOut = sysDay ? sysDay.expense : 0;
+                const sysNet = sysIn - sysOut;
+                const diff = bankNet - sysNet;
+                const isMatch = Math.abs(diff) < 1;
+                const open = isExpanded(day);
+                return (
+                  <div key={day} className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+                    {/* Day header */}
+                    <button onClick={() => toggleDay(day)}
+                      className="w-full flex items-center justify-between gap-2 px-4 py-2.5 bg-gradient-to-r from-slate-50 to-white hover:from-slate-100 transition-colors">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ChevronDown size={15} className={`text-slate-400 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+                        <span className="text-sm font-bold text-slate-700 shrink-0">{fmtDay(day)}</span>
+                        {bal && (
+                          <span className="text-[11px] text-slate-400 hidden md:inline shrink-0">
+                            · нач <span className="text-slate-600 font-medium">{fmt(bal.balanceBegin)}</span>
+                            {' → '}<span className="text-slate-600 font-medium">{fmt(bal.balanceEnd)}</span> ₽
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 tabular-nums text-[12px] shrink-0">
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50">
+                          <span className="text-[10px] font-bold text-blue-400 uppercase">Банк</span>
+                          <span className={`font-bold ${bankNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtSigned(bankNet)}</span>
+                        </div>
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-violet-50">
+                          <span className="text-[10px] font-bold text-violet-400 uppercase">Система</span>
+                          <span className={`font-bold ${sysNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtSigned(sysNet)}</span>
+                        </div>
+                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded ${isMatch ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+                          <span className={`text-[10px] font-bold uppercase ${isMatch ? 'text-emerald-500' : 'text-rose-400'}`}>Разница</span>
+                          <span className={`font-bold ${isMatch ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {isMatch ? '✓' : fmtSigned(diff)}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Split body */}
+                    {open && (
+                      <div className="border-t border-slate-100 grid grid-cols-2 divide-x divide-slate-100">
+                        {/* LEFT: Bank */}
+                        <div>
+                          <div className="px-3 py-1.5 bg-blue-50/60 border-b border-blue-100/60 flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
+                              Банк · {bankOps.length} оп.
+                            </span>
+                            <div className="text-[11px] tabular-nums">
+                              {bankIn > 0 && <span className="text-emerald-600 font-semibold mr-2">+{fmt(bankIn)}</span>}
+                              {bankOut > 0 && <span className="text-rose-600 font-semibold">−{fmt(bankOut)}</span>}
+                            </div>
+                          </div>
+                          {bankOps.length === 0 ? (
+                            <div className="px-3 py-4 text-center text-[12px] text-slate-300">Нет операций</div>
+                          ) : (
+                            <div className="divide-y divide-slate-50">
+                              {bankOps.map((op, i) => {
+                                const cat = categorizeBankOp(op.description, op.type);
+                                return (
+                                  <div key={i} className="flex items-start justify-between gap-2 px-3 py-2 hover:bg-slate-50/60">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded shrink-0">{cat}</span>
+                                        {op.counterparty && <span className="text-[11px] text-slate-400 truncate">{op.counterparty}</span>}
+                                      </div>
+                                      <div className="text-[12px] text-slate-600 leading-snug break-words">{op.description || '—'}</div>
+                                    </div>
+                                    <span className={`text-[13px] font-bold tabular-nums whitespace-nowrap shrink-0 ${op.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                      {op.type === 'income' ? '+' : '−'}{fmt(op.amount)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* RIGHT: System */}
+                        <div>
+                          <div className="px-3 py-1.5 bg-violet-50/60 border-b border-violet-100/60 flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-violet-600">
+                              Система · {sysDay ? (sysDay.incomeDetails.length + sysDay.expenseDetails.length) : 0} оп.
+                            </span>
+                            <div className="text-[11px] tabular-nums">
+                              {sysIn > 0 && <span className="text-emerald-600 font-semibold mr-2">+{fmt(sysIn)}</span>}
+                              {sysOut > 0 && <span className="text-rose-600 font-semibold">−{fmt(sysOut)}</span>}
+                            </div>
+                          </div>
+                          {!sysDay || (sysDay.incomeDetails.length === 0 && sysDay.expenseDetails.length === 0) ? (
+                            <div className="px-3 py-4 text-center text-[12px] text-slate-300">Нет данных в системе</div>
+                          ) : (
+                            <div className="divide-y divide-slate-50">
+                              {sysDay.incomeDetails.map((it, i) => (
+                                <div key={`in-${i}`} className="flex items-start justify-between gap-2 px-3 py-2 hover:bg-slate-50/60">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                      {it.categoryName && <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded shrink-0">{it.categoryName}</span>}
+                                      {it.studioName && <span className="text-[11px] text-slate-400 truncate">{it.studioName}</span>}
+                                    </div>
+                                    {it.description && <div className="text-[12px] text-slate-500 leading-snug break-words">{it.description}</div>}
+                                    {it.fromAccountName && <div className="text-[11px] text-slate-400">← {it.fromAccountName}</div>}
+                                  </div>
+                                  <span className="text-[13px] font-bold tabular-nums whitespace-nowrap text-emerald-600 shrink-0">+{fmt(it.amount)}</span>
+                                </div>
+                              ))}
+                              {sysDay.expenseDetails.map((it, i) => (
+                                <div key={`ex-${i}`} className="flex items-start justify-between gap-2 px-3 py-2 hover:bg-slate-50/60">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                      {it.categoryName && <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded shrink-0">{it.categoryName}</span>}
+                                      {it.contractorName && <span className="text-[11px] text-slate-400 truncate">{it.contractorName}</span>}
+                                      {it.studioName && <span className="text-[11px] text-slate-400 truncate">{it.studioName}</span>}
+                                    </div>
+                                    {it.description && <div className="text-[12px] text-slate-500 leading-snug break-words">{it.description}</div>}
+                                  </div>
+                                  <span className="text-[13px] font-bold tabular-nums whitespace-nowrap text-rose-600 shrink-0">−{fmt(it.amount)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
           ) : (
+            /* ── LIST VIEW ── */
             <div className="space-y-2">
               {grouped.map(([day, ops]) => {
                 const dayIn = ops.filter(o => o.type === 'income').reduce((a, o) => a + o.amount, 0);
@@ -1025,17 +1196,13 @@ const BankStatementModal: React.FC<{
                         <span className={`font-bold min-w-[80px] text-right ${dayNet >= 0 ? 'text-slate-700' : 'text-rose-600'}`}>= {fmtSigned(dayNet)}</span>
                       </div>
                     </button>
-
                     {open && (
                       <div className="border-t border-slate-100">
                         {matchRows.length > 0 && (
                           <div className="bg-amber-50/40 border-b border-amber-100/60 px-4 py-2">
                             <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1.5">Сверка с источниками системы</div>
                             <div className="grid grid-cols-[1fr_100px_100px_100px] gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 mb-1">
-                              <div>Источник</div>
-                              <div className="text-right">Банк</div>
-                              <div className="text-right">Система</div>
-                              <div className="text-right">Разница</div>
+                              <div>Источник</div><div className="text-right">Банк</div><div className="text-right">Система</div><div className="text-right">Разница</div>
                             </div>
                             <div className="space-y-0.5">
                               {matchRows.map(r => {
@@ -1043,8 +1210,7 @@ const BankStatementModal: React.FC<{
                                 return (
                                   <div key={r.source} className={`grid grid-cols-[1fr_100px_100px_100px] gap-2 text-[12px] tabular-nums px-1 py-1 rounded ${ok ? 'bg-emerald-50/40' : 'bg-rose-50/40'}`}>
                                     <div className="font-medium text-slate-700 flex items-center gap-1.5">
-                                      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                                      {r.source}
+                                      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>{r.source}
                                     </div>
                                     <div className={`text-right font-semibold ${r.bank >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtSigned(r.bank)}</div>
                                     <div className={`text-right font-semibold ${r.system >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtSigned(r.system)}</div>
@@ -1059,15 +1225,13 @@ const BankStatementModal: React.FC<{
                           {ops.map((op, i) => {
                             const cat = categorizeBankOp(op.description, op.type);
                             return (
-                              <div key={i} className="grid grid-cols-[1fr_120px] gap-3 px-4 py-2 text-sm hover:bg-slate-50/60 group">
+                              <div key={i} className="grid grid-cols-[1fr_120px] gap-3 px-4 py-2 text-sm hover:bg-slate-50/60">
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 mb-0.5">
                                     <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">{cat}</span>
                                     {op.counterparty && <span className="text-[11px] text-slate-400 truncate">{op.counterparty}</span>}
                                   </div>
-                                  <div className="text-slate-700 text-[13px] leading-snug break-words" title={op.description}>
-                                    {op.description || '—'}
-                                  </div>
+                                  <div className="text-slate-700 text-[13px] leading-snug break-words">{op.description || '—'}</div>
                                 </div>
                                 <span className={`text-right font-semibold tabular-nums whitespace-nowrap self-center ${op.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
                                   {op.type === 'income' ? '+' : '−'}{fmt(op.amount)} ₽
