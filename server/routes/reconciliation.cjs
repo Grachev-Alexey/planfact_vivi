@@ -392,17 +392,24 @@ router.get('/reconciliation/bank-statement', async (req, res) => {
         const data = await resp.json();
         const ops = data.operation || data.operations || [];
         statements = ops.map(op => {
-          const raw = parseFloat(op.amount || op.operationAmount || 0);
-          const dirRaw = String(op.typeOfTransaction || op.transactionType || op.direction || op.type || '').toLowerCase();
+          const raw = parseFloat(op.operationAmount || op.accountAmount || op.amount || 0);
+          // T-Bank uses typeOfOperation: "Credit" / "Debit"
+          const dirRaw = String(
+            op.typeOfOperation || op.typeOfTransaction || op.transactionType ||
+            op.direction || op.type || ''
+          ).toLowerCase();
           let isIncome;
           if (dirRaw === 'credit' || dirRaw === 'cr' || dirRaw === '1') isIncome = true;
           else if (dirRaw === 'debit' || dirRaw === 'db' || dirRaw === '2') isIncome = false;
           else isIncome = raw > 0;
+          // T-Bank: payPurpose / description for description; counterParty.name for counterparty
+          const description = op.payPurpose || op.paymentPurpose || op.narrative || op.description || '';
+          const counterparty = op.counterParty?.name || op.counterpartyName || op.corresondentName || op.contragent?.name || '';
           return {
-            date: (op.date || op.operationDate || '').split('T')[0],
+            date: (op.drawDate || op.chargeDate || op.operationDate || op.date || '').split('T')[0],
             amount: Math.abs(raw),
-            description: op.paymentPurpose || op.narrative || op.description || '',
-            counterparty: op.counterpartyName || op.corresondentName || op.contragent?.name || '',
+            description,
+            counterparty,
             type: isIncome ? 'income' : 'expense',
           };
         });
