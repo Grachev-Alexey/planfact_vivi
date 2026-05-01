@@ -99,7 +99,19 @@ router.get('/admin-stats', async (req, res) => {
       `SELECT mi.user_id,
         COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != '') as unique_clients_all,
         COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'primary' AND mi.client_phone != '') as primary_count_all,
-        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'regular' AND mi.client_phone != '') as regular_count_all
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'regular' AND mi.client_phone != '') as regular_count_all,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != ''
+          AND NOT (
+            mi.payment_type != 'visit_only'
+            AND mi.yclients_data IS NOT NULL
+            AND jsonb_typeof(mi.yclients_data->'services') = 'array'
+            AND jsonb_array_length(mi.yclients_data->'services') > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM jsonb_array_elements(mi.yclients_data->'services') svc
+              WHERE lower(svc->>'title') NOT LIKE '%взнос%'
+            )
+          )
+        ) as unique_clients_for_conv
        FROM master_incomes mi
        WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2
        GROUP BY mi.user_id`,
@@ -111,6 +123,7 @@ router.get('/admin-stats', async (req, res) => {
         uniqueClients: parseInt(r.unique_clients_all) || 0,
         primaryCount: parseInt(r.primary_count_all) || 0,
         regularCount: parseInt(r.regular_count_all) || 0,
+        uniqueClientsForConversion: parseInt(r.unique_clients_for_conv) || 0,
       };
     }
 
@@ -261,22 +274,23 @@ router.get('/admin-stats', async (req, res) => {
           id: sid, name: r.studio_name,
           masters: [],
           daily: dailyByStudio[sid] || [],
-          summary: { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, vznosVisits: 0, totalShifts: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 }
+          summary: { totalAmount: 0, totalEntries: 0, uniqueClients: 0, uniqueClientsForConversion: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, vznosVisits: 0, totalShifts: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 }
         };
       }
       const totalAmount = parseFloat(r.total_amount) || 0;
       const totalEntries = parseInt(r.total_entries) || 0;
       const vc = visitMap[r.user_id] || {};
       const ab = abonementMap[r.user_id] || { amount: 0, count: 0, primaryAmount: 0, primaryCount: 0, regularAmount: 0, regularCount: 0 };
-      const allCounts = uniqueClientsAllMap[r.user_id] || { uniqueClients: 0, primaryCount: 0, regularCount: 0 };
+      const allCounts = uniqueClientsAllMap[r.user_id] || { uniqueClients: 0, primaryCount: 0, regularCount: 0, uniqueClientsForConversion: 0 };
       const uniqueClients = allCounts.uniqueClients;
       const primaryCount = allCounts.primaryCount;
       const regularCount = allCounts.regularCount;
+      const uniqueClientsForConversion = allCounts.uniqueClientsForConversion;
 
       const master = {
         id: r.user_id, name: r.master_name,
         summary: {
-          totalAmount, totalEntries, uniqueClients,
+          totalAmount, totalEntries, uniqueClients, uniqueClientsForConversion,
           avgCheck: totalEntries > 0 ? Math.round(totalAmount / totalEntries) : 0,
           primaryAmount: parseFloat(r.primary_amount) || 0,
           regularAmount: parseFloat(r.regular_amount) || 0,
@@ -304,6 +318,7 @@ router.get('/admin-stats', async (req, res) => {
       ss.regularAmount += master.summary.regularAmount;
       ss.primaryCount += primaryCount;
       ss.regularCount += regularCount;
+      ss.uniqueClientsForConversion += master.summary.uniqueClientsForConversion;
       ss.totalVisits += master.summary.totalVisits;
       ss.zeroVisits += master.summary.zeroVisits;
       ss.vznosVisits += master.summary.vznosVisits;
@@ -331,6 +346,7 @@ router.get('/admin-stats', async (req, res) => {
       acc.regularAmount += s.summary.regularAmount;
       acc.primaryCount += s.summary.primaryCount;
       acc.regularCount += s.summary.regularCount;
+      acc.uniqueClientsForConversion += s.summary.uniqueClientsForConversion;
       acc.totalVisits += s.summary.totalVisits;
       acc.zeroVisits += s.summary.zeroVisits;
       acc.vznosVisits += s.summary.vznosVisits;
@@ -342,7 +358,7 @@ router.get('/admin-stats', async (req, res) => {
       acc.abonementRegularAmount += s.summary.abonementRegularAmount;
       acc.abonementRegularCount += s.summary.abonementRegularCount;
       return acc;
-    }, { totalAmount: 0, totalEntries: 0, uniqueClients: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, vznosVisits: 0, totalShifts: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 });
+    }, { totalAmount: 0, totalEntries: 0, uniqueClients: 0, uniqueClientsForConversion: 0, primaryAmount: 0, regularAmount: 0, primaryCount: 0, regularCount: 0, totalVisits: 0, zeroVisits: 0, vznosVisits: 0, totalShifts: 0, abonementAmount: 0, abonementCount: 0, abonementPrimaryAmount: 0, abonementPrimaryCount: 0, abonementRegularAmount: 0, abonementRegularCount: 0 });
     overall.avgCheck = overall.totalEntries > 0 ? Math.round(overall.totalAmount / overall.totalEntries) : 0;
 
     res.json({ overall, studios });
@@ -381,7 +397,19 @@ router.get('/master-incomes/stats', async (req, res) => {
       `SELECT
         COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != '') as unique_clients_all,
         COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'primary' AND mi.client_phone != '') as primary_count_all,
-        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'regular' AND mi.client_phone != '') as regular_count_all
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'regular' AND mi.client_phone != '') as regular_count_all,
+        COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != ''
+          AND NOT (
+            mi.payment_type != 'visit_only'
+            AND mi.yclients_data IS NOT NULL
+            AND jsonb_typeof(mi.yclients_data->'services') = 'array'
+            AND jsonb_array_length(mi.yclients_data->'services') > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM jsonb_array_elements(mi.yclients_data->'services') svc
+              WHERE lower(svc->>'title') NOT LIKE '%взнос%'
+            )
+          )
+        ) as unique_clients_for_conv
        FROM master_incomes mi ${allVisitsWhere}`,
       params
     );
@@ -628,6 +656,7 @@ router.get('/master-incomes/stats', async (req, res) => {
         regularAmount: parseFloat(summary.regular_amount) || 0,
         primaryCount,
         regularCount,
+        uniqueClientsForConversion: parseInt((uniqueClientsAllRes.rows[0] || {}).unique_clients_for_conv) || 0,
         totalVisits: parseInt(vcRow.total_visits) || 0,
         zeroVisits: parseInt(vcRow.zero_visits) || 0,
         vznosVisits: parseInt(vcRow.vznos_visits) || 0,

@@ -15,6 +15,7 @@ interface StatsData {
     regularAmount: number;
     primaryCount: number;
     regularCount: number;
+    uniqueClientsForConversion: number;
     totalVisits: number;
     zeroVisits: number;
     vznosVisits: number;
@@ -214,7 +215,7 @@ export const MasterDashboard: React.FC = () => {
   const abTotalAvg = (s?.abonementCount || 0) > 0 ? Math.round((s?.abonementAmount || 0) / (s?.abonementCount || 1)) : 0;
   const conversionPrimary = (s?.primaryCount || 0) > 0 ? Math.round(((s?.abonementPrimaryCount || 0) / (s?.primaryCount || 1)) * 100) : 0;
   const conversionRegular = (s?.regularCount || 0) > 0 ? Math.round(((s?.abonementRegularCount || 0) / (s?.regularCount || 1)) * 100) : 0;
-  const conversionTotal = (s?.uniqueClients || 0) > 0 ? Math.round(((s?.abonementCount || 0) / (s?.uniqueClients || 1)) * 100) : 0;
+  const conversionTotal = (s?.uniqueClientsForConversion || 0) > 0 ? Math.round(((s?.abonementCount || 0) / (s?.uniqueClientsForConversion || 1)) * 100) : 0;
 
   const periodLabel = period === 'today' ? 'за сегодня' : period === 'week' ? 'за неделю' : period === 'month' ? 'за месяц' : 'за период';
 
@@ -279,7 +280,7 @@ export const MasterDashboard: React.FC = () => {
               </div>
               <div className="text-xl font-bold text-slate-800">{s?.totalVisits || 0}</div>
               <div className="text-[11px] text-slate-400 mt-0.5">
-                визитов{(s?.zeroVisits || 0) > 0 ? ` · ${s?.zeroVisits} без опл.` : ''}{(s?.vznosVisits || 0) > 0 ? ` · ${s?.vznosVisits} взносных` : ''}
+                визитов{(s?.zeroVisits || 0) > 0 ? ` · ${s?.zeroVisits} без опл.` : ''}{(s?.vznosVisits || 0) > 0 ? ` · ${s?.vznosVisits} только взнос` : ''}
               </div>
             </div>
             <div className="bg-white rounded-2xl border border-slate-100 p-3 shadow-sm text-center">
