@@ -161,6 +161,8 @@ router.put('/payment-requests/:id', async (req, res) => {
       if (paidAmount !== undefined) {
         updateFields.push(`paid_amount = $${idx++}`);
         params.push(paidAmount);
+        updateFields.push(`amount = $${idx++}`);
+        params.push(paidAmount);
       }
       if (paidDate) {
         updateFields.push(`paid_date = $${idx++}`);
