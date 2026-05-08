@@ -121,7 +121,23 @@ const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
         )}
       </td>
       <td className="px-3 py-3 text-slate-600 text-[13px] align-top">
-        {studio?.name || ''}
+        {tx.studioDistribution?.length ? (
+          <div className="space-y-0.5">
+            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-medium">
+              По студиям
+            </span>
+            {tx.studioDistribution.map(d => {
+              const ds = maps.studios.get(String(d.studioId));
+              return ds ? (
+                <div key={d.studioId} className="text-[11px] text-slate-400 leading-tight">
+                  {ds.name} <span className="text-slate-300">·</span> {d.percentage}%
+                </div>
+              ) : null;
+            })}
+          </div>
+        ) : (
+          studio?.name || ''
+        )}
       </td>
       <td className={`px-4 py-3 text-right align-top whitespace-nowrap text-[13px] font-semibold tabular-nums ${tx.type === 'income' ? 'text-emerald-600' : tx.type === 'expense' ? 'text-rose-600' : 'text-slate-600'}`}>
         <div className="flex items-center justify-end gap-1 flex-wrap">

@@ -379,6 +379,7 @@ interface TransactionFormProps {
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initialData }) => {
   const { categories, accounts, studios, contractors, legalEntities, addTransaction, updateTransaction, refreshData, deleteTransaction } = useFinance();
+  const { user } = useAuth();
   
   const [type, setType] = useState<TransactionType>('income');
   const [amount, setAmount] = useState('');
@@ -754,14 +755,53 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onClose, initi
           </>
         )}
 
-        <FormRow label="Студия">
-          <SearchableSelect
-            value={studioId}
-            onChange={setStudioId}
-            placeholder="Не выбрано"
-            options={studioOptions}
-          />
-        </FormRow>
+        {initialData?.studioDistribution?.length ? (
+          <FormRow label="Студия">
+            <div className="space-y-1">
+              <div className="rounded-lg border border-violet-200 bg-violet-50 overflow-hidden">
+                <div className="px-3 py-1.5 bg-violet-100 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wide">Распределено по студиям</span>
+                </div>
+                <table className="w-full">
+                  <tbody>
+                    {initialData.studioDistribution.map(d => {
+                      const s = studios.find(st => String(st.id) === String(d.studioId));
+                      return (
+                        <tr key={d.studioId} className="border-t border-violet-100">
+                          <td className="px-3 py-1.5 text-xs text-slate-700">{s?.name || d.studioId}</td>
+                          <td className="px-3 py-1.5 text-xs text-slate-500 text-right tabular-nums">{d.percentage}%</td>
+                          <td className="px-3 py-1.5 text-xs font-medium text-slate-700 text-right tabular-nums">
+                            {new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(d.amount)} ₽
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  await fetch(`/api/transactions/${initialData.id}/clear-distribution`, { method: 'POST', headers: { 'x-user-id': String(user?.id || '') } });
+                  if (refreshData) refreshData();
+                  onClose();
+                }}
+                className="text-[11px] text-rose-500 hover:text-rose-700 underline"
+              >
+                Сбросить распределение
+              </button>
+            </div>
+          </FormRow>
+        ) : (
+          <FormRow label="Студия">
+            <SearchableSelect
+              value={studioId}
+              onChange={setStudioId}
+              placeholder="Не выбрано"
+              options={studioOptions}
+            />
+          </FormRow>
+        )}
 
         <FormRow label="Назначение платежа">
           <textarea

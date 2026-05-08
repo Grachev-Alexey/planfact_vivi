@@ -422,7 +422,7 @@ router.put('/transactions-batch/status', async (req, res) => {
   }
 });
 
-// Distribute transactions across studios
+// Distribute transactions across studios (stores as JSON on original transaction, does NOT create new ones)
 router.post('/transactions-batch/distribute-to-studios', async (req, res) => {
   const { ids, distribution } = req.body;
   const currentUserId = req.headers['x-user-id'];
@@ -436,14 +436,13 @@ router.post('/transactions-batch/distribute-to-studios', async (req, res) => {
 
   try {
     const txRes = await db.query('SELECT * FROM transactions WHERE id = ANY($1::int[])', [ids]);
-    let created = 0;
+    let updated = 0;
 
     for (const tx of txRes.rows) {
       const originalAmount = parseFloat(tx.amount);
       let remaining = originalAmount;
 
-      for (let i = 0; i < activeParts.length; i++) {
-        const d = activeParts[i];
+      const studioDist = activeParts.map((d, i) => {
         let amount;
         if (i === activeParts.length - 1) {
           amount = Math.round(remaining * 100) / 100;
@@ -451,28 +450,38 @@ router.post('/transactions-batch/distribute-to-studios', async (req, res) => {
           amount = Math.round(originalAmount * parseFloat(d.percentage) / 100 * 100) / 100;
           remaining -= amount;
         }
-        if (amount <= 0) continue;
+        return { studioId: String(d.studioId), percentage: parseFloat(d.percentage), amount };
+      }).filter(d => d.amount > 0);
 
-        const newExternalId = 'dist-' + crypto.randomUUID();
-        await db.query(
-          `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, description, contractor_id, confirmed, accrual_date, status, credit_date, settlement_account_id, external_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-          [tx.date, amount, tx.type, tx.account_id, tx.category_id, d.studioId,
-           tx.description, tx.contractor_id, tx.confirmed, tx.accrual_date,
-           tx.status, tx.credit_date, tx.settlement_account_id, newExternalId]
-        );
-        created++;
-      }
-
-      await db.query('DELETE FROM transactions WHERE id = $1', [tx.id]);
+      await db.query(
+        `UPDATE transactions SET studio_distribution = $1, studio_id = NULL, updated_at = NOW() WHERE id = $2`,
+        [JSON.stringify(studioDist), tx.id]
+      );
+      updated++;
     }
 
     await logAction(currentUserId, 'distribute', 'transaction', null,
-      `Распределено ${txRes.rows.length} операций по ${activeParts.length} студиям → создано ${created} операций`);
-    res.json({ success: true, created, deleted: txRes.rows.length });
+      `Распределено ${txRes.rows.length} операций по ${activeParts.length} студиям`);
+    res.json({ success: true, updated });
   } catch (err) {
     console.error('Distribute error:', err);
     res.status(500).json({ error: 'Ошибка распределения' });
+  }
+});
+
+// Clear studio distribution from a transaction
+router.post('/transactions/:id/clear-distribution', async (req, res) => {
+  const currentUserId = req.headers['x-user-id'];
+  try {
+    await db.query(
+      `UPDATE transactions SET studio_distribution = NULL, updated_at = NOW() WHERE id = $1`,
+      [req.params.id]
+    );
+    await logAction(currentUserId, 'update', 'transaction', req.params.id, 'Сброшено распределение по студиям');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Clear distribution error:', err);
+    res.status(500).json({ error: 'Ошибка сброса распределения' });
   }
 });
 

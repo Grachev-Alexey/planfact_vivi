@@ -398,6 +398,7 @@ const initDB = async () => {
     `);
 
     try { await db.query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS settlement_account_id INTEGER REFERENCES accounts(id)`); } catch(e) {}
+    try { await db.query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS studio_distribution JSONB`); } catch(e) {}
 
     await db.query(`
       DO $$ BEGIN

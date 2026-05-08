@@ -71,4 +71,5 @@ export interface Transaction {
   settlementAccountId?: string | null;
   settlementAccountName?: string | null;
   isTechnicalTransfer?: boolean;
+  studioDistribution?: Array<{ studioId: string; amount: number; percentage: number }> | null;
 }

@@ -44,7 +44,13 @@ export const ReportsPage: React.FC = () => {
       const d = new Date(effectiveDate);
       if (d < start || d > end) return false;
       if (filterAccountId && String(t.accountId) !== filterAccountId) return false;
-      if (filterStudioId && String(t.studioId) !== filterStudioId) return false;
+      if (filterStudioId) {
+        if (t.studioDistribution?.length) {
+          if (!t.studioDistribution.some(d => String(d.studioId) === filterStudioId)) return false;
+        } else {
+          if (String(t.studioId) !== filterStudioId) return false;
+        }
+      }
       return true;
     });
   }, [transactions, startMonth, startYear, endMonth, endYear, filterAccountId, filterStudioId]);
@@ -304,20 +310,29 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
 
   const activeStudios = useMemo(() => {
     const studioIds = new Set(tx.map(t => t.studioId).filter(Boolean));
+    tx.forEach(t => t.studioDistribution?.forEach(d => studioIds.add(d.studioId)));
     return studios.filter(s => studioIds.has(s.id));
   }, [tx, studios]);
 
   const incomeCategories = categories.filter(c => c.type === 'income' && !c.parentId);
   const expenseCategories = categories.filter(c => c.type === 'expense' && !c.parentId);
 
+  const getTxAmountForStudio = (t: ReturnType<typeof useFinance>['transactions'][0], studioId: string): number => {
+    if (t.studioDistribution?.length) {
+      const part = t.studioDistribution.find(d => String(d.studioId) === String(studioId));
+      return part?.amount ?? 0;
+    }
+    return String(t.studioId) === String(studioId) ? t.amount : 0;
+  };
+
   const getAmount = (catIds: string[], studioId?: string) => {
-    return tx.filter(t => catIds.includes(t.categoryId || '') && (!studioId || t.studioId === studioId))
-      .reduce((s, t) => s + t.amount, 0);
+    return tx.filter(t => catIds.includes(t.categoryId || ''))
+      .reduce((s, t) => s + (studioId ? getTxAmountForStudio(t, studioId) : t.amount), 0);
   };
 
   const getTypeTotal = (type: 'income' | 'expense', studioId?: string) => {
-    return tx.filter(t => t.type === type && (!studioId || t.studioId === studioId))
-      .reduce((s, t) => s + t.amount, 0);
+    return tx.filter(t => t.type === type)
+      .reduce((s, t) => s + (studioId ? getTxAmountForStudio(t, studioId) : t.amount), 0);
   };
 
   const toggleSection = (id: string) => {
@@ -581,23 +596,38 @@ interface StudiosReportProps {
 }
 
 const StudiosReport: React.FC<StudiosReportProps> = ({ tx, studios, categories }) => {
+  const getTxAmountForStudio = (t: typeof tx[0], studioId: string): number => {
+    if (t.studioDistribution?.length) {
+      const part = t.studioDistribution.find(d => String(d.studioId) === String(studioId));
+      return part?.amount ?? 0;
+    }
+    return String(t.studioId) === String(studioId) ? t.amount : 0;
+  };
+
   const studioData = useMemo(() => {
     return studios.map(studio => {
-      const sTx = tx.filter(t => t.studioId === studio.id);
-      const income = sTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-      const expense = sTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+      const relevant = tx.filter(t =>
+        String(t.studioId) === String(studio.id) ||
+        t.studioDistribution?.some(d => String(d.studioId) === String(studio.id))
+      );
+      const income = relevant.filter(t => t.type === 'income').reduce((s, t) => s + getTxAmountForStudio(t, studio.id), 0);
+      const expense = relevant.filter(t => t.type === 'expense').reduce((s, t) => s + getTxAmountForStudio(t, studio.id), 0);
 
+      const expenseCatMap = new Map<string, number>();
+      relevant.filter(t => t.type === 'expense' && t.categoryId).forEach(t => {
+        const amt = getTxAmountForStudio(t, studio.id);
+        expenseCatMap.set(t.categoryId!, (expenseCatMap.get(t.categoryId!) || 0) + amt);
+      });
       const expenseByCategory: { name: string; amount: number }[] = [];
-      const expenseCats = new Set(sTx.filter(t => t.type === 'expense').map(t => t.categoryId).filter(Boolean));
-      expenseCats.forEach(catId => {
+      expenseCatMap.forEach((amount, catId) => {
         const cat = categories.find(c => c.id === catId);
-        const amount = sTx.filter(t => t.type === 'expense' && t.categoryId === catId).reduce((s, t) => s + t.amount, 0);
         expenseByCategory.push({ name: cat?.name || 'Без статьи', amount });
       });
       expenseByCategory.sort((a, b) => b.amount - a.amount);
 
       return { ...studio, income, expense, profit: income - expense, topExpenses: expenseByCategory.slice(0, 5) };
     }).filter(s => s.income > 0 || s.expense > 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tx, studios, categories]);
 
   const chartData = studioData.map(s => ({
