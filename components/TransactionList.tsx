@@ -153,6 +153,7 @@ export const TransactionList: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDistributeModal, setShowDistributeModal] = useState(false);
   const [distributePercentages, setDistributePercentages] = useState<Record<string, string>>({});
+  const [distributeIncluded, setDistributeIncluded] = useState<Set<string>>(new Set());
   const [isDistributing, setIsDistributing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
@@ -499,10 +500,10 @@ export const TransactionList: React.FC = () => {
   };
 
   const handleOpenDistribute = () => {
-    const equal = (100 / studios.length).toFixed(2);
     const init: Record<string, string> = {};
-    studios.forEach(s => { init[s.id] = equal; });
+    studios.forEach(s => { init[s.id] = '0'; });
     setDistributePercentages(init);
+    setDistributeIncluded(new Set(studios.map(s => s.id)));
     setShowDistributeModal(true);
   };
 
@@ -1144,43 +1145,70 @@ export const TransactionList: React.FC = () => {
       )}
 
       {showDistributeModal && (() => {
-        const distTotal = studios.reduce((s, st) => s + parseFloat(distributePercentages[st.id] || '0'), 0);
-        const isValid = Math.abs(distTotal - 100) <= 0.5;
+        const distTotal = parseFloat(studios.reduce((s, st) => s + parseFloat(distributePercentages[st.id] || '0'), 0).toFixed(2));
+        const isValid = Math.abs(distTotal - 100) < 0.01;
         const txsToDistribute = selectedTransactions.filter(t => t.type === 'expense' || t.type === 'income');
         const totalAmount = txsToDistribute.reduce((s, t) => s + t.amount, 0);
 
+        const applyEqual = () => {
+          const included = studios.filter(s => distributeIncluded.has(s.id));
+          const n = included.length;
+          if (n === 0) return;
+          const base = Math.floor(100 / n * 100) / 100;
+          const last = parseFloat((100 - base * (n - 1)).toFixed(2));
+          const next: Record<string, string> = {};
+          studios.forEach(s => { next[s.id] = '0'; });
+          included.forEach((s, i) => { next[s.id] = (i === n - 1 ? last : base).toString(); });
+          setDistributePercentages(next);
+        };
+
+        const toggleStudio = (id: string) => {
+          const next = new Set(distributeIncluded);
+          if (next.has(id)) {
+            next.delete(id);
+            setDistributePercentages(prev => ({ ...prev, [id]: '0' }));
+          } else {
+            next.add(id);
+          }
+          setDistributeIncluded(next);
+        };
+
         return (
           <Modal isOpen={showDistributeModal} onClose={() => setShowDistributeModal(false)} title="Распределить по студиям">
-            <div className="p-5 space-y-4 min-w-[340px]">
+            <div className="p-5 space-y-4 min-w-[380px]">
               <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600 flex items-center justify-between">
-                <span>Операций к распределению: <b className="text-slate-800">{txsToDistribute.length}</b></span>
-                <span>Сумма: <b className="text-rose-600">{formatCurrency(totalAmount)}</b></span>
+                <span>Операций: <b className="text-slate-800">{txsToDistribute.length}</b></span>
+                <span>Сумма: <b className="text-slate-800">{formatCurrency(totalAmount)}</b></span>
               </div>
 
               <div className="space-y-1">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Студии</span>
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Студии <span className="text-slate-400 font-normal normal-case">(отметьте нужные)</span>
+                  </span>
                   <button
-                    onClick={() => {
-                      const eq = (100 / studios.length).toFixed(2);
-                      const init: Record<string, string> = {};
-                      studios.forEach(s => { init[s.id] = eq; });
-                      setDistributePercentages(init);
-                    }}
+                    type="button"
+                    onClick={applyEqual}
                     className="text-xs text-teal-600 hover:text-teal-700 font-medium"
                   >
                     Поровну
                   </button>
                 </div>
                 {studios.map(studio => {
+                  const included = distributeIncluded.has(studio.id);
                   const pct = parseFloat(distributePercentages[studio.id] || '0');
                   const studioAmount = totalAmount * pct / 100;
                   return (
-                    <div key={studio.id} className="flex items-center gap-3 py-1.5">
-                      <div className="w-2 h-2 rounded-full bg-violet-400 shrink-0" />
+                    <div key={studio.id} className={`flex items-center gap-3 py-1.5 rounded-lg px-1 transition-colors ${included ? '' : 'opacity-40'}`}>
+                      <input
+                        type="checkbox"
+                        checked={included}
+                        onChange={() => toggleStudio(studio.id)}
+                        className="w-4 h-4 accent-violet-500 shrink-0 cursor-pointer"
+                      />
                       <span className="flex-1 text-sm text-slate-700 min-w-0 truncate">{studio.name}</span>
                       <span className="text-xs text-slate-400 w-24 text-right shrink-0">
-                        {pct > 0 ? formatCurrency(studioAmount) : '—'}
+                        {included && pct > 0 ? formatCurrency(studioAmount) : '—'}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
                         <input
@@ -1188,9 +1216,10 @@ export const TransactionList: React.FC = () => {
                           min="0"
                           max="100"
                           step="0.01"
-                          value={distributePercentages[studio.id] ?? ''}
+                          disabled={!included}
+                          value={included ? (distributePercentages[studio.id] ?? '') : '0'}
                           onChange={e => setDistributePercentages(prev => ({ ...prev, [studio.id]: e.target.value }))}
-                          className="w-16 px-2 py-1 text-sm border border-slate-300 rounded-md text-right focus:outline-none focus:ring-1 focus:ring-violet-400"
+                          className="w-16 px-2 py-1 text-sm border border-slate-300 rounded-md text-right focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:bg-slate-100 disabled:text-slate-400"
                         />
                         <span className="text-xs text-slate-400">%</span>
                       </div>
@@ -1201,17 +1230,19 @@ export const TransactionList: React.FC = () => {
 
               <div className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium ${isValid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                 <span>Итого:</span>
-                <span>{distTotal.toFixed(2)}% {isValid ? '✓' : `(нужно 100%)`}</span>
+                <span>{distTotal.toFixed(2)}% {isValid ? '✓' : '(нужно ровно 100%)'}</span>
               </div>
 
               <div className="flex justify-end gap-3 pt-1">
                 <button
+                  type="button"
                   onClick={() => setShowDistributeModal(false)}
                   className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
                 >
                   Отмена
                 </button>
                 <button
+                  type="button"
                   onClick={handleDistribute}
                   disabled={!isValid || isDistributing || txsToDistribute.length === 0}
                   className="flex items-center gap-2 px-4 py-2 text-sm bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium disabled:opacity-50"
