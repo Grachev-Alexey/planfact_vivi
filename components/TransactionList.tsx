@@ -480,6 +480,25 @@ export const TransactionList: React.FC = () => {
     if (refreshData) refreshData();
   };
 
+  const handleBulkClearDistribution = async () => {
+    const ids = [...selectedIds].filter(id => {
+      const tx = transactions.find(t => t.id === id);
+      return tx?.studioDistribution?.length;
+    });
+    if (ids.length === 0) return;
+    setIsDeleting(true);
+    try {
+      await Promise.all(ids.map(id =>
+        fetch(`/api/transactions/${id}/clear-distribution`, { method: 'POST', headers: { 'x-user-id': '1' } })
+      ));
+    } catch (err) {
+      console.error('Batch clear distribution error:', err);
+    }
+    setSelectedIds(new Set());
+    setIsDeleting(false);
+    if (refreshData) refreshData();
+  };
+
   const handleBulkExpenseStatus = async (newStatus: 'approved' | 'paid' | 'verified') => {
     setIsDeleting(true);
     const ids = [...selectedIds];
@@ -562,6 +581,7 @@ export const TransactionList: React.FC = () => {
   const selectedTypes = new Set(selectedTransactions.map(t => t.type));
   const hasIncomeSelected = selectedTypes.has('income');
   const hasExpenseSelected = selectedTypes.has('expense');
+  const hasDistributionSelected = selectedTransactions.some(t => t.studioDistribution?.length);
 
   const datePresets = [
     { label: 'Просроченные', fn: () => { const d = getMoscowNow(); d.setDate(d.getDate() - 1); setFilterDateFrom(''); setFilterDateTo(toLocalDate(d)); }},
@@ -908,6 +928,16 @@ export const TransactionList: React.FC = () => {
                   title="Разбить выбранные операции по студиям"
                 >
                   <GitBranch size={12} /> По студиям
+                </button>
+              )}
+              {hasDistributionSelected && (
+                <button
+                  onClick={handleBulkClearDistribution}
+                  disabled={isDeleting || isVerifying}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-500 hover:bg-slate-600 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
+                  title="Сбросить распределение по студиям"
+                >
+                  <GitBranch size={12} /> Сбросить распред.
                 </button>
               )}
               <button
