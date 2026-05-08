@@ -422,6 +422,59 @@ router.put('/transactions-batch/status', async (req, res) => {
   }
 });
 
+// Distribute transactions across studios
+router.post('/transactions-batch/distribute-to-studios', async (req, res) => {
+  const { ids, distribution } = req.body;
+  const currentUserId = req.headers['x-user-id'];
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids required' });
+  if (!distribution || !Array.isArray(distribution) || distribution.length === 0) return res.status(400).json({ error: 'distribution required' });
+
+  const activeParts = distribution.filter(d => parseFloat(d.percentage) > 0);
+  const totalPct = activeParts.reduce((s, d) => s + parseFloat(d.percentage), 0);
+  if (Math.abs(totalPct - 100) > 0.5) return res.status(400).json({ error: `Сумма процентов должна быть 100% (сейчас ${totalPct.toFixed(1)}%)` });
+
+  try {
+    const txRes = await db.query('SELECT * FROM transactions WHERE id = ANY($1::int[])', [ids]);
+    let created = 0;
+
+    for (const tx of txRes.rows) {
+      const originalAmount = parseFloat(tx.amount);
+      let remaining = originalAmount;
+
+      for (let i = 0; i < activeParts.length; i++) {
+        const d = activeParts[i];
+        let amount;
+        if (i === activeParts.length - 1) {
+          amount = Math.round(remaining * 100) / 100;
+        } else {
+          amount = Math.round(originalAmount * parseFloat(d.percentage) / 100 * 100) / 100;
+          remaining -= amount;
+        }
+        if (amount <= 0) continue;
+
+        await db.query(
+          `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, description, contractor_id, confirmed, accrual_date, status, credit_date, settlement_account_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [tx.date, amount, tx.type, tx.account_id, tx.category_id, d.studioId,
+           tx.description, tx.contractor_id, tx.confirmed, tx.accrual_date,
+           tx.status, tx.credit_date, tx.settlement_account_id]
+        );
+        created++;
+      }
+
+      await db.query('DELETE FROM transactions WHERE id = $1', [tx.id]);
+    }
+
+    await logAction(currentUserId, 'distribute', 'transaction', null,
+      `Распределено ${txRes.rows.length} операций по ${activeParts.length} студиям → создано ${created} операций`);
+    res.json({ success: true, created, deleted: txRes.rows.length });
+  } catch (err) {
+    console.error('Distribute error:', err);
+    res.status(500).json({ error: 'Ошибка распределения' });
+  }
+});
+
 // Batch delete
 router.post('/transactions-batch/delete', async (req, res) => {
   const { ids } = req.body;

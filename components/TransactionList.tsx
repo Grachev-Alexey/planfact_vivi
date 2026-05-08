@@ -3,7 +3,7 @@ import { useFinance } from '../context/FinanceContext';
 import { Transaction } from '../types';
 import type { Account, Category, Studio, Contractor, LegalEntity } from '../types';
 import { formatCurrency, formatDate, formatDateShort } from '../utils/format';
-import { Search, Download, Upload, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter } from 'lucide-react';
+import { Search, Download, Upload, ArrowRight, ArrowLeft, ArrowRightLeft, X, Trash2, CheckCircle2, Calendar, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, GitBranch } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
@@ -151,6 +151,9 @@ export const TransactionList: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDistributeModal, setShowDistributeModal] = useState(false);
+  const [distributePercentages, setDistributePercentages] = useState<Record<string, string>>({});
+  const [isDistributing, setIsDistributing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
 
@@ -493,6 +496,40 @@ export const TransactionList: React.FC = () => {
     setSelectedIds(new Set());
     setIsDeleting(false);
     if (refreshData) refreshData();
+  };
+
+  const handleOpenDistribute = () => {
+    const equal = (100 / studios.length).toFixed(2);
+    const init: Record<string, string> = {};
+    studios.forEach(s => { init[s.id] = equal; });
+    setDistributePercentages(init);
+    setShowDistributeModal(true);
+  };
+
+  const handleDistribute = async () => {
+    const distribution = studios
+      .map(s => ({ studioId: s.id, percentage: parseFloat(distributePercentages[s.id] || '0') }))
+      .filter(d => d.percentage > 0);
+    const total = distribution.reduce((sum, d) => sum + d.percentage, 0);
+    if (Math.abs(total - 100) > 0.5) return;
+
+    const expenseIds = selectedTransactions.filter(t => t.type === 'expense' || t.type === 'income').map(t => t.id);
+    setIsDistributing(true);
+    try {
+      const res = await fetch('/api/transactions-batch/distribute-to-studios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': '1' },
+        body: JSON.stringify({ ids: expenseIds, distribution }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || 'Ошибка'); return; }
+      setSelectedIds(new Set());
+      setShowDistributeModal(false);
+      if (refreshData) refreshData();
+    } catch (err) {
+      console.error('Distribute error:', err);
+    }
+    setIsDistributing(false);
   };
 
   const visibleSelectedCount = [...selectedIds].filter(id => filteredIds.has(id)).length;
@@ -848,6 +885,16 @@ export const TransactionList: React.FC = () => {
                   Проверено
                 </button>
               )}
+              {visibleSelectedCount > 0 && (
+                <button
+                  onClick={handleOpenDistribute}
+                  disabled={isDeleting || isVerifying || isDistributing}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-[11px] font-medium disabled:opacity-50"
+                  title="Разбить выбранные операции по студиям"
+                >
+                  <GitBranch size={12} /> По студиям
+                </button>
+              )}
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={isDeleting || isVerifying}
@@ -1095,6 +1142,88 @@ export const TransactionList: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {showDistributeModal && (() => {
+        const distTotal = studios.reduce((s, st) => s + parseFloat(distributePercentages[st.id] || '0'), 0);
+        const isValid = Math.abs(distTotal - 100) <= 0.5;
+        const txsToDistribute = selectedTransactions.filter(t => t.type === 'expense' || t.type === 'income');
+        const totalAmount = txsToDistribute.reduce((s, t) => s + t.amount, 0);
+
+        return (
+          <Modal isOpen={showDistributeModal} onClose={() => setShowDistributeModal(false)} title="Распределить по студиям">
+            <div className="p-5 space-y-4 min-w-[340px]">
+              <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600 flex items-center justify-between">
+                <span>Операций к распределению: <b className="text-slate-800">{txsToDistribute.length}</b></span>
+                <span>Сумма: <b className="text-rose-600">{formatCurrency(totalAmount)}</b></span>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Студии</span>
+                  <button
+                    onClick={() => {
+                      const eq = (100 / studios.length).toFixed(2);
+                      const init: Record<string, string> = {};
+                      studios.forEach(s => { init[s.id] = eq; });
+                      setDistributePercentages(init);
+                    }}
+                    className="text-xs text-teal-600 hover:text-teal-700 font-medium"
+                  >
+                    Поровну
+                  </button>
+                </div>
+                {studios.map(studio => {
+                  const pct = parseFloat(distributePercentages[studio.id] || '0');
+                  const studioAmount = totalAmount * pct / 100;
+                  return (
+                    <div key={studio.id} className="flex items-center gap-3 py-1.5">
+                      <div className="w-2 h-2 rounded-full bg-violet-400 shrink-0" />
+                      <span className="flex-1 text-sm text-slate-700 min-w-0 truncate">{studio.name}</span>
+                      <span className="text-xs text-slate-400 w-24 text-right shrink-0">
+                        {pct > 0 ? formatCurrency(studioAmount) : '—'}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={distributePercentages[studio.id] ?? ''}
+                          onChange={e => setDistributePercentages(prev => ({ ...prev, [studio.id]: e.target.value }))}
+                          className="w-16 px-2 py-1 text-sm border border-slate-300 rounded-md text-right focus:outline-none focus:ring-1 focus:ring-violet-400"
+                        />
+                        <span className="text-xs text-slate-400">%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium ${isValid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                <span>Итого:</span>
+                <span>{distTotal.toFixed(2)}% {isValid ? '✓' : `(нужно 100%)`}</span>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-1">
+                <button
+                  onClick={() => setShowDistributeModal(false)}
+                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleDistribute}
+                  disabled={!isValid || isDistributing || txsToDistribute.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium disabled:opacity-50"
+                >
+                  <GitBranch size={14} />
+                  {isDistributing ? 'Распределяю...' : `Распределить (${txsToDistribute.length})`}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </div>
   );
 };
