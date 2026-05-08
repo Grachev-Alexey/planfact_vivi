@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { formatCurrency } from '../utils/format';
+import type { Transaction } from '../types';
 import { getMoscowNow } from '../utils/moscow';
 import { ChevronDown, ChevronRight, Download, Calendar } from 'lucide-react';
 import {
@@ -13,6 +14,14 @@ const STUDIO_COLORS = ['#0d9488', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#
 
 type Preset = 'month' | 'prev_month' | '3m' | '6m' | 'year' | 'custom';
 type ChartView = 'comparison' | 'trend';
+
+function getAmountForStudio(tx: Transaction, studioId: string | number): number {
+  if (tx.studioDistribution?.length) {
+    const dist = tx.studioDistribution.find(d => String(d.studioId) === String(studioId));
+    return dist ? dist.amount : 0;
+  }
+  return String(tx.studioId) === String(studioId) ? tx.amount : 0;
+}
 
 const fmtNum = (val: number) => {
   if (val === 0) return '—';
@@ -99,10 +108,13 @@ export const StudioProfitability: React.FC = () => {
 
   const studioStats = useMemo(() => {
     return studios.map(studio => {
-      const sTx = filteredTx.filter(t => t.studioId === studio.id);
-      const incomeTx = sTx.filter(t => t.type === 'income');
-      const income = incomeTx.reduce((s, t) => s + t.amount, 0);
-      const expense = sTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+      const sid = studio.id;
+      const sTx = filteredTx.filter(t =>
+        String(t.studioId) === String(sid) ||
+        t.studioDistribution?.some(d => String(d.studioId) === String(sid))
+      );
+      const income = sTx.filter(t => t.type === 'income').reduce((s, t) => s + getAmountForStudio(t, sid), 0);
+      const expense = sTx.filter(t => t.type === 'expense').reduce((s, t) => s + getAmountForStudio(t, sid), 0);
       const profit = income - expense;
       const margin = income > 0 ? (profit / income) * 100 : 0;
 
@@ -112,8 +124,8 @@ export const StudioProfitability: React.FC = () => {
           const d = new Date(ed);
           return d.getMonth() === m.month && d.getFullYear() === m.year;
         });
-        const mIncome = mTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-        const mExpense = mTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        const mIncome = mTx.filter(t => t.type === 'income').reduce((s, t) => s + getAmountForStudio(t, sid), 0);
+        const mExpense = mTx.filter(t => t.type === 'expense').reduce((s, t) => s + getAmountForStudio(t, sid), 0);
         const mProfit = mIncome - mExpense;
         return { ...m, income: mIncome, expense: mExpense, profit: mProfit, margin: mIncome > 0 ? (mProfit / mIncome) * 100 : 0 };
       });

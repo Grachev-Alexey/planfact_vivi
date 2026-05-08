@@ -122,19 +122,15 @@ const TransactionRow = React.memo(({ tx, isSelected, maps, onToggle, onEdit }: {
       </td>
       <td className="px-3 py-3 text-slate-600 text-[13px] align-top">
         {tx.studioDistribution?.length ? (
-          <div className="space-y-0.5">
-            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-medium">
-              По студиям
-            </span>
-            {tx.studioDistribution.map(d => {
+          <span
+            className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-medium cursor-help"
+            title={tx.studioDistribution.map(d => {
               const ds = maps.studios.get(String(d.studioId));
-              return ds ? (
-                <div key={d.studioId} className="text-[11px] text-slate-400 leading-tight">
-                  {ds.name} <span className="text-slate-300">·</span> {d.percentage}%
-                </div>
-              ) : null;
-            })}
-          </div>
+              return ds ? `${ds.name}: ${d.percentage}%` : `${d.studioId}: ${d.percentage}%`;
+            }).join('\n')}
+          >
+            По студиям ({tx.studioDistribution.length})
+          </span>
         ) : (
           studio?.name || ''
         )}
@@ -255,7 +251,9 @@ export const TransactionList: React.FC = () => {
       const matchesAccount = filterAccountIds.length === 0 || filterAccountIds.includes(String(t.accountId));
       const matchesContractor = filterContractorIds.length === 0 || filterContractorIds.includes(String(t.contractorId));
       const matchesCategory = filterCategoryIds.length === 0 || filterCategoryIds.includes(String(t.categoryId));
-      const matchesStudio = filterStudioIds.length === 0 || filterStudioIds.includes(String(t.studioId));
+      const matchesStudio = filterStudioIds.length === 0 ||
+        filterStudioIds.includes(String(t.studioId)) ||
+        (t.studioDistribution?.some(d => filterStudioIds.includes(String(d.studioId))) ?? false);
       let effectiveStatuses: string[] = [];
       if (t.type === 'income') {
         effectiveStatuses.push(t.confirmed ? 'income_confirmed' : 'income_unconfirmed');
@@ -670,9 +668,9 @@ export const TransactionList: React.FC = () => {
                   : 'Укажите период'}
               </span>
               {(filterDateFrom || filterDateTo) && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); setFilterDateFrom(''); setFilterDateTo(''); }} className="shrink-0 text-teal-400 hover:text-teal-600 ml-auto">
+                <span onClick={(e) => { e.stopPropagation(); setFilterDateFrom(''); setFilterDateTo(''); }} className="shrink-0 text-teal-400 hover:text-teal-600 ml-auto cursor-pointer">
                   <X size={10} />
-                </button>
+                </span>
               )}
             </button>
             {showDatePicker && (
@@ -723,9 +721,9 @@ export const TransactionList: React.FC = () => {
                   : 'Укажите период'}
               </span>
               {(filterCreditDateFrom || filterCreditDateTo) && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); setFilterCreditDateFrom(''); setFilterCreditDateTo(''); }} className="shrink-0 text-teal-400 hover:text-teal-600 ml-auto">
+                <span onClick={(e) => { e.stopPropagation(); setFilterCreditDateFrom(''); setFilterCreditDateTo(''); }} className="shrink-0 text-teal-400 hover:text-teal-600 ml-auto cursor-pointer">
                   <X size={10} />
-                </button>
+                </span>
               )}
             </button>
             {showCreditDatePicker && (
