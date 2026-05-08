@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Receipt, PieChart, Settings, WalletCards, Menu, X, Send, BarChart2, CalendarDays, Landmark } from 'lucide-react';
+import { LayoutDashboard, Receipt, PieChart, Settings, WalletCards, Menu, X, Send, BarChart2, CalendarDays, Landmark, TrendingUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const Sidebar: React.FC = () => {
@@ -29,6 +29,7 @@ export const Sidebar: React.FC = () => {
     { icon: WalletCards, label: 'Справочники', path: '/directories' },
     { icon: BarChart2, label: 'Мастера', path: '/master-stats' },
     { icon: Landmark, label: 'Сверка', path: '/reconciliation' },
+    { icon: TrendingUp, label: 'Студии', path: '/studio-profitability' },
   ];
 
   const bottomItems = (isRequester || isPayoutController) ? [] : [
