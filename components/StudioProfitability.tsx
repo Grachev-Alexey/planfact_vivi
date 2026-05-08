@@ -105,8 +105,6 @@ export const StudioProfitability: React.FC = () => {
       const expense = sTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
       const profit = income - expense;
       const margin = income > 0 ? (profit / income) * 100 : 0;
-      const incomeCount = incomeTx.length;
-      const avgCheck = incomeCount > 0 ? income / incomeCount : 0;
 
       const monthlyData = months.map(m => {
         const mTx = sTx.filter(t => {
@@ -120,7 +118,7 @@ export const StudioProfitability: React.FC = () => {
         return { ...m, income: mIncome, expense: mExpense, profit: mProfit, margin: mIncome > 0 ? (mProfit / mIncome) * 100 : 0 };
       });
 
-      return { ...studio, income, expense, profit, margin, incomeCount, avgCheck, monthlyData };
+      return { ...studio, income, expense, profit, margin, monthlyData };
     });
   }, [studios, filteredTx, months]);
 
@@ -131,9 +129,7 @@ export const StudioProfitability: React.FC = () => {
     const expense = activeStudios.reduce((s, st) => s + st.expense, 0);
     const profit = income - expense;
     const margin = income > 0 ? (profit / income) * 100 : 0;
-    const incomeCount = activeStudios.reduce((s, st) => s + st.incomeCount, 0);
-    const avgCheck = incomeCount > 0 ? income / incomeCount : 0;
-    return { income, expense, profit, margin, incomeCount, avgCheck };
+    return { income, expense, profit, margin };
   }, [activeStudios]);
 
   const comparisonChartData = activeStudios.map(s => ({
@@ -164,10 +160,10 @@ export const StudioProfitability: React.FC = () => {
   const handleExport = async () => {
     const XLSX = await import('xlsx');
     const rows: any[] = [];
-    rows.push({ 'Студия': 'ИТОГО', 'Выручка': totalStats.income, 'Расходы': totalStats.expense, 'Прибыль': totalStats.profit, 'Маржа': fmtPct(totalStats.margin), 'Операций': totalStats.incomeCount, 'Средний чек': fmtNum(totalStats.avgCheck) });
+    rows.push({ 'Студия': 'ИТОГО', 'Выручка': totalStats.income, 'Расходы': totalStats.expense, 'Прибыль': totalStats.profit, 'Маржа': fmtPct(totalStats.margin) });
     activeStudios.forEach(s => {
       const share = totalStats.income > 0 ? (s.income / totalStats.income * 100).toFixed(1) + '%' : '—';
-      rows.push({ 'Студия': s.name, 'Выручка': s.income, 'Расходы': s.expense, 'Прибыль': s.profit, 'Маржа': fmtPct(s.margin), 'Операций': s.incomeCount, 'Средний чек': fmtNum(s.avgCheck), 'Доля выручки': share });
+      rows.push({ 'Студия': s.name, 'Выручка': s.income, 'Расходы': s.expense, 'Прибыль': s.profit, 'Маржа': fmtPct(s.margin), 'Доля выручки': share });
       s.monthlyData.forEach(m => {
         if (m.income > 0 || m.expense > 0)
           rows.push({ 'Студия': `  ${s.name} — ${m.label}`, 'Выручка': m.income, 'Расходы': m.expense, 'Прибыль': m.profit, 'Маржа': fmtPct(m.margin) });
@@ -252,42 +248,48 @@ export const StudioProfitability: React.FC = () => {
 
         {/* KPI cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {activeStudios.map(studio => {
+          {activeStudios.map((studio, idx) => {
             const revenueShare = totalStats.income > 0 ? (studio.income / totalStats.income) * 100 : 0;
+            const barColor = STUDIO_COLORS[idx % STUDIO_COLORS.length];
             return (
-              <div key={studio.id} className={`bg-white rounded-xl border p-4 ${marginBg(studio.margin)}`}>
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="text-sm font-bold text-slate-800 leading-tight">{studio.name}</div>
-                  <div className={`text-sm font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-white/70 ${marginColor(studio.margin)}`}>
+              <div key={studio.id} className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: barColor }} />
+                    <div className="text-sm font-bold text-slate-800 truncate">{studio.name}</div>
+                  </div>
+                  <div className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap border ${
+                    studio.margin >= 30 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                    studio.margin >= 10 ? 'bg-teal-50 text-teal-700 border-teal-200' :
+                    studio.margin >= 0  ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                         'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}>
                     {fmtPct(studio.margin)}
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3 mb-3">
-                  <div>
-                    <div className="text-[10px] text-slate-400 uppercase mb-0.5">Выручка</div>
-                    <div className="text-xs font-bold text-slate-700 tabular-nums">{fmtNum(studio.income)}</div>
+
+                <div className="space-y-2.5 mb-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-400">Выручка</span>
+                    <span className="text-sm font-bold text-slate-800 tabular-nums">{fmtNum(studio.income)}</span>
                   </div>
-                  <div>
-                    <div className="text-[10px] text-slate-400 uppercase mb-0.5">Расходы</div>
-                    <div className="text-xs font-bold text-rose-500 tabular-nums">{fmtNum(studio.expense)}</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-400">Расходы</span>
+                    <span className="text-sm font-semibold text-rose-500 tabular-nums">{fmtNum(studio.expense)}</span>
                   </div>
-                  <div>
-                    <div className="text-[10px] text-slate-400 uppercase mb-0.5">Прибыль</div>
-                    <div className={`text-xs font-bold tabular-nums ${studio.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{fmtNum(studio.profit)}</div>
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+                    <span className="text-xs font-semibold text-slate-600">Прибыль</span>
+                    <span className={`text-sm font-bold tabular-nums ${studio.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{fmtNum(studio.profit)}</span>
                   </div>
                 </div>
-                <div className="border-t border-white/60 pt-2.5 grid grid-cols-3 gap-3">
-                  <div>
-                    <div className="text-[10px] text-slate-400 uppercase mb-0.5">Операций</div>
-                    <div className="text-xs font-semibold text-slate-600 tabular-nums">{studio.incomeCount || '—'}</div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] text-slate-400">Доля выручки</span>
+                    <span className="text-[11px] font-semibold text-slate-500">{totalStats.income > 0 ? fmtPct(revenueShare) : '—'}</span>
                   </div>
-                  <div>
-                    <div className="text-[10px] text-slate-400 uppercase mb-0.5">Средний чек</div>
-                    <div className="text-xs font-semibold text-slate-600 tabular-nums">{studio.avgCheck > 0 ? fmtNum(studio.avgCheck) : '—'}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-slate-400 uppercase mb-0.5">Доля выручки</div>
-                    <div className="text-xs font-semibold text-slate-600 tabular-nums">{totalStats.income > 0 ? fmtPct(revenueShare) : '—'}</div>
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(revenueShare, 100)}%`, backgroundColor: barColor }} />
                   </div>
                 </div>
               </div>
@@ -296,39 +298,36 @@ export const StudioProfitability: React.FC = () => {
 
           {/* Total card */}
           {activeStudios.length > 1 && (
-            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="text-sm font-bold text-white leading-tight">Все студии</div>
-                <div className={`text-sm font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-white/10 ${totalStats.margin >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <div className="bg-[#1e2a38] rounded-xl border border-slate-700 p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="text-sm font-bold text-white">Все студии</div>
+                <div className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap border ${
+                  totalStats.margin >= 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                }`}>
                   {fmtPct(totalStats.margin)}
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                <div>
-                  <div className="text-[10px] text-slate-400 uppercase mb-0.5">Выручка</div>
-                  <div className="text-xs font-bold text-white tabular-nums">{fmtNum(totalStats.income)}</div>
+              <div className="space-y-2.5 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Выручка</span>
+                  <span className="text-sm font-bold text-white tabular-nums">{fmtNum(totalStats.income)}</span>
                 </div>
-                <div>
-                  <div className="text-[10px] text-slate-400 uppercase mb-0.5">Расходы</div>
-                  <div className="text-xs font-bold text-rose-400 tabular-nums">{fmtNum(totalStats.expense)}</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Расходы</span>
+                  <span className="text-sm font-semibold text-rose-400 tabular-nums">{fmtNum(totalStats.expense)}</span>
                 </div>
-                <div>
-                  <div className="text-[10px] text-slate-400 uppercase mb-0.5">Прибыль</div>
-                  <div className={`text-xs font-bold tabular-nums ${totalStats.profit < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{fmtNum(totalStats.profit)}</div>
+                <div className="flex items-center justify-between border-t border-white/10 pt-2">
+                  <span className="text-xs font-semibold text-slate-300">Прибыль</span>
+                  <span className={`text-sm font-bold tabular-nums ${totalStats.profit < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{fmtNum(totalStats.profit)}</span>
                 </div>
               </div>
-              <div className="border-t border-white/10 pt-2.5 grid grid-cols-3 gap-3">
-                <div>
-                  <div className="text-[10px] text-slate-400 uppercase mb-0.5">Операций</div>
-                  <div className="text-xs font-semibold text-slate-300 tabular-nums">{totalStats.incomeCount || '—'}</div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] text-slate-400">Маржа</span>
+                  <span className="text-[11px] font-semibold text-slate-300">{fmtPct(totalStats.margin)}</span>
                 </div>
-                <div>
-                  <div className="text-[10px] text-slate-400 uppercase mb-0.5">Средний чек</div>
-                  <div className="text-xs font-semibold text-slate-300 tabular-nums">{totalStats.avgCheck > 0 ? fmtNum(totalStats.avgCheck) : '—'}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-400 uppercase mb-0.5">Доля</div>
-                  <div className="text-xs font-semibold text-slate-300">100%</div>
+                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full bg-teal-500 transition-all duration-500" style={{ width: `${Math.min(Math.max(totalStats.margin, 0), 100)}%` }} />
                 </div>
               </div>
             </div>

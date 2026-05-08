@@ -453,12 +453,13 @@ router.post('/transactions-batch/distribute-to-studios', async (req, res) => {
         }
         if (amount <= 0) continue;
 
+        const newExternalId = 'dist-' + crypto.randomUUID();
         await db.query(
-          `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, description, contractor_id, confirmed, accrual_date, status, credit_date, settlement_account_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, description, contractor_id, confirmed, accrual_date, status, credit_date, settlement_account_id, external_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
           [tx.date, amount, tx.type, tx.account_id, tx.category_id, d.studioId,
            tx.description, tx.contractor_id, tx.confirmed, tx.accrual_date,
-           tx.status, tx.credit_date, tx.settlement_account_id]
+           tx.status, tx.credit_date, tx.settlement_account_id, newExternalId]
         );
         created++;
       }
