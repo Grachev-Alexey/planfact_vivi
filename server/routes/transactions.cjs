@@ -339,41 +339,24 @@ router.delete('/transactions/:id', async (req, res) => {
       LEFT JOIN categories c ON t.category_id = c.id
       LEFT JOIN studios s ON t.studio_id = s.id
       LEFT JOIN contractors co ON t.contractor_id = co.id
-      WHERE t.id = $1
+      WHERE t.id = $1 AND t.deleted_at IS NULL
     `, [req.params.id]);
 
     if (oldRes.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const old = oldRes.rows[0];
 
-    // Also delete related records if this is linked to something
-    if (old.external_id) {
-      if (old.external_id.startsWith('mi-')) {
-        // Delete from master_incomes if this is a master income
-        const masterIncomeId = old.external_id.substring(3);
-        await db.query('DELETE FROM master_incomes WHERE id = $1', [masterIncomeId]);
-      } else if (old.external_id.startsWith('pr-')) {
-        // Delete from payment_requests if this is a payment request
-        const paymentRequestId = old.external_id.substring(3);
-        await db.query('DELETE FROM payment_requests WHERE id = $1', [paymentRequestId]);
-      }
-    }
-
-    await db.query('DELETE FROM transactions WHERE id = $1', [req.params.id]);
+    await db.query('UPDATE transactions SET deleted_at = NOW() WHERE id = $1', [req.params.id]);
 
     const typeLabels = { income: 'поступление', expense: 'выплата', transfer: 'перемещение' };
-    let detail = 'Удалена операция';
-    if (oldRes.rows.length > 0) {
-      const old = oldRes.rows[0];
-      const parts = [`${typeLabels[old.type] || old.type}, ${Number(old.amount)}₽`];
-      if (old.account_name) parts.push(`счет: ${old.account_name}`);
-      if (old.to_account_name) parts.push(`→ ${old.to_account_name}`);
-      if (old.category_name) parts.push(`статья: ${old.category_name}`);
-      if (old.studio_name) parts.push(`студия: ${old.studio_name}`);
-      if (old.contractor_name) parts.push(`контрагент: ${old.contractor_name}`);
-      detail = `Удалена операция: ${parts.join(', ')}`;
-    }
+    const parts = [`${typeLabels[old.type] || old.type}, ${Number(old.amount)}₽`];
+    if (old.account_name) parts.push(`счет: ${old.account_name}`);
+    if (old.to_account_name) parts.push(`→ ${old.to_account_name}`);
+    if (old.category_name) parts.push(`статья: ${old.category_name}`);
+    if (old.studio_name) parts.push(`студия: ${old.studio_name}`);
+    if (old.contractor_name) parts.push(`контрагент: ${old.contractor_name}`);
+    const detail = `Перемещена в корзину: ${parts.join(', ')}`;
 
-    await logAction(currentUserId, 'delete', 'transaction', req.params.id, detail);
+    await logAction(currentUserId, 'trash', 'transaction', req.params.id, detail);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting transaction' });
@@ -541,24 +524,84 @@ router.post('/transactions-batch/delete', async (req, res) => {
     return res.status(400).json({ error: 'ids required' });
   }
   try {
-    // Clean up linked records
-    const linked = await db.query(
-      `SELECT id, external_id FROM transactions WHERE id = ANY($1::int[])`,
+    const result = await db.query(
+      `UPDATE transactions SET deleted_at = NOW() WHERE id = ANY($1::int[]) AND deleted_at IS NULL`,
       [ids]
     );
-    for (const row of linked.rows) {
-      if (row.external_id?.startsWith('mi-')) {
-        await db.query('DELETE FROM master_incomes WHERE id = $1', [row.external_id.substring(3)]);
-      } else if (row.external_id?.startsWith('pr-')) {
-        await db.query('DELETE FROM payment_requests WHERE id = $1', [row.external_id.substring(3)]);
-      }
-    }
-    const result = await db.query('DELETE FROM transactions WHERE id = ANY($1::int[])', [ids]);
-    await logAction(currentUserId, 'batch_delete', 'transaction', null, `Массовое удаление (${result.rowCount} шт.)`);
+    await logAction(currentUserId, 'batch_delete', 'transaction', null, `Перемещено в корзину (${result.rowCount} шт.)`);
     res.json({ success: true, count: result.rowCount });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Batch delete failed' });
+  }
+});
+
+router.get('/transactions/trash', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT t.*, 
+        a.name as account_name, ta.name as to_account_name,
+        c.name as category_name, s.name as studio_name, co.name as contractor_name
+      FROM transactions t
+      LEFT JOIN accounts a ON t.account_id = a.id
+      LEFT JOIN accounts ta ON t.to_account_id = ta.id
+      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN studios s ON t.studio_id = s.id
+      LEFT JOIN contractors co ON t.contractor_id = co.id
+      WHERE t.deleted_at IS NOT NULL
+      ORDER BY t.deleted_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error fetching trash' });
+  }
+});
+
+router.post('/transactions/:id/restore', async (req, res) => {
+  const currentUserId = req.headers['x-user-id'];
+  try {
+    const result = await db.query(
+      `UPDATE transactions SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
+      [req.params.id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Not found in trash' });
+    await logAction(currentUserId, 'restore', 'transaction', req.params.id, `Операция восстановлена из корзины`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error restoring transaction' });
+  }
+});
+
+router.delete('/transactions/:id/permanent', async (req, res) => {
+  const currentUserId = req.headers['x-user-id'];
+  try {
+    const oldRes = await db.query(
+      `SELECT t.*, a.name as account_name, c.name as category_name
+       FROM transactions t
+       LEFT JOIN accounts a ON t.account_id = a.id
+       LEFT JOIN categories c ON t.category_id = c.id
+       WHERE t.id = $1 AND t.deleted_at IS NOT NULL`,
+      [req.params.id]
+    );
+    if (oldRes.rows.length === 0) return res.status(404).json({ error: 'Not found in trash' });
+    const old = oldRes.rows[0];
+
+    if (old.external_id?.startsWith('mi-')) {
+      await db.query('DELETE FROM master_incomes WHERE id = $1', [old.external_id.substring(3)]);
+    } else if (old.external_id?.startsWith('pr-')) {
+      await db.query('DELETE FROM payment_requests WHERE id = $1', [old.external_id.substring(3)]);
+    }
+    await db.query('DELETE FROM transactions WHERE id = $1', [req.params.id]);
+
+    const typeLabels = { income: 'поступление', expense: 'выплата', transfer: 'перемещение' };
+    const detail = `Безвозвратно удалена: ${typeLabels[old.type] || old.type}, ${Number(old.amount)}₽${old.account_name ? `, счет: ${old.account_name}` : ''}`;
+    await logAction(currentUserId, 'delete', 'transaction', req.params.id, detail);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error permanently deleting transaction' });
   }
 });
 

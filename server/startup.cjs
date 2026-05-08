@@ -172,6 +172,9 @@ const initDB = async () => {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='credit_date') THEN
           ALTER TABLE transactions ADD COLUMN credit_date DATE;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='deleted_at') THEN
+          ALTER TABLE transactions ADD COLUMN deleted_at TIMESTAMPTZ DEFAULT NULL;
+        END IF;
       END $$;
     `);
 

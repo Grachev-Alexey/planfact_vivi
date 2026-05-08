@@ -17,6 +17,7 @@ router.get('/init', async (req, res) => {
         FROM transactions t
         LEFT JOIN payment_requests pr ON t.external_id = 'pr-' || pr.id::text
         LEFT JOIN accounts sa ON t.settlement_account_id = sa.id
+        WHERE t.deleted_at IS NULL
         ORDER BY t.date DESC, t.created_at DESC
       ) sub
       WHERE sub.is_technical_transfer = false
@@ -28,7 +29,8 @@ router.get('/init', async (req, res) => {
       FROM transactions t
       LEFT JOIN payment_requests pr ON t.external_id = 'pr-' || pr.id::text
       LEFT JOIN accounts sa ON t.settlement_account_id = sa.id
-      WHERE t.type = 'transfer' AND EXISTS (
+      WHERE t.deleted_at IS NULL
+        AND t.type = 'transfer' AND EXISTS (
         SELECT 1 FROM settlement_rules sr
         WHERE sr.enabled = true
           AND sr.account_id = t.account_id
@@ -54,6 +56,7 @@ router.get('/init', async (req, res) => {
                 ELSE 0 END)
             FROM transactions t
             WHERE (t.account_id = a.id OR t.to_account_id = a.id)
+              AND t.deleted_at IS NULL
               AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
               AND COALESCE(t.credit_date, t.date) <= CURRENT_DATE
         ), 0)) as balance

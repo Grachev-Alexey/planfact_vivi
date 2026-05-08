@@ -1231,7 +1231,7 @@ router.post('/master-incomes/close-shift', async (req, res) => {
     );
 
     try {
-      await logAction(master.id, info.username || 'master', 'create', 'master_shift', shiftId,
+      await logAction(master.id, 'create', 'master_shift', shiftId,
         `Сдана смена за ${today} · итого ${totalReported} ₽ · остаток наличных ${cb} ₽`);
     } catch {}
 

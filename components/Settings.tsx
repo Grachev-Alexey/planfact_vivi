@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFinance } from '../context/FinanceContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Users, Trash2, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, ToggleLeft, ToggleRight, ArrowUp, ArrowDown, Settings2, Check, Loader2, RefreshCw, Pencil } from 'lucide-react';
+import { Users, Trash2, Activity, Clock, Plus, Search, ChevronLeft, ChevronRight, X, ToggleLeft, ToggleRight, ArrowUp, ArrowDown, Settings2, Check, Loader2, RefreshCw, Pencil, RotateCcw, AlertTriangle } from 'lucide-react';
 import { formatDate } from '../utils/format';
 import { RulesSettings } from './RulesSettings';
 
@@ -73,11 +73,32 @@ const formatLogDetails = (details: string): string => {
   return details;
 };
 
+interface TrashItem {
+  id: number;
+  date: string;
+  amount: number;
+  type: string;
+  accountName: string;
+  toAccountName?: string;
+  categoryName?: string;
+  studioName?: string;
+  contractorName?: string;
+  description?: string;
+  deletedAt: string;
+}
+
 const actionOptions = [
   { value: '', label: 'Все действия' },
   { value: 'Создание', label: 'Создание' },
   { value: 'Изменение', label: 'Изменение' },
   { value: 'Удаление', label: 'Удаление' },
+  { value: 'В корзину', label: 'В корзину' },
+  { value: 'Восстановление', label: 'Восстановление' },
+  { value: 'Массовое обновление', label: 'Массовое обновление' },
+  { value: 'Массовое удаление', label: 'Массовое удаление' },
+  { value: 'Распределение по студиям', label: 'Распределение по студиям' },
+  { value: 'Импорт', label: 'Импорт' },
+  { value: 'Вход', label: 'Вход' },
 ];
 
 const entityOptions = [
@@ -94,7 +115,11 @@ const entityOptions = [
 export const Settings: React.FC = () => {
   const { user } = useAuth();
   const { studios } = useFinance();
-  const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'yclients' | 'rules'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'yclients' | 'rules' | 'trash'>('users');
+
+  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashConfirm, setTrashConfirm] = useState<number | null>(null);
 
   const [ycConfig, setYcConfig] = useState<YcFormConfig>({ commentEnabled: false, commentEditable: false, fields: [] });
   const [ycSaving, setYcSaving] = useState(false);
@@ -131,7 +156,59 @@ export const Settings: React.FC = () => {
     if (activeTab === 'yclients' && !ycAvailable && !ycAvailableLoading) {
       fetchAvailableFields();
     }
+    if (activeTab === 'trash') {
+      fetchTrash();
+    }
   }, [activeTab]);
+
+  const fetchTrash = async () => {
+    setTrashLoading(true);
+    try {
+      const res = await fetch('/api/transactions/trash', { headers: { 'x-user-id': user?.id.toString() || '' } });
+      const data = await res.json();
+      setTrashItems(data.map((row: any) => ({
+        id: row.id,
+        date: row.date,
+        amount: Number(row.amount),
+        type: row.type,
+        accountName: row.account_name || '—',
+        toAccountName: row.to_account_name,
+        categoryName: row.category_name,
+        studioName: row.studio_name,
+        contractorName: row.contractor_name,
+        description: row.description,
+        deletedAt: row.deleted_at,
+      })));
+    } catch (err) {
+      console.error(err);
+    }
+    setTrashLoading(false);
+  };
+
+  const restoreTransaction = async (id: number) => {
+    try {
+      await fetch(`/api/transactions/${id}/restore`, {
+        method: 'POST',
+        headers: { 'x-user-id': user?.id.toString() || '' },
+      });
+      setTrashItems(prev => prev.filter(t => t.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const permanentDelete = async (id: number) => {
+    try {
+      await fetch(`/api/transactions/${id}/permanent`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': user?.id.toString() || '' },
+      });
+      setTrashItems(prev => prev.filter(t => t.id !== id));
+      setTrashConfirm(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchYcConfig = async () => {
     try {
@@ -367,11 +444,120 @@ export const Settings: React.FC = () => {
                >
                    Правила
                </button>
+               <button
+                onClick={() => setActiveTab('trash')}
+                className={`pb-3 sm:pb-4 text-base sm:text-xl font-bold transition-colors border-b-2 px-1 flex items-center gap-1.5 ${activeTab === 'trash' ? 'text-slate-800 border-teal-500' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+               >
+                   <Trash2 size={16} /> Корзина
+               </button>
            </div>
        </div>
 
        <div className="flex-1 p-3 sm:p-8 overflow-y-auto">
-         {activeTab === 'rules' ? (
+         {activeTab === 'trash' ? (
+           <div>
+             <div className="flex items-center justify-between mb-4">
+               <div className="text-sm text-slate-500">
+                 Операции в корзине хранятся до ручного удаления. Их можно восстановить или удалить безвозвратно.
+               </div>
+               <button onClick={fetchTrash} className="text-slate-400 hover:text-slate-600 transition-colors p-1.5">
+                 <RefreshCw size={15} />
+               </button>
+             </div>
+             <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden">
+               {trashLoading ? (
+                 <div className="flex items-center justify-center gap-2 py-12 text-slate-400">
+                   <Loader2 size={18} className="animate-spin" /> Загрузка...
+                 </div>
+               ) : trashItems.length === 0 ? (
+                 <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
+                   <Trash2 size={32} className="opacity-30" />
+                   <div className="text-sm">Корзина пуста</div>
+                 </div>
+               ) : (
+                 <div className="overflow-x-auto">
+                   <table className="w-full text-left min-w-[700px]">
+                     <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-semibold border-b border-slate-200">
+                       <tr>
+                         <th className="px-4 py-3">Дата</th>
+                         <th className="px-4 py-3">Тип</th>
+                         <th className="px-4 py-3">Сумма</th>
+                         <th className="px-4 py-3">Счет</th>
+                         <th className="px-4 py-3">Статья / Студия</th>
+                         <th className="px-4 py-3">Удалено</th>
+                         <th className="px-4 py-3 text-right">Действия</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-100 text-sm">
+                       {trashItems.map(item => {
+                         const typeLabel = item.type === 'income' ? 'Поступление' : item.type === 'expense' ? 'Выплата' : 'Перемещение';
+                         const typeColor = item.type === 'income' ? 'bg-emerald-50 text-emerald-700' : item.type === 'expense' ? 'bg-rose-50 text-rose-700' : 'bg-blue-50 text-blue-700';
+                         return (
+                           <tr key={item.id} className="hover:bg-slate-50">
+                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                               {new Date(item.date).toLocaleDateString('ru-RU')}
+                             </td>
+                             <td className="px-4 py-3">
+                               <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${typeColor}`}>{typeLabel}</span>
+                             </td>
+                             <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
+                               {item.amount.toLocaleString('ru-RU')} ₽
+                             </td>
+                             <td className="px-4 py-3 text-slate-600">
+                               {item.toAccountName ? `${item.accountName} → ${item.toAccountName}` : item.accountName}
+                             </td>
+                             <td className="px-4 py-3 text-slate-500 max-w-[200px]">
+                               <div className="truncate">{item.categoryName || '—'}</div>
+                               {item.studioName && <div className="text-xs text-slate-400 truncate">{item.studioName}</div>}
+                             </td>
+                             <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
+                               {new Date(item.deletedAt).toLocaleString('ru-RU')}
+                             </td>
+                             <td className="px-4 py-3">
+                               <div className="flex items-center justify-end gap-2">
+                                 <button
+                                   onClick={() => restoreTransaction(item.id)}
+                                   className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors"
+                                   title="Восстановить"
+                                 >
+                                   <RotateCcw size={12} /> Восстановить
+                                 </button>
+                                 {trashConfirm === item.id ? (
+                                   <div className="flex items-center gap-1">
+                                     <button
+                                       onClick={() => permanentDelete(item.id)}
+                                       className="px-2.5 py-1.5 text-xs font-medium rounded bg-rose-600 text-white hover:bg-rose-700 transition-colors"
+                                     >
+                                       Удалить навсегда
+                                     </button>
+                                     <button
+                                       onClick={() => setTrashConfirm(null)}
+                                       className="px-2 py-1.5 text-xs text-slate-500 hover:text-slate-700"
+                                     >
+                                       Отмена
+                                     </button>
+                                   </div>
+                                 ) : (
+                                   <button
+                                     onClick={() => setTrashConfirm(item.id)}
+                                     className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors"
+                                     title="Удалить навсегда"
+                                   >
+                                     <Trash2 size={14} />
+                                   </button>
+                                 )}
+                               </div>
+                             </td>
+                           </tr>
+                         );
+                       })}
+                     </tbody>
+                   </table>
+                 </div>
+               )}
+             </div>
+           </div>
+         ) : activeTab === 'rules' ? (
            <div className="max-w-4xl">
              <RulesSettings />
            </div>
