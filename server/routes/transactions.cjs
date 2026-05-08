@@ -469,6 +469,54 @@ router.post('/transactions-batch/distribute-to-studios', async (req, res) => {
   }
 });
 
+// ONE-TIME cleanup: consolidate dist- transactions back into single records with studio_distribution
+router.post('/transactions-batch/cleanup-dist', async (req, res) => {
+  const currentUserId = req.headers['x-user-id'];
+  try {
+    const distRes = await db.query(`SELECT * FROM transactions WHERE external_id LIKE 'dist-%' ORDER BY date, account_id, category_id, description`);
+    if (distRes.rows.length === 0) return res.json({ message: 'Нет dist- операций для очистки', consolidated: 0 });
+
+    // Group by common fields
+    const groups = new Map();
+    for (const tx of distRes.rows) {
+      const key = [tx.date, tx.type, tx.account_id, tx.category_id || '', tx.description || '', tx.contractor_id || '', tx.accrual_date || '', tx.status || ''].join('|');
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(tx);
+    }
+
+    let consolidated = 0;
+    for (const [, rows] of groups) {
+      const totalAmount = rows.reduce((s, r) => s + parseFloat(r.amount), 0);
+      const studioDist = rows
+        .filter(r => r.studio_id)
+        .map(r => ({
+          studioId: String(r.studio_id),
+          amount: parseFloat(r.amount),
+          percentage: Math.round(parseFloat(r.amount) / totalAmount * 10000) / 100,
+        }));
+
+      const first = rows[0];
+      await db.query(
+        `INSERT INTO transactions (date, amount, type, account_id, category_id, studio_id, studio_distribution, description, contractor_id, confirmed, accrual_date, status, credit_date, settlement_account_id, external_id)
+         VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [first.date, totalAmount, first.type, first.account_id, first.category_id,
+         JSON.stringify(studioDist), first.description, first.contractor_id,
+         first.confirmed, first.accrual_date, first.status, first.credit_date, first.settlement_account_id,
+         'dist-merged-' + crypto.randomUUID()]
+      );
+      const idsToDelete = rows.map(r => r.id);
+      await db.query('DELETE FROM transactions WHERE id = ANY($1::int[])', [idsToDelete]);
+      consolidated++;
+    }
+
+    await logAction(currentUserId, 'cleanup', 'transaction', null, `Очищено: ${distRes.rows.length} dist-операций объединены в ${consolidated} записей`);
+    res.json({ success: true, consolidated, deleted: distRes.rows.length });
+  } catch (err) {
+    console.error('Cleanup error:', err);
+    res.status(500).json({ error: 'Ошибка очистки: ' + err.message });
+  }
+});
+
 // Clear studio distribution from a transaction
 router.post('/transactions/:id/clear-distribution', async (req, res) => {
   const currentUserId = req.headers['x-user-id'];
