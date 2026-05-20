@@ -216,7 +216,10 @@ export const TransactionList: React.FC = () => {
     return { id: a.id, label: a.name, sublabel: le ? le.name : undefined };
   }), [accounts, legalEntities]);
   const contractorOptions = useMemo(() => contractors.map(c => ({ id: c.id, label: c.name + (c.inn ? ` (${c.inn})` : '') })), [contractors]);
-  const studioOptions = useMemo(() => studios.map(s => ({ id: s.id, label: s.name })), [studios]);
+  const studioOptions = useMemo(() => [
+    { id: 'no_studio', label: '— Без студии —' },
+    ...studios.map(s => ({ id: s.id, label: s.name })),
+  ], [studios]);
   const confirmedOptions = useMemo(() => [
     { id: '__group_income', label: 'Доход', isGroup: true },
     { id: 'income_unconfirmed', label: 'Не подтверждённый' },
@@ -251,7 +254,9 @@ export const TransactionList: React.FC = () => {
       const matchesAccount = filterAccountIds.length === 0 || filterAccountIds.includes(String(t.accountId));
       const matchesContractor = filterContractorIds.length === 0 || filterContractorIds.includes(String(t.contractorId));
       const matchesCategory = filterCategoryIds.length === 0 || filterCategoryIds.includes(String(t.categoryId));
+      const hasNoStudioFilter = filterStudioIds.includes('no_studio');
       const matchesStudio = filterStudioIds.length === 0 ||
+        (hasNoStudioFilter && !t.studioId && !(t.studioDistribution?.length)) ||
         filterStudioIds.includes(String(t.studioId)) ||
         (t.studioDistribution?.some(d => filterStudioIds.includes(String(d.studioId))) ?? false);
       let effectiveStatuses: string[] = [];
