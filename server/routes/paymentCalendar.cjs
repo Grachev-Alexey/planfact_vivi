@@ -80,6 +80,21 @@ router.get('/payment-calendar', async (req, res) => {
       [startDate, nextMonthDate]
     );
 
+    // Расходы по t.date (для баланса Факт и Прогноз) — как в Сверке.
+    // Используем транзакции, а не payment_date из заявок, чтобы дни совпадали.
+    const expenseTxRes = await db.query(
+      `SELECT
+        EXTRACT(DAY FROM t.date)::int AS day,
+        SUM(CASE WHEN t.status IN ('paid', 'verified') THEN t.amount ELSE 0 END) AS fact_amount,
+        SUM(CASE WHEN t.status IS DISTINCT FROM 'rejected' THEN t.amount ELSE 0 END) AS all_amount
+       FROM transactions t
+       WHERE t.type = 'expense'
+         AND t.date >= $1 AND t.date < $2
+       GROUP BY EXTRACT(DAY FROM t.date)
+       ORDER BY day`,
+      [startDate, nextMonthDate]
+    );
+
     const incomePlan = {};
     const incomeFact = {};
     const incomeAll = {};
@@ -90,22 +105,24 @@ router.get('/payment-calendar', async (req, res) => {
       incomeAll[d] = (incomeAll[d] || 0) + parseFloat(r.plan_amount || 0);
     }
 
-    const expensePlan = {};
+    // expenseFact и expenseAll — по t.date (как в Сверке)
     const expenseFact = {};
     const expenseAll = {};
+    for (const r of expenseTxRes.rows) {
+      expenseFact[r.day] = parseFloat(r.fact_amount || 0);
+      expenseAll[r.day] = parseFloat(r.all_amount || 0);
+    }
+
+    // expensePlan и categoryMap — по payment_date (плановый вид)
+    const expensePlan = {};
     const categoryMap = {};
 
     for (const pr of prRes.rows) {
       const payDate = new Date(pr.payment_date);
       const day = payDate.getUTCDate();
       const amount = parseFloat(pr.amount || 0);
-      const paidAmount = parseFloat(pr.paid_amount || pr.amount || 0);
 
       expensePlan[day] = (expensePlan[day] || 0) + amount;
-      if (pr.status === 'paid' || pr.status === 'verified') {
-        expenseFact[day] = (expenseFact[day] || 0) + paidAmount;
-      }
-      expenseAll[day] = (expenseAll[day] || 0) + (pr.status === 'paid' || pr.status === 'verified' ? paidAmount : amount);
 
       const catId = pr.category_id != null ? String(pr.category_id) : '0';
       const catName = pr.category_name || 'Без категории';
@@ -134,12 +151,9 @@ router.get('/payment-calendar', async (req, res) => {
       const day = txDate.getUTCDate();
       const amount = parseFloat(tx.amount || 0);
 
+      // expensePlan по payment_date (дата в прямых расходах = дата транзакции, совпадает)
       expensePlan[day] = (expensePlan[day] || 0) + amount;
-      const txSt = tx.status || (tx.confirmed ? 'verified' : 'pending');
-      if (txSt === 'paid' || txSt === 'verified') {
-        expenseFact[day] = (expenseFact[day] || 0) + amount;
-      }
-      expenseAll[day] = (expenseAll[day] || 0) + amount;
+      // expenseFact и expenseAll уже заполнены из expenseTxRes по t.date
 
       const catId = tx.category_id != null ? String(tx.category_id) : '0';
       const catName = tx.category_name || 'Без категории';
