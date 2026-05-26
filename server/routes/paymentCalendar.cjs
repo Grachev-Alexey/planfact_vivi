@@ -206,7 +206,7 @@ router.get('/payment-calendar', async (req, res) => {
       ORDER BY a.name
     `);
 
-    // Balance at start of selected month (confirmed + unconfirmed)
+    // Balance at start of selected month (confirmed only — used for both Факт and Прогноз baseline)
     const startBalRes = await db.query(`
       SELECT
         COALESCE(SUM(
@@ -224,28 +224,15 @@ router.get('/payment-calendar', async (req, res) => {
               AND (t.confirmed = true OR (t.type = 'expense' AND t.status IN ('paid', 'verified')))
               AND CASE WHEN t.type = 'income' THEN ${incDateExprAlias} ELSE COALESCE(t.credit_date, t.date) END < $1
           ), 0)
-        ), 0) AS starting_balance,
-        COALESCE(SUM(
-          COALESCE(a.initial_balance, 0) + COALESCE((
-            SELECT SUM(
-              CASE
-                WHEN t.type = 'income'   AND t.account_id    = a.id THEN  t.amount
-                WHEN t.type = 'expense'  AND t.account_id    = a.id THEN -t.amount
-                WHEN t.type = 'transfer' AND t.account_id    = a.id THEN -t.amount
-                WHEN t.type = 'transfer' AND t.to_account_id = a.id THEN  t.amount
-                ELSE 0
-              END
-            ) FROM transactions t
-            WHERE (t.account_id = a.id OR t.to_account_id = a.id)
-              AND t.status != 'rejected'
-              AND CASE WHEN t.type = 'income' THEN ${incDateExprAlias} ELSE COALESCE(t.credit_date, t.date) END < $1
-          ), 0)
-        ), 0) AS starting_balance_unconfirmed
+        ), 0) AS starting_balance
       FROM accounts a
     `, [startDate]);
 
     const startingBalance = parseFloat(startBalRes.rows[0]?.starting_balance || 0);
-    const startingBalanceUnconfirmed = parseFloat(startBalRes.rows[0]?.starting_balance_unconfirmed || 0);
+    // Прогноз и План используют тот же стартовый остаток что и Факт:
+    // только подтверждённые доходы и оплаченные расходы до начала месяца.
+    // Pending-операции прошлых месяцев не включаются в стартовую точку.
+    const startingBalanceUnconfirmed = startingBalance;
     const accountBalances = accountsRes.rows.map(r => ({
       id: r.id,
       name: r.name,
@@ -268,43 +255,9 @@ router.get('/payment-calendar', async (req, res) => {
       balanceUnconfirmed[d] = runningUnconfirmed;
     }
 
-    // Plan starting balance = initial_balances + planned_income_prior - planned_expenses_prior
-    // Initial balances sum
-    const initialBalRes = await db.query(
-      `SELECT COALESCE(SUM(COALESCE(initial_balance, 0)), 0) AS total FROM accounts`
-    );
-    const initialBalTotal = parseFloat(initialBalRes.rows[0]?.total || 0);
-
-    // Planned income for all prior months (from income_daily_plan)
-    const incomePlanPriorRes = await db.query(
-      `SELECT COALESCE(SUM(amount), 0) AS total
-       FROM income_daily_plan
-       WHERE (year < $1) OR (year = $1 AND month < $2)`,
-      [year, mon]
-    );
-    const incomePlanPrior = parseFloat(incomePlanPriorRes.rows[0]?.total || 0);
-
-    // Planned expenses for prior months = payment_requests + direct expense transactions
-    const prExpensePriorRes = await db.query(
-      `SELECT COALESCE(SUM(pr.amount), 0) AS total
-       FROM payment_requests pr
-       WHERE pr.status != 'rejected'
-         AND pr.payment_date < $1`,
-      [startDate]
-    );
-    const prExpensePrior = parseFloat(prExpensePriorRes.rows[0]?.total || 0);
-
-    const directExpensePriorRes = await db.query(
-      `SELECT COALESCE(SUM(t.amount), 0) AS total
-       FROM transactions t
-       WHERE t.type = 'expense'
-         AND (t.external_id IS NULL OR t.external_id NOT LIKE 'pr-%')
-         AND t.date < $1`,
-      [startDate]
-    );
-    const directExpensePrior = parseFloat(directExpensePriorRes.rows[0]?.total || 0);
-
-    const planStartingBalance = initialBalTotal + incomePlanPrior - prExpensePrior - directExpensePrior;
+    // План в остатках стартует от того же подтверждённого остатка что и Факт,
+    // и проецирует вперёд с плановыми доходами и расходами текущего месяца.
+    const planStartingBalance = startingBalance;
 
     const expenseCategories = Object.values(categoryMap)
       .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
