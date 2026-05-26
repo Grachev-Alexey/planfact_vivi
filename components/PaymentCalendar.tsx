@@ -805,7 +805,7 @@ export const PaymentCalendar: React.FC = () => {
     addSection('▲ ДОХОДЫ', 'ECFDF5', '065F46', 'A7F3D0');
     addDataRow('  План', [nv(totalIncomePlan), ...days.map(d => nv(incomePlanManual[d] || 0))],
       { fg: 'FFFFFF', fgTotal: 'F0FDF4', textColor: '475569' });
-    addDataRow('  Неподтвержд. факт', [nv(totalIncomeUnconfirmed), ...days.map(d => nv(data.incomePlan[d] || 0))],
+    addDataRow('  Ожидаемый факт', [nv(totalIncomeUnconfirmed), ...days.map(d => nv(data.incomePlan[d] || 0))],
       { fg: 'F8FAFC', fgTotal: 'D1FAE5', textColor: '059669', borderColor: 'D1FAE5' });
     addDataRow('  Факт', [nv(totalIncomeFact), ...days.map(d => nv(data.incomeFact[d] || 0))],
       { fg: 'F8FAFC', fgTotal: 'DCFCE7', textColor: '166534', bold: true, borderColor: 'CBD5E1' });
@@ -821,7 +821,7 @@ export const PaymentCalendar: React.FC = () => {
     addSection('= БАЛАНС', 'EFF6FF', '1E3A5F', 'BFDBFE');
     addDataRow('  План', [nv(totalBalancePlan), ...days.map(d => nv(balancePlan[d] || 0))],
       { fg: 'FFFFFF', fgTotal: 'EFF6FF', textColor: '3B82F6' });
-    addDataRow('  С неподтв. доходом', [nv(totalBalanceUnconfirmed), ...days.map(d => nv(data.balanceUnconfirmed?.[d] || 0))],
+    addDataRow('  Прогноз', [nv(totalBalanceUnconfirmed), ...days.map(d => nv(data.balanceUnconfirmed?.[d] || 0))],
       { fg: 'F8FAFC', fgTotal: 'E0F2FE', textColor: '475569', borderColor: 'CBD5E1' });
     addDataRow('  Факт', [nv(totalBalance), ...days.map(d => nv(data.balance[d] || 0))],
       { fg: 'EFF6FF', fgTotal: 'DBEAFE', textColor: '1D4ED8', bold: true, borderColor: 'BFDBFE' });
@@ -1137,7 +1137,7 @@ export const PaymentCalendar: React.FC = () => {
                 totalW={TOTAL_W}
               />
               <SummaryRow
-                label="Неподтвержд. факт"
+                label="Ожидаемый факт"
                 total={totalIncomeUnconfirmed}
                 days={days}
                 values={data.incomePlan}
@@ -1216,7 +1216,7 @@ export const PaymentCalendar: React.FC = () => {
                 accentColor="#93c5fd"
               />
               <BalanceRow
-                label="С неподтв. доходом"
+                label="Прогноз"
                 total={totalBalanceUnconfirmed}
                 days={days}
                 values={data.balanceUnconfirmed}
