@@ -1,4 +1,11 @@
-require('dotenv').config();
+// Only load .env for non-DATABASE_URL variables — Replit provides DATABASE_URL via secrets
+const dotenv = require('dotenv');
+const envConfig = dotenv.parse(require('fs').readFileSync('.env', 'utf8'));
+for (const [key, value] of Object.entries(envConfig)) {
+  if (!process.env[key]) {
+    process.env[key] = value;
+  }
+}
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
