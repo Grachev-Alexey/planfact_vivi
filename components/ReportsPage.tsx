@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Category } from '../types';
 import { formatCurrency } from '../utils/format';
@@ -20,17 +20,178 @@ const fmtNum = (val: number) => {
   }).format(val);
 };
 
+interface PeriodPickerProps {
+  startMonth: number; startYear: number;
+  endMonth: number; endYear: number;
+  onChange: (sm: number, sy: number, em: number, ey: number) => void;
+  yearOptions: number[];
+}
+const PeriodPicker: React.FC<PeriodPickerProps> = ({ startMonth, startYear, endMonth, endYear, onChange, yearOptions }) => {
+  const [open, setOpen] = useState(false);
+  const [lSM, setLSM] = useState(startMonth);
+  const [lSY, setLSY] = useState(startYear);
+  const [lEM, setLEM] = useState(endMonth);
+  const [lEY, setLEY] = useState(endYear);
+  const ref = useRef<HTMLDivElement>(null);
+  const now = getMoscowNow();
+
+  useEffect(() => { setLSM(startMonth); setLSY(startYear); setLEM(endMonth); setLEY(endYear); }, [startMonth, startYear, endMonth, endYear]);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  const isSingle = startMonth === endMonth && startYear === endYear;
+  const display = isSingle
+    ? `${MONTH_NAMES[startMonth]} ${startYear}`
+    : `${MONTH_NAMES[startMonth].slice(0, 3)} ${startYear} — ${MONTH_NAMES[endMonth].slice(0, 3)} ${endYear}`;
+
+  const preset = (sm: number, sy: number, em: number, ey: number) => { onChange(sm, sy, em, ey); setOpen(false); };
+
+  const presets = [
+    { label: 'Этот месяц', action: () => preset(now.getMonth(), now.getFullYear(), now.getMonth(), now.getFullYear()) },
+    {
+      label: 'Прошлый месяц', action: () => {
+        let m = now.getMonth() - 1, y = now.getFullYear();
+        if (m < 0) { m = 11; y--; }
+        preset(m, y, m, y);
+      }
+    },
+    {
+      label: 'Квартал', action: () => {
+        const q = Math.floor(now.getMonth() / 3);
+        preset(q * 3, now.getFullYear(), Math.min(q * 3 + 2, 11), now.getFullYear());
+      }
+    },
+    { label: 'Этот год', action: () => preset(0, now.getFullYear(), 11, now.getFullYear()) },
+  ];
+
+  const applyCustom = () => {
+    const s = lSY * 12 + lSM, e = lEY * 12 + lEM;
+    if (s <= e) preset(lSM, lSY, lEM, lEY); else preset(lEM, lEY, lSM, lSY);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: '#94a3b8' }}>
+          <rect x="0.6" y="1.6" width="10.8" height="9.8" rx="1.2" stroke="currentColor" strokeWidth="1.1"/>
+          <path d="M0.6 4.8h10.8M3.6 0.6v2M8.4 0.6v2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+        </svg>
+        {display}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ color: '#94a3b8' }}>
+          <path d="M2 3.8l3 2.8 3-2.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl z-[1000] w-[272px] p-3">
+          <div className="grid grid-cols-2 gap-1.5 mb-3">
+            {presets.map(p => (
+              <button key={p.label} onClick={p.action}
+                className="px-2 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700 transition-colors">
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-slate-100 pt-2.5">
+            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Произвольный период</div>
+            <div className="flex items-center gap-1.5">
+              <select value={lSM} onChange={e => setLSM(+e.target.value)} className="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-xs bg-white">
+                {MONTH_NAMES.map((m, i) => <option key={i} value={i}>{m}</option>)}
+              </select>
+              <select value={lSY} onChange={e => setLSY(+e.target.value)} className="w-[68px] px-2 py-1 border border-slate-200 rounded-lg text-xs bg-white">
+                {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center justify-center text-xs text-slate-400 my-1.5">—</div>
+            <div className="flex items-center gap-1.5">
+              <select value={lEM} onChange={e => setLEM(+e.target.value)} className="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-xs bg-white">
+                {MONTH_NAMES.map((m, i) => <option key={i} value={i}>{m}</option>)}
+              </select>
+              <select value={lEY} onChange={e => setLEY(+e.target.value)} className="w-[68px] px-2 py-1 border border-slate-200 rounded-lg text-xs bg-white">
+                {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+            <button onClick={applyCustom}
+              className="w-full mt-2.5 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition-colors">
+              Применить
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface StudioMultiSelectProps {
+  studios: ReturnType<typeof useFinance>['studios'];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}
+const StudioMultiSelect: React.FC<StudioMultiSelectProps> = ({ studios, selected, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id]);
+
+  const cnt = selected.length;
+  const label = cnt === 0 ? 'Все студии' : cnt === 1
+    ? (studios.find(s => String(s.id) === selected[0])?.name ?? `1 студия`)
+    : `${cnt} студи${cnt < 5 ? 'и' : 'й'}`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 bg-white border rounded-lg text-xs font-medium transition-colors shadow-sm ${cnt > 0 ? 'border-teal-400 text-teal-700 bg-teal-50' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+        {label}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ color: 'currentColor', opacity: 0.6 }}>
+          <path d="M2 3.8l3 2.8 3-2.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl z-[1000] w-56 py-1.5 max-h-72 overflow-y-auto">
+          <label className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
+            <input type="checkbox" checked={cnt === 0} onChange={() => onChange([])}
+              className="w-3.5 h-3.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500 accent-teal-600" />
+            <span className="text-xs text-slate-600 font-medium">Все студии</span>
+          </label>
+          <div className="border-t border-slate-100 my-1" />
+          {studios.map(s => (
+            <label key={s.id} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
+              <input type="checkbox" checked={selected.includes(String(s.id))} onChange={() => toggle(String(s.id))}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500 accent-teal-600" />
+              <span className="text-xs text-slate-500">{s.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const ReportsPage: React.FC = () => {
   const { transactions, categories, studios, accounts } = useFinance();
   const [activeTab, setActiveTab] = useState<ReportTab>('pnl');
 
   const now = getMoscowNow();
-  const [startMonth, setStartMonth] = useState(0);
+  const [startMonth, setStartMonth] = useState(now.getMonth());
   const [startYear, setStartYear] = useState(now.getFullYear());
   const [endMonth, setEndMonth] = useState(now.getMonth());
   const [endYear, setEndYear] = useState(now.getFullYear());
   const [filterAccountId, setFilterAccountId] = useState('');
-  const [filterStudioId, setFilterStudioId] = useState('');
+  const [filterStudioIds, setFilterStudioIds] = useState<string[]>([]);
 
   const filteredTx = useMemo(() => {
     const start = new Date(startYear, startMonth, 1);
@@ -44,16 +205,16 @@ export const ReportsPage: React.FC = () => {
       const d = new Date(effectiveDate);
       if (d < start || d > end) return false;
       if (filterAccountId && String(t.accountId) !== filterAccountId) return false;
-      if (filterStudioId) {
+      if (filterStudioIds.length > 0) {
         if (t.studioDistribution?.length) {
-          if (!t.studioDistribution.some(d => String(d.studioId) === filterStudioId)) return false;
+          if (!t.studioDistribution.some(sd => filterStudioIds.includes(String(sd.studioId)))) return false;
         } else {
-          if (String(t.studioId) !== filterStudioId) return false;
+          if (!filterStudioIds.includes(String(t.studioId))) return false;
         }
       }
       return true;
     });
-  }, [transactions, startMonth, startYear, endMonth, endYear, filterAccountId, filterStudioId]);
+  }, [transactions, startMonth, startYear, endMonth, endYear, filterAccountId, filterStudioIds]);
 
   const months = useMemo(() => {
     const result: { month: number; year: number; label: string }[] = [];
@@ -99,28 +260,14 @@ export const ReportsPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 text-xs text-slate-500">
-            <select value={startMonth} onChange={e => setStartMonth(+e.target.value)} className="px-2 py-1 border border-slate-200 rounded text-xs bg-white">
-              {MONTH_NAMES.map((m, i) => <option key={i} value={i}>{m}</option>)}
-            </select>
-            <select value={startYear} onChange={e => setStartYear(+e.target.value)} className="px-2 py-1 border border-slate-200 rounded text-xs bg-white">
-              {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <span className="text-slate-400 mx-1">&mdash;</span>
-            <select value={endMonth} onChange={e => setEndMonth(+e.target.value)} className="px-2 py-1 border border-slate-200 rounded text-xs bg-white">
-              {MONTH_NAMES.map((m, i) => <option key={i} value={i}>{m}</option>)}
-            </select>
-            <select value={endYear} onChange={e => setEndYear(+e.target.value)} className="px-2 py-1 border border-slate-200 rounded text-xs bg-white">
-              {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-
-          <select value={filterStudioId} onChange={e => setFilterStudioId(e.target.value)} className="px-2 py-1 border border-slate-200 rounded text-xs bg-white">
-            <option value="">Все студии</option>
-            {studios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-
-          <select value={filterAccountId} onChange={e => setFilterAccountId(e.target.value)} className="px-2 py-1 border border-slate-200 rounded text-xs bg-white">
+          <PeriodPicker
+            startMonth={startMonth} startYear={startYear}
+            endMonth={endMonth} endYear={endYear}
+            onChange={(sm, sy, em, ey) => { setStartMonth(sm); setStartYear(sy); setEndMonth(em); setEndYear(ey); }}
+            yearOptions={yearOptions}
+          />
+          <StudioMultiSelect studios={studios} selected={filterStudioIds} onChange={setFilterStudioIds} />
+          <select value={filterAccountId} onChange={e => setFilterAccountId(e.target.value)} className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-700 font-medium hover:bg-slate-50 transition-colors">
             <option value="">Все счета</option>
             {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
@@ -373,6 +520,22 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
     return children.flatMap(c => [c.id, ...getAllDescendantIds(c.id)]);
   };
 
+  const totalIncome = getTypeTotal('income');
+
+  // Income per studio — base for per-studio % calculation
+  const studioIncome = useMemo(() => {
+    const m: Record<string, number> = {};
+    activeStudios.forEach(s => { m[s.id] = getTypeTotal('income', s.id); });
+    return m;
+  }, [activeStudios, tx]);
+
+  const pctOf = (val: number, base: number, bold = false) => {
+    if (!base || !val) return <span className="text-slate-300 text-[10px]">—</span>;
+    const p = (val / base) * 100;
+    const cls = `text-[10px] tabular-nums ${p < 0 ? 'text-rose-400' : 'text-slate-400'} ${bold ? 'font-semibold' : ''}`;
+    return <span className={cls}>{p.toFixed(1)}%</span>;
+  };
+
   const renderCategoryRow = (cat: typeof categories[0], depth: number = 0): React.ReactNode => {
     const children = categories.filter(c => c.parentId === cat.id);
     const hasChildren = children.length > 0;
@@ -380,6 +543,7 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
     const isExpanded = expandedSections.has(cat.id);
     const pl = 32 + depth * 20;
     const isRoot = depth === 0;
+    const rowTotal = getAmount(ids);
 
     return (
       <React.Fragment key={cat.id}>
@@ -396,9 +560,19 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
           </td>
           {activeStudios.map(s => {
             const val = getAmount(ids, s.id);
-            return <td key={s.id} className={`py-1.5 px-2 text-right tabular-nums ${isRoot ? 'text-xs text-slate-600' : 'text-[11px] text-slate-400'}`}>{val > 0 ? fmtNum(val) : '\u2014'}</td>;
+            return (
+              <React.Fragment key={s.id}>
+                <td className={`py-1.5 px-2 text-right tabular-nums ${isRoot ? 'text-xs text-slate-600' : 'text-[11px] text-slate-400'}`}>
+                  {val > 0 ? fmtNum(val) : '\u2014'}
+                </td>
+                <td className="py-1.5 px-2 text-right bg-slate-50/60">
+                  {pctOf(val, studioIncome[s.id])}
+                </td>
+              </React.Fragment>
+            );
           })}
-          <td className={`py-1.5 px-3 text-right tabular-nums ${isRoot ? 'text-xs font-medium text-slate-700' : 'text-[11px] text-slate-500'}`}>{getAmount(ids) > 0 ? fmtNum(getAmount(ids)) : '\u2014'}</td>
+          <td className={`py-1.5 px-3 text-right tabular-nums ${isRoot ? 'text-xs font-medium text-slate-700' : 'text-[11px] text-slate-500'}`}>{rowTotal > 0 ? fmtNum(rowTotal) : '\u2014'}</td>
+          <td className="py-1.5 px-2 text-right bg-slate-50/60">{pctOf(rowTotal, totalIncome)}</td>
         </tr>
         {hasChildren && isExpanded && children.map(child => renderCategoryRow(child, depth + 1))}
       </React.Fragment>
@@ -425,20 +599,34 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
               <th className="py-2 px-3 text-left text-[11px] font-semibold text-slate-500 uppercase sticky left-0 bg-slate-50 min-w-[220px]">Статьи учета</th>
-              {activeStudios.map(s => <th key={s.id} className="py-2 px-2 text-right text-[11px] font-semibold text-slate-500 uppercase min-w-[110px]">{s.name}</th>)}
-              <th className="py-2 px-3 text-right text-[11px] font-semibold text-slate-500 uppercase min-w-[110px]">Итого</th>
+              {activeStudios.map(s => (
+                <React.Fragment key={s.id}>
+                  <th className="py-2 px-2 text-right text-[11px] font-semibold text-slate-500 uppercase min-w-[100px]">{s.name}</th>
+                  <th className="py-2 px-2 text-right text-[10px] font-semibold text-slate-400 uppercase min-w-[52px] bg-slate-50/80">% выр.</th>
+                </React.Fragment>
+              ))}
+              <th className="py-2 px-3 text-right text-[11px] font-semibold text-slate-500 uppercase min-w-[100px]">Итого</th>
+              <th className="py-2 px-2 text-right text-[10px] font-semibold text-slate-400 uppercase min-w-[52px] bg-slate-50/80">% выр.</th>
             </tr>
           </thead>
           <tbody>
+            {/* Операционный поток */}
             <tr className="border-b border-slate-200">
               <td className="py-2 px-3 text-xs font-bold text-slate-800 sticky left-0 bg-white">Операционный поток</td>
               {activeStudios.map(s => {
                 const val = opFlowTotal(s.id);
-                return <td key={s.id} className={`py-2 px-2 text-xs text-right font-bold tabular-nums ${val < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{fmtNum(val)}</td>;
+                return (
+                  <React.Fragment key={s.id}>
+                    <td className={`py-2 px-2 text-xs text-right font-bold tabular-nums ${val < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{fmtNum(val)}</td>
+                    <td className="py-2 px-2 text-right bg-slate-50/60">{pctOf(val, studioIncome[s.id], true)}</td>
+                  </React.Fragment>
+                );
               })}
               <td className={`py-2 px-3 text-xs text-right font-bold tabular-nums ${opFlowTotal() < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{fmtNum(opFlowTotal())}</td>
+              <td className="py-2 px-2 text-right bg-slate-50/60">{pctOf(opFlowTotal(), totalIncome, true)}</td>
             </tr>
 
+            {/* Поступления */}
             <tr className="border-b border-slate-200">
               <td className="py-1.5 px-3 text-xs font-semibold text-slate-700 sticky left-0 bg-white pl-4 cursor-pointer" onClick={() => toggleSection('income')}>
                 <div className="flex items-center gap-1">
@@ -448,13 +636,20 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
               </td>
               {activeStudios.map(s => {
                 const val = getTypeTotal('income', s.id);
-                return <td key={s.id} className="py-1.5 px-2 text-xs text-right font-semibold tabular-nums text-slate-700">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
+                return (
+                  <React.Fragment key={s.id}>
+                    <td className="py-1.5 px-2 text-xs text-right font-semibold tabular-nums text-slate-700">{val > 0 ? fmtNum(val) : '\u2014'}</td>
+                    <td className="py-1.5 px-2 text-right text-[10px] font-semibold text-slate-400 bg-slate-50/60">100%</td>
+                  </React.Fragment>
+                );
               })}
               <td className="py-1.5 px-3 text-xs text-right font-semibold tabular-nums text-slate-700">{fmtNum(getTypeTotal('income'))}</td>
+              <td className="py-1.5 px-2 text-right text-[10px] font-semibold text-slate-400 bg-slate-50/60">100%</td>
             </tr>
 
             {expandedSections.has('income') && renderCategoryRows(incomeCategories)}
 
+            {/* Выплаты */}
             <tr className="border-b border-slate-200">
               <td className="py-1.5 px-3 text-xs font-semibold text-slate-700 sticky left-0 bg-white pl-4 cursor-pointer" onClick={() => toggleSection('expense')}>
                 <div className="flex items-center gap-1">
@@ -464,9 +659,15 @@ const DDSReport: React.FC<DDSProps> = ({ tx, categories, studios }) => {
               </td>
               {activeStudios.map(s => {
                 const val = getTypeTotal('expense', s.id);
-                return <td key={s.id} className="py-1.5 px-2 text-xs text-right font-semibold tabular-nums text-slate-700">{val > 0 ? fmtNum(val) : '\u2014'}</td>;
+                return (
+                  <React.Fragment key={s.id}>
+                    <td className="py-1.5 px-2 text-xs text-right font-semibold tabular-nums text-slate-700">{val > 0 ? fmtNum(val) : '\u2014'}</td>
+                    <td className="py-1.5 px-2 text-right bg-slate-50/60">{pctOf(val, studioIncome[s.id], true)}</td>
+                  </React.Fragment>
+                );
               })}
               <td className="py-1.5 px-3 text-xs text-right font-semibold tabular-nums text-slate-700">{fmtNum(getTypeTotal('expense'))}</td>
+              <td className="py-1.5 px-2 text-right bg-slate-50/60">{pctOf(getTypeTotal('expense'), totalIncome, true)}</td>
             </tr>
 
             {expandedSections.has('expense') && renderCategoryRows(expenseCategories)}

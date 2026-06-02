@@ -4,7 +4,7 @@
 A finance management application (Russian language UI) built with React + Vite frontend and Express.js backend with PostgreSQL database.
 
 ## User Preferences
-- **CRITICAL — Database**: The database connection in `server/db.cjs` is HARDCODED to `postgresql://postgres:cd5d56a8@213.226.124.2:5432/planfact_vivi` and must NEVER be changed, wrapped in env vars, or touched in any way. This is the production external PostgreSQL database. Do not modify this file's connection string under any circumstances.
+- **CRITICAL — Database**: ALWAYS use the owner's external PostgreSQL database. The connection string in `server/db.cjs` is hardcoded intentionally: `postgresql://postgres:cd5d56a8@213.226.124.2:5432/planfact_vivi`. NEVER change it, move it to env vars, replace it with Replit PostgreSQL, or touch `server/db.cjs` connection config in any way. This rule applies forever, across all future sessions and tasks. Do not use Replit's built-in DATABASE_URL or any other database.
 - **No Projects**: The "projects" entity has been removed. Only "studios" are used for grouping.
 - **Language**: All activity logs and UI must be in Russian.
 
