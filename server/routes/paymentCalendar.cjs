@@ -64,6 +64,9 @@ router.get('/payment-calendar', async (req, res) => {
       [startDate, nextMonthDate]
     );
 
+    // Include direct expense transactions AND PR-linked ones where the PR has no payment_date
+    // (null payment_date PRs are excluded from prRes but their transactions still affect expenseAll,
+    //  so they must also appear in the category grid to avoid "invisible" forecast discrepancies)
     const directExpenseRes = await db.query(
       `SELECT
         t.id, t.amount, t.date, t.accrual_date, t.description, t.confirmed, t.status,
@@ -74,7 +77,18 @@ router.get('/payment-calendar', async (req, res) => {
        LEFT JOIN categories c ON t.category_id = c.id
        LEFT JOIN contractors co ON t.contractor_id = co.id
        WHERE t.type = 'expense'
-         AND (t.external_id IS NULL OR t.external_id NOT LIKE 'pr-%')
+         AND (
+           t.external_id IS NULL
+           OR t.external_id NOT LIKE 'pr-%'
+           OR (
+             t.external_id LIKE 'pr-%'
+             AND NOT EXISTS (
+               SELECT 1 FROM payment_requests pr2
+               WHERE pr2.id::text = SUBSTRING(t.external_id FROM 4)
+                 AND pr2.payment_date IS NOT NULL
+             )
+           )
+         )
          AND t.date >= $1 AND t.date < $2
        ORDER BY t.category_id, t.date, t.id`,
       [startDate, nextMonthDate]

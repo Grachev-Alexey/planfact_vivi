@@ -88,7 +88,7 @@ router.get('/admin-stats', async (req, res) => {
        FROM master_incomes mi
        JOIN users u ON mi.user_id = u.id
        JOIN studios s ON mi.studio_id = s.id
-       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type NOT IN ('visit_only', 'no_procedure')
        GROUP BY mi.user_id, u.username, mi.studio_id, s.name
        ORDER BY s.name, u.username`,
       [startDate, endDate]
@@ -102,7 +102,7 @@ router.get('/admin-stats', async (req, res) => {
         COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'regular' AND mi.client_phone != '') as regular_count_all,
         COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != ''
           AND NOT (
-            mi.payment_type != 'visit_only'
+            mi.payment_type NOT IN ('visit_only', 'no_procedure')
             AND mi.yclients_data IS NOT NULL
             AND jsonb_typeof(mi.yclients_data->'services') = 'array'
             AND jsonb_array_length(mi.yclients_data->'services') > 0
@@ -132,7 +132,7 @@ router.get('/admin-stats', async (req, res) => {
       `SELECT mi.user_id,
         COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) as total_visits,
         COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text))
-          FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits,
+          FILTER (WHERE mi.payment_type IN ('visit_only', 'no_procedure')) as zero_visits,
         COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text))
           FILTER (WHERE
             mi.yclients_data IS NOT NULL
@@ -163,7 +163,7 @@ router.get('/admin-stats', async (req, res) => {
            jsonb_array_length(mi.yclients_data->'goods') as goods_count
          FROM master_incomes mi
          WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2
-           AND mi.payment_type != 'visit_only'
+           AND mi.payment_type NOT IN ('visit_only', 'no_procedure')
            AND mi.category_id = ANY($3)
            AND mi.yclients_data IS NOT NULL
            AND mi.yclients_data ? 'goods'
@@ -178,7 +178,7 @@ router.get('/admin-stats', async (req, res) => {
     const dailyRes = await db.query(
       `SELECT mi.studio_id, DATE(mi.created_at) as date, SUM(mi.amount) as amount
        FROM master_incomes mi
-       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type NOT IN ('visit_only', 'no_procedure')
        GROUP BY mi.studio_id, DATE(mi.created_at)
        ORDER BY mi.studio_id, date`,
       [startDate, endDate]
@@ -188,7 +188,7 @@ router.get('/admin-stats', async (req, res) => {
     const masterDailyRes = await db.query(
       `SELECT mi.user_id, DATE(mi.created_at) as date, SUM(mi.amount) as amount
        FROM master_incomes mi
-       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type NOT IN ('visit_only', 'no_procedure')
        GROUP BY mi.user_id, DATE(mi.created_at)
        ORDER BY mi.user_id, date`,
       [startDate, endDate]
@@ -198,7 +198,7 @@ router.get('/admin-stats', async (req, res) => {
     const masterPaymentRes = await db.query(
       `SELECT mi.user_id, mi.payment_type, SUM(mi.amount) as amount, COUNT(*) as count
        FROM master_incomes mi
-       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type NOT IN ('visit_only', 'no_procedure')
        GROUP BY mi.user_id, mi.payment_type
        ORDER BY mi.user_id, amount DESC`,
       [startDate, endDate]
@@ -209,7 +209,7 @@ router.get('/admin-stats', async (req, res) => {
       `SELECT mi.user_id, mi.category_id, c.name as category_name, SUM(mi.amount) as amount, COUNT(*) as count
        FROM master_incomes mi
        LEFT JOIN categories c ON mi.category_id = c.id
-       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type NOT IN ('visit_only', 'no_procedure')
        GROUP BY mi.user_id, mi.category_id, c.name
        ORDER BY mi.user_id, amount DESC`,
       [startDate, endDate]
@@ -219,7 +219,7 @@ router.get('/admin-stats', async (req, res) => {
     const shiftsRes = await db.query(
       `SELECT mi.user_id, COUNT(DISTINCT DATE(mi.created_at)) as total_shifts
        FROM master_incomes mi
-       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type != 'visit_only'
+       WHERE DATE(mi.created_at) >= $1 AND DATE(mi.created_at) <= $2 AND mi.payment_type NOT IN ('visit_only', 'no_procedure')
        GROUP BY mi.user_id`,
       [startDate, endDate]
     );
@@ -376,7 +376,7 @@ router.get('/master-incomes/stats', async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
-    const baseWhere = 'WHERE mi.user_id = $1 AND DATE(mi.created_at) >= $2 AND DATE(mi.created_at) <= $3 AND mi.payment_type != \'visit_only\'';
+    const baseWhere = 'WHERE mi.user_id = $1 AND DATE(mi.created_at) >= $2 AND DATE(mi.created_at) <= $3 AND mi.payment_type NOT IN (\'visit_only\', \'no_procedure\')';
     const params = [master.id, startDate, endDate];
 
     const allVisitsWhere = 'WHERE mi.user_id = $1 AND DATE(mi.created_at) >= $2 AND DATE(mi.created_at) <= $3';
@@ -400,7 +400,7 @@ router.get('/master-incomes/stats', async (req, res) => {
         COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_type = 'regular' AND mi.client_phone != '') as regular_count_all,
         COUNT(DISTINCT mi.client_phone) FILTER (WHERE mi.client_phone != ''
           AND NOT (
-            mi.payment_type != 'visit_only'
+            mi.payment_type NOT IN ('visit_only', 'no_procedure')
             AND mi.yclients_data IS NOT NULL
             AND jsonb_typeof(mi.yclients_data->'services') = 'array'
             AND jsonb_array_length(mi.yclients_data->'services') > 0
@@ -417,7 +417,7 @@ router.get('/master-incomes/stats', async (req, res) => {
     const visitCountRes = await db.query(
       `SELECT 
         COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) as total_visits,
-        COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) FILTER (WHERE mi.payment_type = 'visit_only') as zero_visits,
+        COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text)) FILTER (WHERE mi.payment_type IN ('visit_only', 'no_procedure')) as zero_visits,
         COUNT(DISTINCT COALESCE(mi.yclients_data->'recordIds'->>0, mi.yclients_data->>'visitId', mi.id::text))
           FILTER (WHERE
             mi.yclients_data IS NOT NULL
@@ -605,7 +605,7 @@ router.get('/master-incomes/stats', async (req, res) => {
           mi.client_type
         FROM master_incomes mi
         WHERE mi.user_id = $1 AND DATE(mi.created_at) >= $2 AND DATE(mi.created_at) <= $3
-          AND mi.payment_type != 'visit_only'
+          AND mi.payment_type NOT IN ('visit_only', 'no_procedure')
           AND mi.category_id = ANY($4)
           AND mi.yclients_data IS NOT NULL
           AND mi.yclients_data ? 'goods'
@@ -721,7 +721,7 @@ router.post('/master-incomes', async (req, res) => {
   const { amount, paymentType, categoryId, clientName, clientType, description, yclientsData, visitOnly, forDate } = req.body;
   const clientPhone = normalizePhone(req.body.clientPhone);
 
-  const isVisitOnly = visitOnly === true && parseFloat(amount) === 0;
+  const isVisitOnly = (visitOnly === true && parseFloat(amount) === 0) || paymentType === 'no_procedure';
 
   if (!isVisitOnly) {
     if (!amount || !paymentType) {
@@ -790,7 +790,7 @@ router.post('/master-incomes', async (req, res) => {
 
   try {
     const ycDataVal = yclientsData ? JSON.stringify(yclientsData) : null;
-    const effectivePaymentType = isVisitOnly ? 'visit_only' : paymentType;
+    const effectivePaymentType = paymentType === 'no_procedure' ? 'no_procedure' : isVisitOnly ? 'visit_only' : paymentType;
     const isBackdate = effectiveDate !== getMoscowToday();
     const createdAtClause = isBackdate ? `'${effectiveDate} 23:59:00+03'::timestamptz` : 'NOW()';
     const result = await db.query(
@@ -986,7 +986,7 @@ router.get('/master-incomes/today-totals', async (req, res) => {
        FROM master_incomes
        WHERE user_id = $1
          AND DATE(created_at) = $2
-         AND payment_type != 'visit_only'
+         AND payment_type NOT IN ('visit_only', 'no_procedure')
        GROUP BY payment_type
        ORDER BY amount DESC`,
       [master.id, today]
@@ -1082,7 +1082,7 @@ router.post('/master-incomes/close-shift', async (req, res) => {
     const computedRes = await db.query(
       `SELECT payment_type, COALESCE(SUM(amount), 0) as amount, COUNT(*) as count
        FROM master_incomes
-       WHERE user_id = $1 AND DATE(created_at) = $2 AND payment_type != 'visit_only'
+       WHERE user_id = $1 AND DATE(created_at) = $2 AND payment_type NOT IN ('visit_only', 'no_procedure')
        GROUP BY payment_type`,
       [master.id, today]
     );
@@ -1094,10 +1094,10 @@ router.post('/master-incomes/close-shift', async (req, res) => {
       computedDetailed[r.payment_type] = { amount: amt, count: parseInt(r.count, 10) || 0 };
     }
 
-    // Visit-only count
+    // Visit-only count (includes no_procedure)
     const visitOnlyRes = await db.query(
       `SELECT COUNT(*) as c FROM master_incomes
-       WHERE user_id = $1 AND DATE(created_at) = $2 AND payment_type = 'visit_only'`,
+       WHERE user_id = $1 AND DATE(created_at) = $2 AND payment_type IN ('visit_only', 'no_procedure')`,
       [master.id, today]
     );
     const visitOnlyCount = parseInt(visitOnlyRes.rows[0]?.c, 10) || 0;

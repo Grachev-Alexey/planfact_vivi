@@ -202,6 +202,7 @@ const PAYMENT_TYPES = [
   { id: 'ukassa', label: 'Ю-Касса' },
   { id: 'installment', label: 'Рассрочка' },
   { id: 'visit_only', label: 'Абонемент' },
+  { id: 'no_procedure', label: 'Без процедуры' },
 ];
 
 const CLIENT_TYPES = [
@@ -726,6 +727,7 @@ export const MasterIncomePage: React.FC = () => {
     setYcRecordData(null);
     setYcComment('');
     setYcFieldValues({});
+    setProcedureDone(null);
     setStep('entries');
     if (ycFormSettings && (ycFormSettings.commentEnabled || (ycFormSettings.fields ?? []).some(f => f.enabled))) {
       fetchYcRecordData(visit.recordIds[0], visit.clientId);
@@ -749,6 +751,7 @@ export const MasterIncomePage: React.FC = () => {
     setClientPhone('');
     setClientFirstName('');
     setClientLastName('');
+    setProcedureDone(null);
     setStep('entries');
   };
 
@@ -761,6 +764,7 @@ export const MasterIncomePage: React.FC = () => {
     setSubmitResults([]);
     setGlobalError(null);
     setEntries([newEntry()]);
+    setProcedureDone(null);
     fetchSchedule();
   };
 
@@ -772,6 +776,40 @@ export const MasterIncomePage: React.FC = () => {
 
   const clientFullName = [clientLastName.trim(), clientFirstName.trim()].filter(Boolean).join(' ');
   const isZeroAmountVisit = selectedVisit && selectedVisit.totalAmount === 0;
+  const [procedureDone, setProcedureDone] = useState<boolean | null>(null);
+  const [showProcedureModal, setShowProcedureModal] = useState(false);
+
+  const handleMarkNoProcedure = async () => {
+    setGlobalError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/master-incomes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': String(user?.id || '') },
+        body: JSON.stringify({
+          amount: 0,
+          paymentType: 'no_procedure',
+          clientName: clientFullName || clientFirstName.trim(),
+          clientPhone,
+          clientType,
+          description: 'Визит без процедуры',
+          visitOnly: true,
+        }),
+      });
+      if (res.ok) {
+        setSubmitResults([{ success: true, msg: 'Визит отмечен' }]);
+      } else {
+        const data = await res.json().catch(() => null);
+        setSubmitResults([{ success: false, msg: data?.error || 'Ошибка' }]);
+      }
+    } catch {
+      setSubmitResults([{ success: false, msg: 'Ошибка сети' }]);
+    }
+    setSubmitting(false);
+    setDone(true);
+    setHistoryPage(1);
+    fetchIncomes(); fetchCashOnHand();
+  };
 
   const handleMarkVisitOnly = async () => {
     setGlobalError(null);
@@ -981,6 +1019,7 @@ export const MasterIncomePage: React.FC = () => {
     setYcRecordData(null);
     setYcComment('');
     setYcFieldValues({});
+    setProcedureDone(null);
     setForDate(todayDateStr);
     fetchSchedule(todayDateStr);
   };
@@ -1712,7 +1751,7 @@ export const MasterIncomePage: React.FC = () => {
                     </div>
                   </div>
                   <button
-                    onClick={handleMarkVisitOnly}
+                    onClick={() => setShowProcedureModal(true)}
                     disabled={submitting}
                     className="w-full py-3.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20"
                   >
@@ -1975,6 +2014,63 @@ export const MasterIncomePage: React.FC = () => {
           })()}
         </div>
       </div>
+
+      {showProcedureModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setShowProcedureModal(false)}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-6 pt-7 pb-2 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-teal-50 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 size={26} className="text-teal-500" />
+              </div>
+              <div className="text-lg font-bold text-slate-800">Была ли оказана процедура?</div>
+              <div className="text-sm text-slate-500 mt-1.5">Выберите вариант для корректной записи</div>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <button
+                onClick={async () => { setShowProcedureModal(false); await handleMarkVisitOnly(); }}
+                disabled={submitting}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-teal-100 bg-teal-50 hover:border-teal-400 hover:bg-teal-100 transition-all text-left group disabled:opacity-50"
+              >
+                <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center shrink-0 shadow-sm shadow-teal-500/30">
+                  <CheckCircle2 size={20} className="text-white" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-teal-800">Да, процедура оказана</div>
+                  <div className="text-xs text-teal-600 mt-0.5">Клиент пришёл по абонементу</div>
+                </div>
+              </button>
+
+              <button
+                onClick={async () => { setShowProcedureModal(false); await handleMarkNoProcedure(); }}
+                disabled={submitting}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 hover:border-slate-300 hover:bg-slate-100 transition-all text-left group disabled:opacity-50"
+              >
+                <div className="w-10 h-10 rounded-xl bg-slate-400 flex items-center justify-center shrink-0 shadow-sm shadow-slate-400/30">
+                  <User size={20} className="text-white" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-slate-700">Нет, процедура не оказана</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Клиент пришёл, но процедура не выполнена</div>
+                </div>
+              </button>
+            </div>
+
+            <div className="px-5 pb-6">
+              <button
+                onClick={() => setShowProcedureModal(false)}
+                className="w-full py-3 text-sm text-slate-400 hover:text-slate-600 transition-colors font-medium"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
